@@ -74,4 +74,39 @@ describe('createBlossomUploadClient', () => {
       message: 'Upload aborted',
     });
   });
+
+  it('supports partial multi-server failure when at least one server succeeds', async () => {
+    const client = createBlossomUploadClient({
+      servers: ['https://blossom-a.example', 'https://blossom-b.example'],
+      signer: {},
+      uploaderFactory: (options) => ({
+        upload: async () => {
+          const attempts = await Promise.allSettled(
+            options.servers.map(async (server) => {
+              if (server.includes('blossom-a')) {
+                throw new Error('server unavailable');
+              }
+
+              return ['url', `${server}/abc123.png`] as [string, string];
+            }),
+          );
+
+          const success = attempts.find(
+            (attempt): attempt is PromiseFulfilledResult<[string, string]> => attempt.status === 'fulfilled',
+          );
+
+          if (!success) {
+            throw new Error('all servers failed');
+          }
+
+          return [success.value, ['m', 'image/png']];
+        },
+      }),
+    });
+
+    const result = await client.upload(new File(['a'], 'a.png', { type: 'image/png' }));
+
+    expect(result.url).toBe('https://blossom-b.example/abc123.png');
+    expect(result.tags).toContainEqual(['m', 'image/png']);
+  });
 });

@@ -23,6 +23,7 @@ The format is based on Keep a Changelog.
 ### Fixed
 
 - Paketversion und Typauflösungen korrigiert, sodass `typecheck` ohne Fehler läuft.
+- Fehlendes Root-Script `check` ergänzt (`pnpm run check` funktioniert wieder).
 
 ### Docs
 
@@ -36,6 +37,7 @@ The format is based on Keep a Changelog.
 - P0-Action-Test für URL-Input-Integration (`useBlossomInput`) ergänzt.
 - Integrationstest für Demo-Flow Upload → Publish mit NIP-94 `url` Tag ergänzt.
 - P0-Tests für Timeout- und Abort-Verhalten im Upload-Kern ergänzt.
+- P0-Test für partiellen Multi-Server-Ausfall mit erfolgreichem Fallback ergänzt.
 
 ### Security
 
