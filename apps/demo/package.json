@@ -5,10 +5,14 @@
   "type": "module",
   "scripts": {
     "prepare": "svelte-kit sync",
+    "predev": "pnpm --filter @blossom/plugin build",
     "dev": "vite dev",
+    "prebuild": "pnpm --filter @blossom/plugin build",
     "build": "vite build",
     "preview": "node build",
+    "pretypecheck": "pnpm --filter @blossom/plugin build",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "pretest": "pnpm --filter @blossom/plugin build",
     "test": "vitest run"
   },
   "dependencies": {

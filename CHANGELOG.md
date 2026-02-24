@@ -25,7 +25,8 @@ The format is based on Keep a Changelog.
 ### Changed
 
 - Demo-Uploadflow auf `createBlossomBridge` als primäre Integrations-API umgestellt.
-- Publish-Scope des Plugin-Pakets bereinigt: Testdateien werden über `.npmignore` nicht mehr mit veröffentlicht.
+- Publish-Scope des Plugin-Pakets bereinigt: Nur `dist/` wird veröffentlicht, Testdateien bleiben außerhalb des Tarballs.
+- `@blossom/plugin` Package-Entrypoints/Exports auf `dist/*` umgestellt (statt `src/*`) für saubere Consumer-Resolution.
 - TypeScript/SvelteKit Tooling auf lauffähigen Monorepo-Stand gebracht.
 - Upload-Client um optionale `timeoutMs` und `AbortSignal`-Unterstützung erweitert.
 - Demo-App von `@sveltejs/adapter-auto` auf festen Node-Adapter (`@sveltejs/adapter-node`) umgestellt.
