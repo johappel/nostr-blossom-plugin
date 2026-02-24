@@ -353,13 +353,12 @@
   </section>
 
   {#if metadataDialogOpen}
-    <div class="dialog-backdrop" role="presentation" onclick={cancelMetadataDialog}>
-      <section
+    <div class="dialog-backdrop" role="presentation">
+      <div
         class="dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="metadata-dialog-title"
-        onclick={(event) => event.stopPropagation()}
       >
         <h2 id="metadata-dialog-title">Bild-Metadaten</h2>
         <p>Datei: {metadataDialogFileName}</p>
@@ -399,7 +398,7 @@
             <button type="submit">Metadaten speichern</button>
           </div>
         </form>
-      </section>
+      </div>
     </div>
   {/if}
 </main>

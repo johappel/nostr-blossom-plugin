@@ -27,6 +27,7 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- Metadaten-Erfassung in der Demo von Browser-Prompts auf einen In-Page-Dialog mit Pflichtfeld-Validierung umgestellt.
 - Publish-Helper in der Demo unterstützt nun variable Event-Kinds statt festem kind `1`.
 - Blossom-Tag-Normalisierung bewahrt zusätzliche Tag-Segmente (mehr als 2 Werte) statt sie abzuschneiden.
 - Demo-Uploadflow auf `createBlossomBridge` als primäre Integrations-API umgestellt.
