@@ -14,12 +14,24 @@ describe('signers', () => {
   });
 
   it('connects nip46 signer with bunker url', async () => {
-    const signer = await connectNip46Signer('bunker://my-signer');
+    const signer = await connectNip46Signer('bunker://my-signer?relay=wss%3A%2F%2Frelay.example', {
+      createNdk: async () =>
+        ({
+          connect: async () => undefined,
+        }) as never,
+      createNip46Signer: async () =>
+        ({
+          blockUntilReady: async () => ({ pubkey: 'pubkey-46' }),
+          stop: () => undefined,
+          sign: async () => 'sig-46',
+        }) as never,
+      computeEventId: async () => 'event-id',
+    });
 
     expect(signer.kind).toBe('nip46');
-    await expect(signer.getPublicKey()).resolves.toBe('nip46:bunker://my-signer');
+    await expect(signer.getPublicKey()).resolves.toBe('pubkey-46');
     expect(get(authStore).sessionStatus).toBe('connected');
-    expect(get(authStore).sessionInfo).toContain('bunker://my-signer');
+    expect(get(authStore).sessionInfo).toContain('relay(s)');
   });
 
   it('keeps NIP-07 provider context for signEvent', async () => {
@@ -46,7 +58,19 @@ describe('signers', () => {
   });
 
   it('disconnects signer and updates session status', async () => {
-    const signer = await connectNip46Signer('bunker://my-signer');
+    const signer = await connectNip46Signer('bunker://my-signer', {
+      createNdk: async () =>
+        ({
+          connect: async () => undefined,
+        }) as never,
+      createNip46Signer: async () =>
+        ({
+          blockUntilReady: async () => ({ pubkey: 'pubkey-46' }),
+          stop: () => undefined,
+          sign: async () => 'sig-46',
+        }) as never,
+      computeEventId: async () => 'event-id',
+    });
 
     signer.disconnect?.();
 

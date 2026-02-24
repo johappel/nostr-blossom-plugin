@@ -1,10 +1,13 @@
 export type BlossomTag = [string, string];
 
-export type NostrSignerLike = unknown;
+export interface BlossomSigner {
+  getPublicKey: () => Promise<string>;
+  signEvent: (event: Record<string, unknown>) => Promise<Record<string, unknown>>;
+}
 
 export interface BlossomUploadClientOptions {
   servers: string[];
-  signer: NostrSignerLike;
+  signer: BlossomSigner;
   expiresIn?: number;
   timeoutMs?: number;
 }

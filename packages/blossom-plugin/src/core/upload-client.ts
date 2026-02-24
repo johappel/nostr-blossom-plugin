@@ -1,5 +1,5 @@
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
-import type { BlossomTag, BlossomUploadClientOptions, BlossomUploadResult } from './types';
+import type { BlossomSigner, BlossomTag, BlossomUploadClientOptions, BlossomUploadResult } from './types';
 
 export interface CreateBlossomUploadClientOptions extends BlossomUploadClientOptions {
   uploaderFactory?: (options: BlossomUploadClientOptions) => { upload: (file: File) => Promise<BlossomTag[]> };
@@ -19,12 +19,16 @@ function createTimeoutError(timeoutMs: number) {
 
 export function createBlossomUploadClient(options: CreateBlossomUploadClientOptions) {
   const { uploaderFactory, ...config } = options;
+  const normalizedSigner: BlossomSigner = {
+    getPublicKey: () => config.signer.getPublicKey(),
+    signEvent: (event) => config.signer.signEvent(event),
+  };
 
   const uploader = uploaderFactory
     ? uploaderFactory(config)
     : new BlossomUploader({
         servers: config.servers,
-        signer: config.signer as never,
+        signer: normalizedSigner as never,
         expiresIn: config.expiresIn,
       });
 

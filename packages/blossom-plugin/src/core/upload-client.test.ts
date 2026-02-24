@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { createBlossomUploadClient } from './upload-client';
 
+const testSigner = {
+  getPublicKey: async () => 'pubkey',
+  signEvent: async (event: Record<string, unknown>) => ({ ...event, id: 'id', sig: 'sig', pubkey: 'pubkey' }),
+};
+
 describe('createBlossomUploadClient', () => {
   it('returns upload url from tags', async () => {
     const client = createBlossomUploadClient({
       servers: ['https://example.com'],
-      signer: {},
+      signer: testSigner,
       uploaderFactory: () => ({
         upload: async () => [
           ['url', 'https://example.com/file.png'],
@@ -23,7 +28,7 @@ describe('createBlossomUploadClient', () => {
   it('throws if url tag is missing', async () => {
     const client = createBlossomUploadClient({
       servers: ['https://example.com'],
-      signer: {},
+      signer: testSigner,
       uploaderFactory: () => ({
         upload: async () => [['m', 'image/png']],
       }),
@@ -37,7 +42,7 @@ describe('createBlossomUploadClient', () => {
   it('throws timeout error if upload exceeds timeoutMs', async () => {
     const client = createBlossomUploadClient({
       servers: ['https://example.com'],
-      signer: {},
+      signer: testSigner,
       timeoutMs: 10,
       uploaderFactory: () => ({
         upload: async () =>
@@ -55,7 +60,7 @@ describe('createBlossomUploadClient', () => {
   it('throws abort error when signal is aborted', async () => {
     const client = createBlossomUploadClient({
       servers: ['https://example.com'],
-      signer: {},
+      signer: testSigner,
       uploaderFactory: () => ({
         upload: async () =>
           new Promise((resolve) => {
@@ -78,7 +83,7 @@ describe('createBlossomUploadClient', () => {
   it('supports partial multi-server failure when at least one server succeeds', async () => {
     const client = createBlossomUploadClient({
       servers: ['https://blossom-a.example', 'https://blossom-b.example'],
-      signer: {},
+      signer: testSigner,
       uploaderFactory: (options) => ({
         upload: async () => {
           const attempts = await Promise.allSettled(

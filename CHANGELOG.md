@@ -19,6 +19,7 @@ The format is based on Keep a Changelog.
 - TipTap-Demo-Integration mit Upload-Button und Editor-Preview in der Demo-App ergänzt.
 - Gemeinsame `SignerAdapter`-Schnittstelle für NIP-07/NIP-46 im Demo-Auth-Layer ergänzt.
 - Sichtbarer Session-Status (connecting/connected/error/disconnected) in der Login-Sektion ergänzt.
+- NIP-46 in der Demo auf NDK-basierten Signaturpfad umgestellt (echte Signatur statt Demo-Sig).
 
 ### Changed
 
@@ -26,6 +27,7 @@ The format is based on Keep a Changelog.
 - Upload-Client um optionale `timeoutMs` und `AbortSignal`-Unterstützung erweitert.
 - Demo-App von `@sveltejs/adapter-auto` auf festen Node-Adapter (`@sveltejs/adapter-node`) umgestellt.
 - Signer- und Publish-Flow im Demo auf adapter-basiertes Interface vereinheitlicht.
+- Plugin-Upload-Signer auf explizites `BlossomSigner`-Interface gehärtet (`getPublicKey` + `signEvent`).
 
 ### Fixed
 

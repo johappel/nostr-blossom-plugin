@@ -37,7 +37,7 @@ import { createBlossomUploadClient } from '@blossom/plugin';
 
 const client = createBlossomUploadClient({
   servers: ['https://blossom.primal.net/'],
-  signer,
+  signer, // BlossomSigner: { getPublicKey, signEvent }
 });
 
 const result = await client.upload(file);
@@ -96,8 +96,14 @@ Hinweis: Bei `image/*` wird ein Image-Node eingefügt, sonst ein normaler URL-Te
 - Zweck: Upload zu Blossom-Servern und Rückgabe von normalisierten NIP-94 Tags.
 - API:
   - `servers: string[]`
-  - `signer: unknown` (NIP-07/NIP-46 kompatibel)
+  - `signer: BlossomSigner` (`getPublicKey` + `signEvent`, auth-agnostisch)
   - `expiresIn?: number`
+
+### NIP-46 (Demo)
+
+- Die Demo nutzt NDK für NIP-46-Sessions und Signierung.
+- Das Plugin selbst bleibt auth-unabhängig und erwartet nur das `BlossomSigner`-Interface.
+- Dadurch funktioniert Upload-Signierung gleich für NIP-07 und NIP-46.
 - Rückgabe:
   - `tags: [string, string][]`
   - `url: string`
