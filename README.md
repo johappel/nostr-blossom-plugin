@@ -14,11 +14,19 @@ pnpm install
 pnpm dev
 ```
 
+## Produktion lokal starten
+
+```bash
+pnpm build
+pnpm start
+```
+
 ## Skripte
 
 - `pnpm typecheck`
 - `pnpm test`
 - `pnpm build`
+- `pnpm start`
 
 ## Plugin Usage
 

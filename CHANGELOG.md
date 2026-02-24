@@ -14,6 +14,7 @@ The format is based on Keep a Changelog.
 - Svelte Action `useBlossomInput` für URL-Input-Enhancement hinzugefügt.
 - Demo-App (`apps/demo`) mit NIP-07/NIP-46 Login, Upload-Flow und Event-Publish Scaffold erstellt.
 - Upload-History Store und initiale Testdateien für Plugin und Demo ergänzt.
+- Root-Script `start` ergänzt, um die Demo-Produktionsinstanz zentral zu starten.
 
 ### Changed
 

@@ -8,6 +8,7 @@
     "build": "pnpm -r build",
     "check": "pnpm typecheck",
     "dev": "pnpm --filter demo dev",
+    "start": "pnpm --filter demo preview",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   }
