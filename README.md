@@ -18,6 +18,7 @@ pnpm dev
 
 - Kurzleitfaden für die minimale Host-Integration: [docs/simple-integration.md](docs/simple-integration.md)
 - Reduzierte Copy/Paste-Beispiele: [docs/examples/README.md](docs/examples/README.md)
+- Dist-Integrationsleitfaden pro Bereich: [docs/dist/README.md](docs/dist/README.md)
 
 ## Produktion lokal starten
 
@@ -49,6 +50,12 @@ const result = await bridge.selectAndUpload({ accept: 'image/*,application/pdf' 
 if (result) {
   console.log(result.url, result.tags);
 }
+```
+
+Nur Core importieren (ohne Svelte/TipTap APIs):
+
+```ts
+import { createBlossomBridge } from '@blossom/plugin/core';
 ```
 
 Für Host-Inputs ohne Svelte-Action:

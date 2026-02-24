@@ -5,7 +5,7 @@
     uploadAndInsertBlossomMedia,
     useBlossomInput,
   } from '@blossom/plugin';
-  import type { BlossomMediaPayload } from '@blossom/plugin';
+  import type { BlossomMediaPayload, TiptapInsertMediaEditor } from '@blossom/plugin';
   import { Editor } from '@tiptap/core';
   import Image from '@tiptap/extension-image';
   import StarterKit from '@tiptap/starter-kit';
@@ -171,7 +171,10 @@
       return;
     }
 
-    const inserted = await uploadAndInsertBlossomMedia(tiptapEditor, uploadForTiptap);
+    const inserted = await uploadAndInsertBlossomMedia(
+      tiptapEditor as unknown as TiptapInsertMediaEditor,
+      uploadForTiptap,
+    );
     if (!inserted) {
       status = 'TipTap upload canceled';
       return;

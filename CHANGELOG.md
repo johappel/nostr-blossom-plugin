@@ -8,6 +8,7 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- Subpath-Exports für gezielte Imports ergänzt: `@blossom/plugin/core`, `@blossom/plugin/svelte`, `@blossom/plugin/tiptap`.
 - Neue „Dead Simple“-Bridge `createBlossomBridge` (`uploadFile`, `selectAndUpload`, `attachToInput`) für host-agnostische Integration ergänzt.
 - Monorepo-Grundstruktur (`apps/*`, `packages/*`) definiert.
 - Projekt-Governance in `AGENTS.md` eingeführt.
@@ -35,6 +36,9 @@ The format is based on Keep a Changelog.
 
 ### Fixed
 
+- Demo-Importpfad für NIP-46 Runtime korrigiert (`./ndk-runtime`), sodass die Modulauflösung wieder stabil funktioniert.
+- Demo-TSConfig gehärtet (`strict`, `forceConsistentCasingInFileNames`) und aufgedeckte Folgeprobleme bereinigt.
+- Strict-Nullability-Fix im NIP-46 Disconnect-Pfad sowie kompatibler TipTap-Type-Cast im Upload-Callsite ergänzt.
 - Demo-Blossom-Serverliste korrigiert (nur HTTPS-Uploadserver, kein `wss://`-Relay in Upload-Targets).
 - Paketversion und Typauflösungen korrigiert, sodass `typecheck` ohne Fehler läuft.
 - Fehlendes Root-Script `check` ergänzt (`pnpm run check` funktioniert wieder).
@@ -51,6 +55,7 @@ The format is based on Keep a Changelog.
 - Quickstart um Kurzsektion „SignerAdapter in 60 Sekunden“ mit NIP-07/NIP-46 Mini-Beispielen ergänzt.
 - Quickstart um optionales Mini-Beispiel für einen Custom-`nsec`-Signer inkl. Sicherheits-Hinweis ergänzt.
 - Neues `docs/examples/`-Set mit stark reduzierten Client-Beispielen ergänzt (URL-Input, TipTap, Clipboard-Paste→`img`).
+- Neue `docs/dist/`-Dokumentation ergänzt: je Integrationsbereich (`core`, `svelte`, `tiptap`) mit Einsatzkriterien und Minimalbeispiel.
 
 ### Tests
 

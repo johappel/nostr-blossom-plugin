@@ -1,6 +1,6 @@
 import { authStore } from '../stores/auth';
 import { getEventHash } from 'nostr-tools';
-import { createNdkRuntime, createNip46SignerRuntime } from './ndk-runtime.js';
+import { createNdkRuntime, createNip46SignerRuntime } from './ndk-runtime';
 
 export type SignerKind = 'nip07' | 'nip46';
 
@@ -230,7 +230,7 @@ export async function connectNip46Signer(bunkerUrl: string, deps: Nip46Deps = de
       getPublicKey: async () => ndkUser.pubkey,
       signEvent: createSignEventBridge(ndk, ndkUser.pubkey, nip46Signer, deps),
       disconnect() {
-        nip46Signer.stop();
+        nip46Signer?.stop();
         authStore.set({
           method: null,
           pubkey: null,
