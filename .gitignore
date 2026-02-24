@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+*.log
+*.tgz
+*.cache
+*.d.ts
+*.js
+*.js.map
+*.d.ts.map
+*.tsbuildinfo
+.svelte-kit/
