@@ -31,6 +31,7 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- Vision-Optimierung nutzt jetzt eine harte Mehrstufen-Strategie: erst Qualitätsreduktion, danach schrittweise Dimensionsreduktion bis zur Mindestgröße, um Inline-Requests stabil unter dem Größenlimit zu halten.
 - Vision-Endpoint skaliert und komprimiert Bilder jetzt serverseitig (max. Dimension + Qualität) vor dem Inline-Base64-Upload an das Modell.
 - Vision-Endpoint liefert jetzt `inputMode` (`inline`, `remote-url`, `inline-then-remote-url`, `none`) zurück, damit transparent ist, welches Bild-Eingabeformat tatsächlich an den Provider ging.
 - `Default Metadata Source` wurde auf wiederverwendbare Felder Autor/Lizenz reduziert, um die UI klarer zu halten.
