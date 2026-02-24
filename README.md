@@ -14,6 +14,10 @@ pnpm install
 pnpm dev
 ```
 
+## Fokus: Unknown Client Integration
+
+- Kurzleitfaden für die minimale Host-Integration: [docs/simple-integration.md](docs/simple-integration.md)
+
 ## Produktion lokal starten
 
 ```bash
@@ -29,6 +33,32 @@ pnpm start
 - `pnpm start`
 
 ## Plugin Usage
+
+### Dead Simple Upload API (empfohlen)
+
+```ts
+import { createBlossomBridge } from '@blossom/plugin';
+
+const bridge = createBlossomBridge({
+  servers: ['https://blossom.primal.net/'],
+  signer, // BlossomSigner: { getPublicKey, signEvent }
+});
+
+const result = await bridge.selectAndUpload({ accept: 'image/*,application/pdf' });
+if (result) {
+  console.log(result.url, result.tags);
+}
+```
+
+Für Host-Inputs ohne Svelte-Action:
+
+```ts
+const input = document.querySelector('#upload-url') as HTMLInputElement;
+const handle = bridge.attachToInput(input, { iconLabel: 'Upload with Blossom' });
+
+// später optional:
+handle.destroy();
+```
 
 ### Headless Upload API
 
@@ -108,3 +138,13 @@ Hinweis: Bei `image/*` wird ein Image-Node eingefügt, sonst ein normaler URL-Te
   - `tags: [string, string][]`
   - `url: string`
 - Validierung: Fehlt `url` in den Tags, wird ein Fehler geworfen.
+
+### `createBlossomBridge`
+
+- Zweck: Sehr einfache Integrationsschicht für unbekannte Host-Clients.
+- API:
+  - `uploadFile(file)`
+  - `selectAndUpload({ accept? })`
+  - `attachToInput(input, { iconLabel?, buttonText?, accept? })`
+- Zustände: idle, selecting, uploading, success/error (vom Host via Promise-Handling steuerbar).
+- Fehlerverhalten: Upload-Fehler werden unverändert durchgereicht.

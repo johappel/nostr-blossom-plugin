@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     BlossomExtension,
-    createBlossomUploadClient,
+    createBlossomBridge,
     uploadAndInsertBlossomMedia,
     useBlossomInput,
   } from '@blossom/plugin';
@@ -19,7 +19,7 @@
   const servers = [
     'https://blossom.primal.net/',
     'https://cdn.satellite.earth/',
-    'wss://relay.nostrcheck.me/'
+    'https://blossom.band/'
   ];
 
   let signer: SignerAdapter | null = null;
@@ -111,13 +111,13 @@
       return null;
     }
 
-    const client = createBlossomUploadClient({
+    const bridge = createBlossomBridge({
       servers,
       signer,
     });
 
     try {
-      const result = await client.upload(file);
+      const result = await bridge.uploadFile(file);
       const mime = result.tags.find((tag: [string, string]) => tag[0] === 'm')?.[1];
       addUploadHistory({ url: result.url, mime, createdAt: new Date().toISOString() });
       status = 'Upload success';

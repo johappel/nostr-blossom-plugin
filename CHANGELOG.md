@@ -8,6 +8,7 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- Neue „Dead Simple“-Bridge `createBlossomBridge` (`uploadFile`, `selectAndUpload`, `attachToInput`) für host-agnostische Integration ergänzt.
 - Monorepo-Grundstruktur (`apps/*`, `packages/*`) definiert.
 - Projekt-Governance in `AGENTS.md` eingeführt.
 - Erstes Plugin-Paket `@blossom/plugin` mit Headless Upload-Client erstellt.
@@ -23,6 +24,7 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- Demo-Uploadflow auf `createBlossomBridge` als primäre Integrations-API umgestellt.
 - TypeScript/SvelteKit Tooling auf lauffähigen Monorepo-Stand gebracht.
 - Upload-Client um optionale `timeoutMs` und `AbortSignal`-Unterstützung erweitert.
 - Demo-App von `@sveltejs/adapter-auto` auf festen Node-Adapter (`@sveltejs/adapter-node`) umgestellt.
@@ -31,6 +33,7 @@ The format is based on Keep a Changelog.
 
 ### Fixed
 
+- Demo-Blossom-Serverliste korrigiert (nur HTTPS-Uploadserver, kein `wss://`-Relay in Upload-Targets).
 - Paketversion und Typauflösungen korrigiert, sodass `typecheck` ohne Fehler läuft.
 - Fehlendes Root-Script `check` ergänzt (`pnpm run check` funktioniert wieder).
 - NIP-07 `signEvent`-Aufruf auf gebundenen Provider-Kontext umgestellt (Fix für `this._call is not a function`).
@@ -42,9 +45,11 @@ The format is based on Keep a Changelog.
 
 - Regeln für Komponenten-, Usage- und Progress-Dokumentation festgelegt.
 - Root-Dokumentation in `README.md` mit Setup und Usage-Beispielen ergänzt.
+- Separater Quickstart für unbekannte Host-Clients ergänzt (`docs/simple-integration.md`).
 
 ### Tests
 
+- Unit-Tests für `createBlossomBridge` (Datei-Upload, Cancel, Input-Attach-Flow) ergänzt.
 - P0/P1 Teststrategie als Projektstandard definiert.
 - Unit-Tests für Upload-Client und Signer-Basisflow implementiert.
 - P0-Action-Test für URL-Input-Integration (`useBlossomInput`) ergänzt.
