@@ -8,6 +8,9 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- Vision-Endpoint unterstützt jetzt `OPENROUTER_VISION_INLINE_ONLY=true`, um URL-Fallbacks vollständig zu verhindern und ausschließlich Inline-Bilddaten zu verwenden.
+- Demo-Metadaten-Dialog kann jetzt per Vision-Modell eine Kurzbeschreibung (und optionale Keywords) aus der Bild-URL vorschlagen.
+- Demo unterstützt jetzt Auto-Fill von Bild-Metadaten aus Input-Quellen (`Default Metadata Source`) und optionalen `data-metadata-*` Attributen am Upload-Input.
 - Demo zeigt standardmäßig unter dem Upload-Input eine Metadaten-Zielsektion mit Bildvorschau (falls kein separates Target verwendet wird).
 - Demo-Uploadflow für Bilder um verpflichtende Metadaten-Eingabe erweitert (Beschreibung, Alt-Attribution; optional Autor, Lizenz, Keywords).
 - Demo publiziert nach Bild-Upload automatisch ein NIP-94 File-Metadata-Event (kind `1063`) plus kompatibles kind-`1` Fallback.
@@ -28,6 +31,9 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- Vision-Endpoint skaliert und komprimiert Bilder jetzt serverseitig (max. Dimension + Qualität) vor dem Inline-Base64-Upload an das Modell.
+- Vision-Endpoint liefert jetzt `inputMode` (`inline`, `remote-url`, `inline-then-remote-url`, `none`) zurück, damit transparent ist, welches Bild-Eingabeformat tatsächlich an den Provider ging.
+- `Default Metadata Source` wurde auf wiederverwendbare Felder Autor/Lizenz reduziert, um die UI klarer zu halten.
 - Metadaten aus der Default-Zielsektion können über einen Edit-Button nachträglich aktualisiert und erneut publiziert werden.
 - Metadaten-Erfassung in der Demo von Browser-Prompts auf einen In-Page-Dialog mit Pflichtfeld-Validierung umgestellt.
 - Publish-Helper in der Demo unterstützt nun variable Event-Kinds statt festem kind `1`.
@@ -43,6 +49,9 @@ The format is based on Keep a Changelog.
 
 ### Fixed
 
+- Vision-Endpoint liefert zusätzlich `imageProcessing` (Quelle/optimierte Bytes und MIME), damit Inline-Resize-Verhalten transparent nachvollziehbar ist.
+- Vision-Endpoint antwortet bei fehlendem `OPENROUTER_API_KEY` jetzt mit robustem Fallback (`200` + Warning) statt mit hartem `500`.
+- Hash-basierte Bilddateinamen werden im Vision-Fallback nicht mehr als kryptische Beschreibung ausgegeben, sondern als `Uploaded image` normalisiert.
 - Demo-Importpfad für NIP-46 Runtime korrigiert (`./ndk-runtime`), sodass die Modulauflösung wieder stabil funktioniert.
 - Demo-TSConfig gehärtet (`strict`, `forceConsistentCasingInFileNames`) und aufgedeckte Folgeprobleme bereinigt.
 - Strict-Nullability-Fix im NIP-46 Disconnect-Pfad sowie kompatibler TipTap-Type-Cast im Upload-Callsite ergänzt.

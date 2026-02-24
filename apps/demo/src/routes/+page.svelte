@@ -35,6 +35,7 @@
   let bunkerUrl = $state('');
   let relayUrl = $state('wss://relay.damus.io');
   let uploadUrl = $state('');
+  let uploadUrlInput: HTMLInputElement | null = null;
   let eventContent = $state('');
   let status = $state('Not connected');
   let tiptapHost: HTMLDivElement | null = null;
@@ -50,8 +51,42 @@
   let metadataValidationError = $state('');
   let metadataDialogTitle = $state('Bild-Metadaten');
   let metadataDialogSubmitLabel = $state('Metadaten speichern');
+  let metadataDialogImageUrl = $state('');
+  let metadataSuggestLoading = $state(false);
+  let metadataSuggestError = $state('');
   let metadataResolver: ((value: ImageMetadataInput | null) => void) | null = null;
   let uploadTagsByUrl = $state<Record<string, string[][]>>({});
+  let sourceAuthor = $state('');
+  let sourceLicense = $state('');
+
+  function toKeywords(value: string) {
+    return value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  function fileNameFallback(file: File) {
+    return file.name
+      .replace(/\.[^.]+$/, '')
+      .replace(/[_-]+/g, ' ')
+      .trim();
+  }
+
+  function collectInitialMetadata(file: File): ImageMetadataInput {
+    const dataset = uploadUrlInput?.dataset;
+    const fallback = fileNameFallback(file);
+    const description = dataset?.metadataDescription?.trim() || fallback || 'Uploaded image';
+    const altAttribution = dataset?.metadataAltAttribution?.trim() || description || 'Uploaded image';
+
+    return {
+      description,
+      altAttribution,
+      author: sourceAuthor.trim() || dataset?.metadataAuthor?.trim() || '',
+      license: sourceLicense.trim() || dataset?.metadataLicense?.trim() || '',
+      keywords: toKeywords(dataset?.metadataKeywords || ''),
+    };
+  }
 
   function resolveMetadataDialog(value: ImageMetadataInput | null) {
     const resolver = metadataResolver;
@@ -69,15 +104,19 @@
     options?: {
       mode?: 'create' | 'edit';
       initialMetadata?: ImageMetadataInput;
+      imageUrl?: string;
     },
   ): Promise<ImageMetadataInput | null> {
     metadataDialogFileName = fileName;
+    metadataDialogImageUrl = options?.imageUrl ?? '';
     metadataDescription = options?.initialMetadata?.description ?? '';
     metadataAltAttribution = options?.initialMetadata?.altAttribution ?? '';
     metadataAuthor = options?.initialMetadata?.author ?? '';
     metadataLicense = options?.initialMetadata?.license ?? '';
     metadataKeywords = options?.initialMetadata?.keywords?.join(', ') ?? '';
     metadataValidationError = '';
+    metadataSuggestError = '';
+    metadataSuggestLoading = false;
     metadataDialogTitle = options?.mode === 'edit' ? 'Metadaten bearbeiten' : 'Bild-Metadaten';
     metadataDialogSubmitLabel = options?.mode === 'edit' ? 'Metadaten aktualisieren' : 'Metadaten speichern';
     metadataDialogOpen = true;
@@ -89,6 +128,48 @@
 
   function cancelMetadataDialog() {
     resolveMetadataDialog(null);
+  }
+
+  async function suggestDescriptionFromVision() {
+    if (!metadataDialogImageUrl) {
+      metadataSuggestError = 'Kein Bild für Vision-Beschreibung verfügbar.';
+      return;
+    }
+
+    metadataSuggestLoading = true;
+    metadataSuggestError = '';
+
+    try {
+      const response = await fetch('/api/vision/describe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ imageUrl: metadataDialogImageUrl }),
+      });
+
+      const payload = (await response.json()) as {
+        description?: string;
+        tags?: string[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Vision request failed');
+      }
+
+      if (payload.description?.trim()) {
+        metadataDescription = payload.description.trim();
+      }
+
+      if (!metadataKeywords.trim() && payload.tags?.length) {
+        metadataKeywords = payload.tags.join(', ');
+      }
+    } catch (error) {
+      metadataSuggestError = error instanceof Error ? error.message : 'Vision request failed';
+    } finally {
+      metadataSuggestLoading = false;
+    }
   }
 
   function submitMetadataDialog() {
@@ -143,6 +224,7 @@
     const metadata = await openMetadataDialog(uploadUrl, {
       mode: 'edit',
       initialMetadata,
+      imageUrl: uploadUrl,
     });
 
     if (!metadata) {
@@ -270,7 +352,11 @@
         return result.url;
       }
 
-      const metadata = await openMetadataDialog(file.name, { mode: 'create' });
+      const metadata = await openMetadataDialog(file.name, {
+        mode: 'create',
+        initialMetadata: collectInitialMetadata(file),
+        imageUrl: result.url,
+      });
       if (!metadata) {
         status = 'Upload completed, but metadata entry was canceled';
         return null;
@@ -386,10 +472,17 @@
   <section>
     <h2>Input + Upload Injection</h2>
     <input
+      bind:this={uploadUrlInput}
       bind:value={uploadUrl}
       placeholder="https://..."
       use:useBlossomInput={{ onSelectUrl: selectUploadUrl, iconLabel: 'Upload with Blossom' }}
     />
+
+    <div class="metadata-source">
+      <h3>Default Metadata Source (Autor/Lizenz)</h3>
+      <input bind:value={sourceAuthor} placeholder="Autor (Auto-Fill)" />
+      <input bind:value={sourceLicense} placeholder="Lizenz (Auto-Fill)" />
+    </div>
 
     {#if uploadUrl}
       {@const currentUploadItem = getCurrentUploadItem()}
@@ -483,6 +576,18 @@
             Beschreibung *
             <textarea bind:value={metadataDescription} rows="3" required></textarea>
           </label>
+          <button
+            type="button"
+            onclick={suggestDescriptionFromVision}
+            disabled={metadataSuggestLoading}
+          >
+            {metadataSuggestLoading
+              ? 'Vision analysiert Bild...'
+              : 'Kurzbeschreibung per Vision vorschlagen'}
+          </button>
+          {#if metadataSuggestError}
+            <p class="dialog-error">{metadataSuggestError}</p>
+          {/if}
           <label>
             Alt-Attribution *
             <input bind:value={metadataAltAttribution} required />
@@ -584,6 +689,18 @@
     padding: 0.75rem;
     display: grid;
     gap: 0.5rem;
+  }
+
+  .metadata-source {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 0.75rem;
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .metadata-source h3 {
+    margin: 0;
   }
 
   .metadata-target h3,
