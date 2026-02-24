@@ -17,6 +17,7 @@ pnpm dev
 ## Fokus: Unknown Client Integration
 
 - Kurzleitfaden für die minimale Host-Integration: [docs/simple-integration.md](docs/simple-integration.md)
+- Reduzierte Copy/Paste-Beispiele: [docs/examples/README.md](docs/examples/README.md)
 
 ## Produktion lokal starten
 

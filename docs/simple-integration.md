@@ -2,6 +2,8 @@
 
 Dieses Dokument zeigt den minimalen Integrationsweg für Host-Apps, die wir nicht kennen.
 
+Weitere ultra-reduzierte Client-Snippets: [examples/README.md](examples/README.md)
+
 ## Ziel
 
 Mit nur zwei Inputs arbeiten:
@@ -81,3 +83,57 @@ console.log(result.url);
 
 - Für Upload-Targets nur HTTPS Blossom-Server verwenden, keine `wss://` Relays.
 - Der `signer` darf intern NIP-07 oder NIP-46 verwenden; die Bridge ist auth-agnostisch.
+
+## SignerAdapter in 60 Sekunden
+
+Die Bridge braucht nur dieses Interface:
+
+```ts
+type SignerAdapter = {
+  getPublicKey: () => Promise<string>;
+  signEvent: (event: Record<string, unknown>) => Promise<Record<string, unknown>>;
+};
+```
+
+### NIP-07 (Browser Extension)
+
+```ts
+const signer = {
+  getPublicKey: () => window.nostr!.getPublicKey(),
+  signEvent: (event: Record<string, unknown>) => window.nostr!.signEvent(event),
+};
+
+const bridge = createBlossomBridge({ servers, signer });
+```
+
+### NIP-46 (Bunker / Remote Signer)
+
+```ts
+const signer = await connectNip46Signer('bunker://...');
+const bridge = createBlossomBridge({ servers, signer });
+```
+
+### Custom `nsec` Signer (nur wenn bewusst gewünscht)
+
+```ts
+import { finalizeEvent, getPublicKey } from 'nostr-tools/pure';
+import { decode } from 'nostr-tools/nip19';
+
+const decoded = decode(nsecInput);
+if (decoded.type !== 'nsec') {
+  throw new Error('Expected nsec');
+}
+
+const secretKey = decoded.data;
+
+const signer = {
+  getPublicKey: async () => getPublicKey(secretKey),
+  signEvent: async (event: Record<string, unknown>) => finalizeEvent(event as never, secretKey) as never,
+};
+
+const bridge = createBlossomBridge({ servers, signer });
+```
+
+Sicherheit: `nsec` möglichst nicht persistent speichern, nur kurzzeitig im Speicher halten und nach Nutzung verwerfen.
+
+Wichtig: Für die Bridge ist nur relevant, dass `getPublicKey` und `signEvent` funktionieren.

@@ -25,6 +25,7 @@ The format is based on Keep a Changelog.
 ### Changed
 
 - Demo-Uploadflow auf `createBlossomBridge` als primäre Integrations-API umgestellt.
+- Publish-Scope des Plugin-Pakets bereinigt: Testdateien werden über `.npmignore` nicht mehr mit veröffentlicht.
 - TypeScript/SvelteKit Tooling auf lauffähigen Monorepo-Stand gebracht.
 - Upload-Client um optionale `timeoutMs` und `AbortSignal`-Unterstützung erweitert.
 - Demo-App von `@sveltejs/adapter-auto` auf festen Node-Adapter (`@sveltejs/adapter-node`) umgestellt.
@@ -46,6 +47,9 @@ The format is based on Keep a Changelog.
 - Regeln für Komponenten-, Usage- und Progress-Dokumentation festgelegt.
 - Root-Dokumentation in `README.md` mit Setup und Usage-Beispielen ergänzt.
 - Separater Quickstart für unbekannte Host-Clients ergänzt (`docs/simple-integration.md`).
+- Quickstart um Kurzsektion „SignerAdapter in 60 Sekunden“ mit NIP-07/NIP-46 Mini-Beispielen ergänzt.
+- Quickstart um optionales Mini-Beispiel für einen Custom-`nsec`-Signer inkl. Sicherheits-Hinweis ergänzt.
+- Neues `docs/examples/`-Set mit stark reduzierten Client-Beispielen ergänzt (URL-Input, TipTap, Clipboard-Paste→`img`).
 
 ### Tests
 
