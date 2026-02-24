@@ -1,15 +1,11 @@
-import type { NostrSignerLike } from './signers';
+import type { SignerAdapter } from './signers';
 
 export async function publishEvent(
-  signer: NostrSignerLike,
+  signer: SignerAdapter,
   relayUrl: string,
   content: string,
   tags: string[][],
 ) {
-  if (!signer.signEvent) {
-    throw new Error('Signer is not connected.');
-  }
-
   if (!relayUrl) {
     throw new Error('Relay URL is required.');
   }

@@ -17,17 +17,22 @@ The format is based on Keep a Changelog.
 - Root-Script `start` ergänzt, um die Demo-Produktionsinstanz zentral zu starten.
 - Echte TipTap-Extension (`BlossomExtension`) inkl. Upload-Insert-Helper im Plugin ergänzt.
 - TipTap-Demo-Integration mit Upload-Button und Editor-Preview in der Demo-App ergänzt.
+- Gemeinsame `SignerAdapter`-Schnittstelle für NIP-07/NIP-46 im Demo-Auth-Layer ergänzt.
+- Sichtbarer Session-Status (connecting/connected/error/disconnected) in der Login-Sektion ergänzt.
 
 ### Changed
 
 - TypeScript/SvelteKit Tooling auf lauffähigen Monorepo-Stand gebracht.
 - Upload-Client um optionale `timeoutMs` und `AbortSignal`-Unterstützung erweitert.
 - Demo-App von `@sveltejs/adapter-auto` auf festen Node-Adapter (`@sveltejs/adapter-node`) umgestellt.
+- Signer- und Publish-Flow im Demo auf adapter-basiertes Interface vereinheitlicht.
 
 ### Fixed
 
 - Paketversion und Typauflösungen korrigiert, sodass `typecheck` ohne Fehler läuft.
 - Fehlendes Root-Script `check` ergänzt (`pnpm run check` funktioniert wieder).
+- NIP-07 `signEvent`-Aufruf auf gebundenen Provider-Kontext umgestellt (Fix für `this._call is not a function`).
+- Upload-Fehlerbehandlung in der Demo verbessert (klare Meldung bei AggregateError/CORS/Auth-Problemen).
 
 ### Docs
 
@@ -43,6 +48,8 @@ The format is based on Keep a Changelog.
 - P0-Tests für Timeout- und Abort-Verhalten im Upload-Kern ergänzt.
 - P0-Test für partiellen Multi-Server-Ausfall mit erfolgreichem Fallback ergänzt.
 - Tests für TipTap-Insert- und Upload-Cancel-Verhalten ergänzt.
+- Signer-Tests um Session-Status- und Disconnect-Verhalten erweitert.
+- Regressionstest für NIP-07 Provider-Kontext (`this`-Bindung) ergänzt.
 
 ### Security
 

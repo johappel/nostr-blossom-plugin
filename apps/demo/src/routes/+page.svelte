@@ -10,8 +10,10 @@
   import Image from '@tiptap/extension-image';
   import StarterKit from '@tiptap/starter-kit';
   import { onMount } from 'svelte';
+  import { authStore } from '$lib/stores/auth';
   import { addUploadHistory, uploadHistoryStore } from '$lib/stores/uploads';
   import { connectNip07Signer, connectNip46Signer } from '$lib/nostr/signers';
+  import type { SignerAdapter } from '$lib/nostr/signers';
   import { publishEvent } from '$lib/nostr/publish';
 
   const servers = [
@@ -19,7 +21,7 @@
     'https://cdn.satellite.earth/',
   ];
 
-  let signer: Awaited<ReturnType<typeof connectNip07Signer>> | null = null;
+  let signer: SignerAdapter | null = null;
   let bunkerUrl = $state('');
   let relayUrl = $state('wss://relay.damus.io');
   let uploadUrl = $state('');
@@ -95,12 +97,28 @@
       signer,
     });
 
-    const result = await client.upload(file);
-    const mime = result.tags.find((tag: [string, string]) => tag[0] === 'm')?.[1];
-    addUploadHistory({ url: result.url, mime, createdAt: new Date().toISOString() });
-    status = 'Upload success';
-    uploadUrl = result.url;
-    return result.url;
+    try {
+      const result = await client.upload(file);
+      const mime = result.tags.find((tag: [string, string]) => tag[0] === 'm')?.[1];
+      addUploadHistory({ url: result.url, mime, createdAt: new Date().toISOString() });
+      status = 'Upload success';
+      uploadUrl = result.url;
+      return result.url;
+    } catch (error) {
+      if (error instanceof AggregateError) {
+        status =
+          'Upload failed on all servers (possible CORS or auth event rejection). Try another Blossom server.';
+        return null;
+      }
+
+      if (error instanceof Error) {
+        status = `Upload failed: ${error.message}`;
+        return null;
+      }
+
+      status = 'Upload failed with unknown error';
+      return null;
+    }
   }
 
   async function onPublish() {
@@ -143,6 +161,12 @@
     tiptapHtml = tiptapEditor.getHTML();
     status = 'TipTap content updated';
   }
+
+  function disconnectSigner() {
+    signer?.disconnect?.();
+    signer = null;
+    status = 'Disconnected';
+  }
 </script>
 
 <main>
@@ -151,9 +175,15 @@
 
   <section>
     <h2>Login</h2>
+    <p>
+      Auth: {$authStore.method ?? 'none'} | Session: {$authStore.sessionStatus}
+      {#if $authStore.pubkey} | Pubkey: {$authStore.pubkey}{/if}
+      {#if $authStore.sessionInfo} | Info: {$authStore.sessionInfo}{/if}
+    </p>
     <button type="button" onclick={loginNip07}>Connect NIP-07</button>
     <input bind:value={bunkerUrl} placeholder="bunker://..." />
     <button type="button" onclick={loginNip46}>Connect NIP-46</button>
+    <button type="button" onclick={disconnectSigner}>Disconnect</button>
   </section>
 
   <section>

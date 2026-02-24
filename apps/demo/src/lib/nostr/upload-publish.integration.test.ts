@@ -1,15 +1,20 @@
 import { createBlossomUploadClient } from '@blossom/plugin';
 import { describe, expect, it, vi } from 'vitest';
 import { publishEvent } from './publish';
+import type { SignerAdapter } from './signers';
 
 describe('upload + publish integration', () => {
   it('publishes event with uploaded file url tag', async () => {
-    const signer = {
-      signEvent: vi.fn(async (event: Record<string, unknown>) => ({
-        ...event,
-        id: 'event-id',
-        sig: 'event-sig',
-      })),
+    const signEventMock = vi.fn(async (event: Record<string, unknown>) => ({
+      ...event,
+      id: 'event-id',
+      sig: 'event-sig',
+    }));
+
+    const signer: SignerAdapter = {
+      kind: 'nip46',
+      getPublicKey: async () => 'pubkey',
+      signEvent: signEventMock,
     };
 
     const uploader = createBlossomUploadClient({
@@ -33,10 +38,10 @@ describe('upload + publish integration', () => {
     );
 
     expect(uploaded.url).toBe('https://blossom.example/abc123.png');
-    expect(signer.signEvent).toHaveBeenCalledTimes(1);
+    expect(signEventMock).toHaveBeenCalledTimes(1);
     expect(published.relayUrl).toBe('wss://relay.example');
 
-    const signedPayload = signer.signEvent.mock.calls[0][0] as {
+    const signedPayload = signEventMock.mock.calls[0][0] as {
       kind: number;
       content: string;
       tags: string[][];
