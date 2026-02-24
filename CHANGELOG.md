@@ -8,6 +8,8 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- Demo-Uploadflow für Bilder um verpflichtende Metadaten-Eingabe erweitert (Beschreibung, Alt-Attribution; optional Autor, Lizenz, Keywords).
+- Demo publiziert nach Bild-Upload automatisch ein NIP-94 File-Metadata-Event (kind `1063`) plus kompatibles kind-`1` Fallback.
 - Subpath-Exports für gezielte Imports ergänzt: `@blossom/plugin/core`, `@blossom/plugin/svelte`, `@blossom/plugin/tiptap`.
 - Neue „Dead Simple“-Bridge `createBlossomBridge` (`uploadFile`, `selectAndUpload`, `attachToInput`) für host-agnostische Integration ergänzt.
 - Monorepo-Grundstruktur (`apps/*`, `packages/*`) definiert.
@@ -25,6 +27,8 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- Publish-Helper in der Demo unterstützt nun variable Event-Kinds statt festem kind `1`.
+- Blossom-Tag-Normalisierung bewahrt zusätzliche Tag-Segmente (mehr als 2 Werte) statt sie abzuschneiden.
 - Demo-Uploadflow auf `createBlossomBridge` als primäre Integrations-API umgestellt.
 - Publish-Scope des Plugin-Pakets bereinigt: Nur `dist/` wird veröffentlicht, Testdateien bleiben außerhalb des Tarballs.
 - `@blossom/plugin` Package-Entrypoints/Exports auf `dist/*` umgestellt (statt `src/*`) für saubere Consumer-Resolution.
@@ -49,6 +53,7 @@ The format is based on Keep a Changelog.
 
 ### Docs
 
+- Dokumentation um Hinweise zum Metadaten-Publish nach Bild-Upload (kind `1063` + kind `1`) ergänzt.
 - Regeln für Komponenten-, Usage- und Progress-Dokumentation festgelegt.
 - Root-Dokumentation in `README.md` mit Setup und Usage-Beispielen ergänzt.
 - Separater Quickstart für unbekannte Host-Clients ergänzt (`docs/simple-integration.md`).
@@ -59,6 +64,8 @@ The format is based on Keep a Changelog.
 
 ### Tests
 
+- Tests für Metadaten-Tag-Building und kind-`1063` Publish-Pfad ergänzt.
+- Upload-Client-Test ergänzt, der mehrteilige Tags validiert.
 - Unit-Tests für `createBlossomBridge` (Datei-Upload, Cancel, Input-Attach-Flow) ergänzt.
 - P0/P1 Teststrategie als Projektstandard definiert.
 - Unit-Tests für Upload-Client und Signer-Basisflow implementiert.

@@ -1,4 +1,4 @@
-export type BlossomTag = [string, string];
+export type BlossomTag = [string, string, ...string[]];
 
 export interface BlossomSigner {
   getPublicKey: () => Promise<string>;

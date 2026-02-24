@@ -14,7 +14,12 @@
   import { addUploadHistory, uploadHistoryStore } from '$lib/stores/uploads';
   import { connectNip07Signer, connectNip46Signer } from '$lib/nostr/signers';
   import type { SignerAdapter } from '$lib/nostr/signers';
-  import { publishEvent } from '$lib/nostr/publish';
+  import {
+    buildImageMetadataTags,
+    buildKind1FallbackTags,
+    publishEvent,
+    type ImageMetadataInput,
+  } from '$lib/nostr/publish';
 
   const servers = [
     'https://blossom.primal.net/',
@@ -31,6 +36,66 @@
   let tiptapHost: HTMLDivElement | null = null;
   let tiptapEditor: Editor | null = null;
   let tiptapHtml = $state('');
+  let metadataDialogOpen = $state(false);
+  let metadataDialogFileName = $state('');
+  let metadataDescription = $state('');
+  let metadataAltAttribution = $state('');
+  let metadataAuthor = $state('');
+  let metadataLicense = $state('');
+  let metadataKeywords = $state('');
+  let metadataValidationError = $state('');
+  let metadataResolver: ((value: ImageMetadataInput | null) => void) | null = null;
+
+  function resolveMetadataDialog(value: ImageMetadataInput | null) {
+    const resolver = metadataResolver;
+    metadataResolver = null;
+    metadataDialogOpen = false;
+    metadataValidationError = '';
+
+    if (resolver) {
+      resolver(value);
+    }
+  }
+
+  function openMetadataDialog(fileName: string): Promise<ImageMetadataInput | null> {
+    metadataDialogFileName = fileName;
+    metadataDescription = '';
+    metadataAltAttribution = '';
+    metadataAuthor = '';
+    metadataLicense = '';
+    metadataKeywords = '';
+    metadataValidationError = '';
+    metadataDialogOpen = true;
+
+    return new Promise((resolve) => {
+      metadataResolver = resolve;
+    });
+  }
+
+  function cancelMetadataDialog() {
+    resolveMetadataDialog(null);
+  }
+
+  function submitMetadataDialog() {
+    const description = metadataDescription.trim();
+    const altAttribution = metadataAltAttribution.trim();
+
+    if (!description || !altAttribution) {
+      metadataValidationError = 'Beschreibung und Alt-Attribution sind Pflichtfelder.';
+      return;
+    }
+
+    resolveMetadataDialog({
+      description,
+      altAttribution,
+      author: metadataAuthor.trim(),
+      license: metadataLicense.trim(),
+      keywords: metadataKeywords
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
+    });
+  }
 
   onMount(() => {
     if (!tiptapHost) {
@@ -118,10 +183,38 @@
 
     try {
       const result = await bridge.uploadFile(file);
-      const mime = result.tags.find((tag: [string, string]) => tag[0] === 'm')?.[1];
-      addUploadHistory({ url: result.url, mime, createdAt: new Date().toISOString() });
-      status = 'Upload success';
+      const uploadTags = result.tags.map((tag) => [...tag]);
+      const mime = uploadTags.find((tag) => tag[0] === 'm')?.[1];
+
       uploadUrl = result.url;
+
+      if (!mime?.startsWith('image/')) {
+        addUploadHistory({ url: result.url, mime, createdAt: new Date().toISOString() });
+        status = 'Upload success';
+        return result.url;
+      }
+
+      const metadata = await openMetadataDialog(file.name);
+      if (!metadata) {
+        status = 'Upload completed, but metadata entry was canceled';
+        return null;
+      }
+
+      const kind1063Tags = buildImageMetadataTags(uploadTags, metadata);
+      const kind1Tags = buildKind1FallbackTags(uploadTags, metadata);
+
+      await publishEvent(signer, relayUrl, metadata.description, kind1063Tags, 1063);
+      await publishEvent(signer, relayUrl, metadata.description, kind1Tags, 1);
+
+      addUploadHistory({
+        url: result.url,
+        mime,
+        createdAt: new Date().toISOString(),
+        metadata,
+        publishedKinds: [1063, 1],
+      });
+
+      status = 'Upload success. Metadata published as kind 1063 + kind 1';
       return result.url;
     } catch (error) {
       if (error instanceof AggregateError) {
@@ -147,7 +240,7 @@
     }
 
     const tags = uploadUrl ? [['url', uploadUrl]] : [];
-    const result = await publishEvent(signer, relayUrl, eventContent, tags);
+    const result = await publishEvent(signer, relayUrl, eventContent, tags, 1);
     status = `Event prepared for ${result.relayUrl}`;
   }
 
@@ -241,10 +334,74 @@
     <h2>Upload History</h2>
     <ul>
       {#each $uploadHistoryStore as item (item.createdAt + item.url)}
-        <li>{item.url} ({item.mime ?? 'unknown'})</li>
+        <li>
+          {item.url} ({item.mime ?? 'unknown'})
+          {#if item.publishedKinds?.length}
+            | kinds: {item.publishedKinds.join(', ')}
+          {/if}
+          {#if item.metadata}
+            | desc: {item.metadata.description} | alt: {item.metadata.altAttribution}
+            {#if item.metadata.author} | author: {item.metadata.author}{/if}
+            {#if item.metadata.license} | license: {item.metadata.license}{/if}
+            {#if item.metadata.keywords.length > 0}
+              | keywords: {item.metadata.keywords.join(', ')}
+            {/if}
+          {/if}
+        </li>
       {/each}
     </ul>
   </section>
+
+  {#if metadataDialogOpen}
+    <div class="dialog-backdrop" role="presentation" onclick={cancelMetadataDialog}>
+      <section
+        class="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="metadata-dialog-title"
+        onclick={(event) => event.stopPropagation()}
+      >
+        <h2 id="metadata-dialog-title">Bild-Metadaten</h2>
+        <p>Datei: {metadataDialogFileName}</p>
+        <form
+          onsubmit={(event) => {
+            event.preventDefault();
+            submitMetadataDialog();
+          }}
+        >
+          <label>
+            Beschreibung *
+            <textarea bind:value={metadataDescription} rows="3" required></textarea>
+          </label>
+          <label>
+            Alt-Attribution *
+            <input bind:value={metadataAltAttribution} required />
+          </label>
+          <label>
+            Autor
+            <input bind:value={metadataAuthor} />
+          </label>
+          <label>
+            Lizenz
+            <input bind:value={metadataLicense} placeholder="z. B. CC-BY-4.0" />
+          </label>
+          <label>
+            Keywords
+            <input bind:value={metadataKeywords} placeholder="nostr, blossom, photo" />
+          </label>
+
+          {#if metadataValidationError}
+            <p class="dialog-error">{metadataValidationError}</p>
+          {/if}
+
+          <div class="dialog-actions">
+            <button type="button" onclick={cancelMetadataDialog}>Abbrechen</button>
+            <button type="submit">Metadaten speichern</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  {/if}
 </main>
 
 <style>
@@ -270,6 +427,45 @@
     min-height: 140px;
     padding: 0.75rem;
     background: #fff;
+  }
+
+  .dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+  }
+
+  .dialog {
+    width: min(640px, 100%);
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 1rem;
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .dialog form {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .dialog label {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+
+  .dialog-error {
+    margin: 0;
   }
 
   input,

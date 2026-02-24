@@ -4,6 +4,14 @@ export interface UploadHistoryItem {
   url: string;
   mime?: string;
   createdAt: string;
+  metadata?: {
+    description: string;
+    author: string;
+    license: string;
+    keywords: string[];
+    altAttribution: string;
+  };
+  publishedKinds?: number[];
 }
 
 export const uploadHistoryStore = writable<UploadHistoryItem[]>([]);

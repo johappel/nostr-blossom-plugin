@@ -39,7 +39,7 @@ if (result) {
 Rückgabe bei Erfolg:
 
 - `url: string`
-- `tags: [string, string][]`
+- `tags: [string, string, ...string[]][]`
 
 Bei Abbruch: `null`.
 

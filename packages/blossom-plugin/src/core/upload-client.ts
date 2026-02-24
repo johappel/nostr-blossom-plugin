@@ -60,9 +60,15 @@ export function createBlossomUploadClient(options: CreateBlossomUploadClientOpti
       const rawTags = await Promise.race(racers);
       const tags: BlossomTag[] = [];
       for (const tag of rawTags) {
-        if (Array.isArray(tag) && typeof tag[0] === 'string' && typeof tag[1] === 'string') {
-          tags.push([tag[0], tag[1]]);
+        if (!Array.isArray(tag) || tag.length < 2) {
+          continue;
         }
+
+        if (!tag.every((part) => typeof part === 'string')) {
+          continue;
+        }
+
+        tags.push([tag[0], tag[1], ...tag.slice(2)]);
       }
       const urlTag = tags.find((tag) => tag[0] === 'url');
 

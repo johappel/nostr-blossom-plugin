@@ -4,7 +4,7 @@ import { publishEvent } from './publish';
 import type { SignerAdapter } from './signers';
 
 describe('upload + publish integration', () => {
-  it('publishes event with uploaded file url tag', async () => {
+  it('publishes kind 1063 event with uploaded file tags', async () => {
     const signEventMock = vi.fn(async (event: Record<string, unknown>) => ({
       ...event,
       id: 'event-id',
@@ -34,7 +34,8 @@ describe('upload + publish integration', () => {
       signer,
       'wss://relay.example',
       'Hello from blossom',
-      uploaded.tags.map(([key, value]) => [key, value]),
+      uploaded.tags.map((tag) => [...tag]),
+      1063,
     );
 
     expect(uploaded.url).toBe('https://blossom.example/abc123.png');
@@ -47,7 +48,7 @@ describe('upload + publish integration', () => {
       tags: string[][];
     };
 
-    expect(signedPayload.kind).toBe(1);
+    expect(signedPayload.kind).toBe(1063);
     expect(signedPayload.content).toBe('Hello from blossom');
     expect(signedPayload.tags[0]).toEqual(['url', 'https://blossom.example/abc123.png']);
   });

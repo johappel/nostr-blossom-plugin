@@ -142,8 +142,9 @@ Hinweis: Bei `image/*` wird ein Image-Node eingefügt, sonst ein normaler URL-Te
 - Die Demo nutzt NDK für NIP-46-Sessions und Signierung.
 - Das Plugin selbst bleibt auth-unabhängig und erwartet nur das `BlossomSigner`-Interface.
 - Dadurch funktioniert Upload-Signierung gleich für NIP-07 und NIP-46.
+- Nach Bild-Uploads fragt die Demo Metadaten ab und publiziert diese als kind `1063` plus kind `1` Fallback.
 - Rückgabe:
-  - `tags: [string, string][]`
+  - `tags: [string, string, ...string[]][]`
   - `url: string`
 - Validierung: Fehlt `url` in den Tags, wird ein Fehler geworfen.
 

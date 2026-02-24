@@ -114,4 +114,26 @@ describe('createBlossomUploadClient', () => {
     expect(result.url).toBe('https://blossom-b.example/abc123.png');
     expect(result.tags).toContainEqual(['m', 'image/png']);
   });
+
+  it('preserves tags with more than two values', async () => {
+    const client = createBlossomUploadClient({
+      servers: ['https://example.com'],
+      signer: testSigner,
+      uploaderFactory: () => ({
+        upload: async () => [
+          ['url', 'https://example.com/file.png'],
+          ['imeta', 'url https://example.com/file.png', 'm image/png', 'alt A description'],
+        ],
+      }),
+    });
+
+    const result = await client.upload(new File(['a'], 'a.png', { type: 'image/png' }));
+
+    expect(result.tags).toContainEqual([
+      'imeta',
+      'url https://example.com/file.png',
+      'm image/png',
+      'alt A description',
+    ]);
+  });
 });
