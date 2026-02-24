@@ -33,4 +33,45 @@ describe('createBlossomUploadClient', () => {
       'Missing required NIP-94 url tag from Blossom upload response',
     );
   });
+
+  it('throws timeout error if upload exceeds timeoutMs', async () => {
+    const client = createBlossomUploadClient({
+      servers: ['https://example.com'],
+      signer: {},
+      timeoutMs: 10,
+      uploaderFactory: () => ({
+        upload: async () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve([['url', 'https://example.com/slow.png']]), 50);
+          }),
+      }),
+    });
+
+    await expect(client.upload(new File(['a'], 'a.png', { type: 'image/png' }))).rejects.toThrow(
+      'Upload timed out after 10ms',
+    );
+  });
+
+  it('throws abort error when signal is aborted', async () => {
+    const client = createBlossomUploadClient({
+      servers: ['https://example.com'],
+      signer: {},
+      uploaderFactory: () => ({
+        upload: async () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve([['url', 'https://example.com/file.png']]), 50);
+          }),
+      }),
+    });
+
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      client.upload(new File(['a'], 'a.png', { type: 'image/png' }), { signal: controller.signal }),
+    ).rejects.toMatchObject({
+      name: 'AbortError',
+      message: 'Upload aborted',
+    });
+  });
 });

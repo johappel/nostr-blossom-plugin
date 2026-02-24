@@ -6,6 +6,7 @@ export interface BlossomUploadClientOptions {
   servers: string[];
   signer: NostrSignerLike;
   expiresIn?: number;
+  timeoutMs?: number;
 }
 
 export interface BlossomUploadResult {

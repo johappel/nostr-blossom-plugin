@@ -18,6 +18,7 @@ The format is based on Keep a Changelog.
 ### Changed
 
 - TypeScript/SvelteKit Tooling auf lauffähigen Monorepo-Stand gebracht.
+- Upload-Client um optionale `timeoutMs` und `AbortSignal`-Unterstützung erweitert.
 
 ### Fixed
 
@@ -34,6 +35,7 @@ The format is based on Keep a Changelog.
 - Unit-Tests für Upload-Client und Signer-Basisflow implementiert.
 - P0-Action-Test für URL-Input-Integration (`useBlossomInput`) ergänzt.
 - Integrationstest für Demo-Flow Upload → Publish mit NIP-94 `url` Tag ergänzt.
+- P0-Tests für Timeout- und Abort-Verhalten im Upload-Kern ergänzt.
 
 ### Security
 
