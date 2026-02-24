@@ -35,6 +35,8 @@ The format is based on Keep a Changelog.
 - Fehlendes Root-Script `check` ergänzt (`pnpm run check` funktioniert wieder).
 - NIP-07 `signEvent`-Aufruf auf gebundenen Provider-Kontext umgestellt (Fix für `this._call is not a function`).
 - Upload-Fehlerbehandlung in der Demo verbessert (klare Meldung bei AggregateError/CORS/Auth-Problemen).
+- NIP-46-Signierung robust gemacht: Relay-URLs werden normalisiert, bei `relay not connected` erfolgt Reconnect + Retry.
+- NIP-46-Handshake stabilisiert: Popup-Auth-Handling, expliziter Timeout und verlässlicher `error`-Status statt dauerhaftem `connecting`.
 
 ### Docs
 
@@ -52,6 +54,8 @@ The format is based on Keep a Changelog.
 - Tests für TipTap-Insert- und Upload-Cancel-Verhalten ergänzt.
 - Signer-Tests um Session-Status- und Disconnect-Verhalten erweitert.
 - Regressionstest für NIP-07 Provider-Kontext (`this`-Bindung) ergänzt.
+- Test für NIP-46 Reconnect-/Retry-Verhalten bei nicht verbundenem Relay ergänzt.
+- Test für NIP-46 Timeout-Pfad und Store-Status `error` ergänzt.
 
 ### Security
 

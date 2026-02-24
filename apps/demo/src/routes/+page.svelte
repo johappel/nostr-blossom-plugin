@@ -19,6 +19,7 @@
   const servers = [
     'https://blossom.primal.net/',
     'https://cdn.satellite.earth/',
+    'wss://relay.nostrcheck.me/'
   ];
 
   let signer: SignerAdapter | null = null;
@@ -53,6 +54,22 @@
     };
   });
 
+  $effect(() => {
+    if ($authStore.method !== 'nip46') {
+      return;
+    }
+
+    if ($authStore.sessionStatus === 'connecting') {
+      status = $authStore.sessionInfo ?? 'Connecting to NIP-46 bunker...';
+      return;
+    }
+
+    if ($authStore.sessionStatus === 'error') {
+      status = $authStore.sessionInfo ?? 'NIP-46 connection failed';
+      return;
+    }
+  });
+
   async function loginNip07() {
     try {
       signer = await connectNip07Signer();
@@ -64,9 +81,11 @@
 
   async function loginNip46() {
     try {
+      status = 'Connecting via NIP-46...';
       signer = await connectNip46Signer(bunkerUrl);
       status = 'Connected via NIP-46';
     } catch (error) {
+      signer = null;
       status = error instanceof Error ? error.message : 'Login failed';
     }
   }
@@ -180,6 +199,12 @@
       {#if $authStore.pubkey} | Pubkey: {$authStore.pubkey}{/if}
       {#if $authStore.sessionInfo} | Info: {$authStore.sessionInfo}{/if}
     </p>
+    {#if $authStore.nip46ParsedRelays.length > 0}
+      <p>NIP-46 parsed relays: {$authStore.nip46ParsedRelays.join(', ')}</p>
+    {/if}
+    {#if $authStore.nip46ActiveRelays.length > 0}
+      <p>NIP-46 active relays: {$authStore.nip46ActiveRelays.join(', ')}</p>
+    {/if}
     <button type="button" onclick={loginNip07}>Connect NIP-07</button>
     <input bind:value={bunkerUrl} placeholder="bunker://..." />
     <button type="button" onclick={loginNip46}>Connect NIP-46</button>

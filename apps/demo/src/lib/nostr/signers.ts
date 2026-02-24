@@ -22,6 +22,9 @@ interface Nip46Deps {
     sign: (event: Record<string, unknown>) => Promise<string>;
   }>;
   computeEventId: (event: Record<string, unknown>) => Promise<string>;
+  openAuthUrl: (url: string) => void;
+  connectTimeoutMs: number;
+  readyTimeoutMs: number;
 }
 
 const DEFAULT_NIP46_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net'];
@@ -30,19 +33,38 @@ const defaultNip46Deps: Nip46Deps = {
   createNdk: async (relays) => createNdkRuntime(relays),
   createNip46Signer: async (ndk, bunkerUrl) => createNip46SignerRuntime(ndk, bunkerUrl),
   computeEventId: async (event) => getEventHash(event as never),
+  openAuthUrl: (url) => {
+    if (typeof window !== 'undefined') {
+      window.open(url, 'nip46-auth', 'width=520,height=720,noopener,noreferrer');
+    }
+  },
+  connectTimeoutMs: 7000,
+  readyTimeoutMs: 30000,
 };
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+    }),
+  ]);
+}
+
 function parseRelayUrlsFromBunkerUrl(bunkerUrl: string) {
+  const normalizeRelayUrl = (relay: string) => relay.trim().replace(/\/+$/, '');
+
   try {
     const url = new URL(bunkerUrl);
-    const relays = url.searchParams.getAll('relay').filter(Boolean);
+    const relays = url.searchParams.getAll('relay').map(normalizeRelayUrl).filter(Boolean);
     return relays.length > 0 ? relays : DEFAULT_NIP46_RELAYS;
   } catch {
-    return DEFAULT_NIP46_RELAYS;
+    return DEFAULT_NIP46_RELAYS.map(normalizeRelayUrl);
   }
 }
 
 function createSignEventBridge(
+  ndk: { connect: (timeoutMs?: number) => Promise<void> },
   userPubkey: string,
   nip46Signer: { sign: (event: Record<string, unknown>) => Promise<string> },
   deps: Nip46Deps,
@@ -56,7 +78,20 @@ function createSignEventBridge(
       pubkey: userPubkey,
     };
 
-    const sig = await nip46Signer.sign(unsignedEvent);
+    let sig: string;
+
+    try {
+      sig = await nip46Signer.sign(unsignedEvent);
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : '';
+      if (message.includes('relay not connected') || message.includes('waiting for connection')) {
+        await ndk.connect(5000);
+        sig = await nip46Signer.sign(unsignedEvent);
+      } else {
+        throw error;
+      }
+    }
+
     const id = await deps.computeEventId(unsignedEvent);
     return {
       ...unsignedEvent,
@@ -72,6 +107,8 @@ export async function connectNip07Signer(): Promise<SignerAdapter> {
     pubkey: null,
     sessionStatus: 'connecting',
     sessionInfo: 'Waiting for NIP-07 provider',
+    nip46ParsedRelays: [],
+    nip46ActiveRelays: [],
   });
 
   if (!window.nostr) {
@@ -80,6 +117,8 @@ export async function connectNip07Signer(): Promise<SignerAdapter> {
       pubkey: null,
       sessionStatus: 'error',
       sessionInfo: 'NIP-07 provider not found',
+      nip46ParsedRelays: [],
+      nip46ActiveRelays: [],
     });
     throw new Error('NIP-07 provider not found in browser.');
   }
@@ -95,6 +134,8 @@ export async function connectNip07Signer(): Promise<SignerAdapter> {
     pubkey,
     sessionStatus: 'connected',
     sessionInfo: 'NIP-07 connected',
+    nip46ParsedRelays: [],
+    nip46ActiveRelays: [],
   });
 
   return {
@@ -107,17 +148,23 @@ export async function connectNip07Signer(): Promise<SignerAdapter> {
         pubkey: null,
         sessionStatus: 'disconnected',
         sessionInfo: 'NIP-07 disconnected',
+        nip46ParsedRelays: [],
+        nip46ActiveRelays: [],
       });
     },
   };
 }
 
 export async function connectNip46Signer(bunkerUrl: string, deps: Nip46Deps = defaultNip46Deps): Promise<SignerAdapter> {
+  const relays = parseRelayUrlsFromBunkerUrl(bunkerUrl);
+
   authStore.set({
     method: 'nip46',
     pubkey: null,
     sessionStatus: 'connecting',
     sessionInfo: 'Connecting to NIP-46 bunker',
+    nip46ParsedRelays: relays,
+    nip46ActiveRelays: [],
   });
 
   if (!bunkerUrl) {
@@ -126,37 +173,85 @@ export async function connectNip46Signer(bunkerUrl: string, deps: Nip46Deps = de
       pubkey: null,
       sessionStatus: 'error',
       sessionInfo: 'NIP-46 bunker URL missing',
+      nip46ParsedRelays: relays,
+      nip46ActiveRelays: [],
     });
     throw new Error('NIP-46 bunker URL is required.');
   }
-
-  const relays = parseRelayUrlsFromBunkerUrl(bunkerUrl);
   const ndk = await deps.createNdk(relays);
 
-  await ndk.connect(4000);
+  let nip46Signer:
+    | {
+        blockUntilReady: () => Promise<{ pubkey: string }>;
+        stop: () => void;
+        sign: (event: Record<string, unknown>) => Promise<string>;
+        on?: (event: string, cb: (value: string) => void) => void;
+      }
+    | undefined;
 
-  const nip46Signer = await deps.createNip46Signer(ndk, bunkerUrl);
-  const ndkUser = await nip46Signer.blockUntilReady();
+  try {
+    await ndk.connect(deps.connectTimeoutMs);
 
-  authStore.set({
-    method: 'nip46',
-    pubkey: ndkUser.pubkey,
-    sessionStatus: 'connected',
-    sessionInfo: `Connected to ${bunkerUrl} via ${relays.length} relay(s)`,
-  });
+    nip46Signer = await deps.createNip46Signer(ndk, bunkerUrl);
 
-  return {
-    kind: 'nip46',
-    getPublicKey: async () => ndkUser.pubkey,
-    signEvent: createSignEventBridge(ndkUser.pubkey, nip46Signer, deps),
-    disconnect() {
-      nip46Signer.stop();
-      authStore.set({
-        method: null,
-        pubkey: null,
-        sessionStatus: 'disconnected',
-        sessionInfo: 'NIP-46 disconnected',
+    if (typeof nip46Signer.on === 'function') {
+      nip46Signer.on('authUrl', (url: string) => {
+        authStore.set({
+          method: 'nip46',
+          pubkey: null,
+          sessionStatus: 'connecting',
+          sessionInfo: 'NIP-46 requires authorization in popup window',
+          nip46ParsedRelays: relays,
+          nip46ActiveRelays: relays,
+        });
+        deps.openAuthUrl(url);
       });
-    },
-  };
+    }
+
+    const ndkUser = await withTimeout(
+      nip46Signer.blockUntilReady(),
+      deps.readyTimeoutMs,
+      'NIP-46 session timed out while waiting for bunker authorization',
+    );
+
+    authStore.set({
+      method: 'nip46',
+      pubkey: ndkUser.pubkey,
+      sessionStatus: 'connected',
+      sessionInfo: `Connected to ${bunkerUrl} via ${relays.length} relay(s)`,
+      nip46ParsedRelays: relays,
+      nip46ActiveRelays: ((nip46Signer as { relayUrls?: string[] }).relayUrls ?? relays).map((relay) =>
+        relay.replace(/\/+$/, ''),
+      ),
+    });
+
+    return {
+      kind: 'nip46',
+      getPublicKey: async () => ndkUser.pubkey,
+      signEvent: createSignEventBridge(ndk, ndkUser.pubkey, nip46Signer, deps),
+      disconnect() {
+        nip46Signer.stop();
+        authStore.set({
+          method: null,
+          pubkey: null,
+          sessionStatus: 'disconnected',
+          sessionInfo: 'NIP-46 disconnected',
+          nip46ParsedRelays: [],
+          nip46ActiveRelays: [],
+        });
+      },
+    };
+  } catch (error) {
+    nip46Signer?.stop?.();
+    const errorMessage = error instanceof Error ? error.message : 'Unknown NIP-46 connection error';
+    authStore.set({
+      method: null,
+      pubkey: null,
+      sessionStatus: 'error',
+      sessionInfo: errorMessage,
+      nip46ParsedRelays: relays,
+      nip46ActiveRelays: [],
+    });
+    throw error;
+  }
 }

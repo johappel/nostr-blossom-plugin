@@ -8,6 +8,8 @@ export interface AuthState {
   pubkey: string | null;
   sessionStatus: SessionStatus;
   sessionInfo: string | null;
+  nip46ParsedRelays: string[];
+  nip46ActiveRelays: string[];
 }
 
 export const authStore = writable<AuthState>({
@@ -15,4 +17,6 @@ export const authStore = writable<AuthState>({
   pubkey: null,
   sessionStatus: 'idle',
   sessionInfo: null,
+  nip46ParsedRelays: [],
+  nip46ActiveRelays: [],
 });

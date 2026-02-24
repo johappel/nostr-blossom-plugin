@@ -10,6 +10,8 @@ describe('signers', () => {
       pubkey: null,
       sessionStatus: 'idle',
       sessionInfo: null,
+      nip46ParsedRelays: [],
+      nip46ActiveRelays: [],
     });
   });
 
@@ -26,6 +28,9 @@ describe('signers', () => {
           sign: async () => 'sig-46',
         }) as never,
       computeEventId: async () => 'event-id',
+      openAuthUrl: () => undefined,
+      connectTimeoutMs: 10,
+      readyTimeoutMs: 10,
     });
 
     expect(signer.kind).toBe('nip46');
@@ -70,6 +75,9 @@ describe('signers', () => {
           sign: async () => 'sig-46',
         }) as never,
       computeEventId: async () => 'event-id',
+      openAuthUrl: () => undefined,
+      connectTimeoutMs: 10,
+      readyTimeoutMs: 10,
     });
 
     signer.disconnect?.();
@@ -77,5 +85,67 @@ describe('signers', () => {
     const state = get(authStore);
     expect(state.method).toBe(null);
     expect(state.sessionStatus).toBe('disconnected');
+  });
+
+  it('reconnects and retries signing when relay is not connected', async () => {
+    let connectCalls = 0;
+    let signCalls = 0;
+
+    const signer = await connectNip46Signer('bunker://my-signer?relay=wss%3A%2F%2Frelay.example%2F', {
+      createNdk: async () =>
+        ({
+          connect: async () => {
+            connectCalls += 1;
+          },
+        }) as never,
+      createNip46Signer: async () =>
+        ({
+          blockUntilReady: async () => ({ pubkey: 'pubkey-46' }),
+          stop: () => undefined,
+          sign: async () => {
+            signCalls += 1;
+            if (signCalls === 1) {
+              throw new Error('Relay not connected, waiting for connection to publish an event');
+            }
+            return 'sig-46';
+          },
+        }) as never,
+      computeEventId: async () => 'event-id',
+      openAuthUrl: () => undefined,
+      connectTimeoutMs: 10,
+      readyTimeoutMs: 10,
+    });
+
+    const signed = await signer.signEvent({ kind: 24242, content: '', tags: [] });
+
+    expect(connectCalls).toBe(2);
+    expect(signCalls).toBe(2);
+    expect(signed).toMatchObject({ id: 'event-id', sig: 'sig-46' });
+  });
+
+  it('sets session to error when NIP-46 handshake times out', async () => {
+    await expect(
+      connectNip46Signer('bunker://my-signer', {
+        createNdk: async () =>
+          ({
+            connect: async () => undefined,
+          }) as never,
+        createNip46Signer: async () =>
+          ({
+            blockUntilReady: async () =>
+              new Promise<{ pubkey: string }>(() => {
+                /* never resolves */
+              }),
+            stop: () => undefined,
+            sign: async () => 'sig-46',
+          }) as never,
+        computeEventId: async () => 'event-id',
+        openAuthUrl: () => undefined,
+        connectTimeoutMs: 10,
+        readyTimeoutMs: 10,
+      }),
+    ).rejects.toThrow('NIP-46 session timed out while waiting for bunker authorization');
+
+    expect(get(authStore).sessionStatus).toBe('error');
   });
 });
