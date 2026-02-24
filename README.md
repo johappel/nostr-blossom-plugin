@@ -58,6 +58,28 @@ console.log(result.url, result.tags);
 <input use:useBlossomInput={{ onSelectUrl, iconLabel: 'Upload with Blossom' }} />
 ```
 
+### TipTap Extension
+
+```ts
+import { BlossomExtension, uploadAndInsertBlossomMedia } from '@blossom/plugin';
+import { Editor } from '@tiptap/core';
+import StarterKit from '@tiptap/starter-kit';
+import Image from '@tiptap/extension-image';
+
+const editor = new Editor({
+  element: document.querySelector('#editor'),
+  extensions: [StarterKit, Image, BlossomExtension],
+  content: '<p>Hello Blossom</p>',
+});
+
+await uploadAndInsertBlossomMedia(editor, async () => ({
+  url: 'https://example.com/image.png',
+  mimeType: 'image/png',
+}));
+```
+
+Hinweis: Bei `image/*` wird ein Image-Node eingefügt, sonst ein normaler URL-Text.
+
 ## Komponenten-Dokumentation (MVP)
 
 ### `useBlossomInput`

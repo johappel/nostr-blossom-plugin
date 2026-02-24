@@ -15,6 +15,8 @@ The format is based on Keep a Changelog.
 - Demo-App (`apps/demo`) mit NIP-07/NIP-46 Login, Upload-Flow und Event-Publish Scaffold erstellt.
 - Upload-History Store und initiale Testdateien für Plugin und Demo ergänzt.
 - Root-Script `start` ergänzt, um die Demo-Produktionsinstanz zentral zu starten.
+- Echte TipTap-Extension (`BlossomExtension`) inkl. Upload-Insert-Helper im Plugin ergänzt.
+- TipTap-Demo-Integration mit Upload-Button und Editor-Preview in der Demo-App ergänzt.
 
 ### Changed
 
@@ -40,6 +42,7 @@ The format is based on Keep a Changelog.
 - Integrationstest für Demo-Flow Upload → Publish mit NIP-94 `url` Tag ergänzt.
 - P0-Tests für Timeout- und Abort-Verhalten im Upload-Kern ergänzt.
 - P0-Test für partiellen Multi-Server-Ausfall mit erfolgreichem Fallback ergänzt.
+- Tests für TipTap-Insert- und Upload-Cancel-Verhalten ergänzt.
 
 ### Security
 

@@ -20,7 +20,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@nostrify/nostrify": "^0.50.2"
+    "@nostrify/nostrify": "^0.50.2",
+    "@tiptap/core": "^2.11.5"
   },
   "devDependencies": {
     "jsdom": "^25.0.1",
@@ -28,6 +29,7 @@
     "vitest": "^2.1.8"
   },
   "peerDependencies": {
-    "svelte": "^5.0.0"
+    "svelte": "^5.0.0",
+    "@tiptap/core": "^2.11.5"
   }
 }

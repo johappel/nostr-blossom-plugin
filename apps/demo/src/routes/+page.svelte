@@ -1,5 +1,15 @@
 <script lang="ts">
-  import { createBlossomUploadClient, useBlossomInput } from '@blossom/plugin';
+  import {
+    BlossomExtension,
+    createBlossomUploadClient,
+    uploadAndInsertBlossomMedia,
+    useBlossomInput,
+  } from '@blossom/plugin';
+  import type { BlossomMediaPayload } from '@blossom/plugin';
+  import { Editor } from '@tiptap/core';
+  import Image from '@tiptap/extension-image';
+  import StarterKit from '@tiptap/starter-kit';
+  import { onMount } from 'svelte';
   import { addUploadHistory, uploadHistoryStore } from '$lib/stores/uploads';
   import { connectNip07Signer, connectNip46Signer } from '$lib/nostr/signers';
   import { publishEvent } from '$lib/nostr/publish';
@@ -10,11 +20,36 @@
   ];
 
   let signer: Awaited<ReturnType<typeof connectNip07Signer>> | null = null;
-  let bunkerUrl = '';
-  let relayUrl = 'wss://relay.damus.io';
-  let uploadUrl = '';
-  let eventContent = '';
-  let status = 'Not connected';
+  let bunkerUrl = $state('');
+  let relayUrl = $state('wss://relay.damus.io');
+  let uploadUrl = $state('');
+  let eventContent = $state('');
+  let status = $state('Not connected');
+  let tiptapHost: HTMLDivElement | null = null;
+  let tiptapEditor: Editor | null = null;
+  let tiptapHtml = $state('');
+
+  onMount(() => {
+    if (!tiptapHost) {
+      return;
+    }
+
+    tiptapEditor = new Editor({
+      element: tiptapHost,
+      extensions: [StarterKit, Image, BlossomExtension],
+      content: '<p>Write your note and attach uploads via Blossom.</p>',
+      onUpdate: ({ editor }) => {
+        tiptapHtml = editor.getHTML();
+      },
+    });
+
+    tiptapHtml = tiptapEditor.getHTML();
+
+    return () => {
+      tiptapEditor?.destroy();
+      tiptapEditor = null;
+    };
+  });
 
   async function loginNip07() {
     try {
@@ -78,6 +113,36 @@
     const result = await publishEvent(signer, relayUrl, eventContent, tags);
     status = `Event prepared for ${result.relayUrl}`;
   }
+
+  async function uploadForTiptap(): Promise<BlossomMediaPayload | null> {
+    const url = await selectUploadUrl();
+    if (!url) {
+      return null;
+    }
+
+    const lastHistoryItem = $uploadHistoryStore[0];
+
+    return {
+      url,
+      mimeType: lastHistoryItem?.mime,
+    };
+  }
+
+  async function onTiptapUpload() {
+    if (!tiptapEditor) {
+      status = 'TipTap editor not ready';
+      return;
+    }
+
+    const inserted = await uploadAndInsertBlossomMedia(tiptapEditor, uploadForTiptap);
+    if (!inserted) {
+      status = 'TipTap upload canceled';
+      return;
+    }
+
+    tiptapHtml = tiptapEditor.getHTML();
+    status = 'TipTap content updated';
+  }
 </script>
 
 <main>
@@ -86,9 +151,9 @@
 
   <section>
     <h2>Login</h2>
-    <button type="button" on:click={loginNip07}>Connect NIP-07</button>
+    <button type="button" onclick={loginNip07}>Connect NIP-07</button>
     <input bind:value={bunkerUrl} placeholder="bunker://..." />
-    <button type="button" on:click={loginNip46}>Connect NIP-46</button>
+    <button type="button" onclick={loginNip46}>Connect NIP-46</button>
   </section>
 
   <section>
@@ -104,13 +169,20 @@
     <h2>Event Composer</h2>
     <input bind:value={relayUrl} placeholder="wss://relay.example" />
     <textarea bind:value={eventContent} placeholder="Write your nostr event"></textarea>
-    <button type="button" on:click={onPublish}>Publish</button>
+    <button type="button" onclick={onPublish}>Publish</button>
+  </section>
+
+  <section>
+    <h2>TipTap + Blossom</h2>
+    <button type="button" onclick={onTiptapUpload}>Upload into TipTap</button>
+    <div class="editor" bind:this={tiptapHost}></div>
+    <textarea readonly value={tiptapHtml}></textarea>
   </section>
 
   <section>
     <h2>Upload History</h2>
     <ul>
-      {#each $uploadHistoryStore as item}
+      {#each $uploadHistoryStore as item (item.createdAt + item.url)}
         <li>{item.url} ({item.mime ?? 'unknown'})</li>
       {/each}
     </ul>
@@ -132,6 +204,14 @@
     padding: 1rem;
     display: grid;
     gap: 0.5rem;
+  }
+
+  .editor {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    min-height: 140px;
+    padding: 0.75rem;
+    background: #fff;
   }
 
   input,
