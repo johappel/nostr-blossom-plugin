@@ -2,16 +2,20 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import sharp from 'sharp';
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_VISION_MODEL = process.env.OPENROUTER_VISION_MODEL;
-const OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS ?? 15000);
-const INLINE_IMAGE_TIMEOUT_MS = Number(process.env.OPENROUTER_IMAGE_FETCH_TIMEOUT_MS ?? 12000);
-const INLINE_IMAGE_MAX_BYTES = Number(process.env.OPENROUTER_IMAGE_MAX_BYTES ?? 4_000_000);
-const INLINE_IMAGE_MAX_DIM = Number(process.env.OPENROUTER_IMAGE_MAX_DIM ?? 1280);
-const INLINE_IMAGE_QUALITY = Number(process.env.OPENROUTER_IMAGE_QUALITY ?? 78);
-const INLINE_IMAGE_MIN_DIM = Number(process.env.OPENROUTER_IMAGE_MIN_DIM ?? 512);
-const INLINE_IMAGE_MIN_QUALITY = Number(process.env.OPENROUTER_IMAGE_MIN_QUALITY ?? 40);
-const OPENROUTER_VISION_INLINE_ONLY = process.env.OPENROUTER_VISION_INLINE_ONLY === 'true';
+function readRuntimeConfig() {
+  return {
+    openRouterApiKey: process.env.OPENROUTER_API_KEY,
+    visionModel: process.env.OPENROUTER_VISION_MODEL || 'sourceful/riverflow-v2-fast',
+    openRouterTimeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS ?? 15000),
+    inlineImageTimeoutMs: Number(process.env.OPENROUTER_IMAGE_FETCH_TIMEOUT_MS ?? 12000),
+    inlineImageMaxBytes: Number(process.env.OPENROUTER_IMAGE_MAX_BYTES ?? 4_000_000),
+    inlineImageMaxDim: Number(process.env.OPENROUTER_IMAGE_MAX_DIM ?? 1280),
+    inlineImageQuality: Number(process.env.OPENROUTER_IMAGE_QUALITY ?? 78),
+    inlineImageMinDim: Number(process.env.OPENROUTER_IMAGE_MIN_DIM ?? 512),
+    inlineImageMinQuality: Number(process.env.OPENROUTER_IMAGE_MIN_QUALITY ?? 40),
+    inlineOnly: process.env.OPENROUTER_VISION_INLINE_ONLY === 'true',
+  };
+}
 
 function fallbackDescriptionFromUrl(imageUrl: string) {
   try {
@@ -89,9 +93,19 @@ function parseResponseContent(rawContent: unknown, imageUrl: string) {
   };
 }
 
-async function toInlineImageDataUrl(imageUrl: string) {
+async function toInlineImageDataUrl(
+  imageUrl: string,
+  options: {
+    inlineImageTimeoutMs: number;
+    inlineImageMaxBytes: number;
+    inlineImageMaxDim: number;
+    inlineImageQuality: number;
+    inlineImageMinDim: number;
+    inlineImageMinQuality: number;
+  },
+) {
   const controller = new AbortController();
-  const timeoutHandle = setTimeout(() => controller.abort(), INLINE_IMAGE_TIMEOUT_MS);
+  const timeoutHandle = setTimeout(() => controller.abort(), options.inlineImageTimeoutMs);
 
   try {
     const response = await fetch(imageUrl, {
@@ -109,13 +123,19 @@ async function toInlineImageDataUrl(imageUrl: string) {
     }
 
     const contentLength = Number(response.headers.get('content-length') ?? '0');
-    if (contentLength > INLINE_IMAGE_MAX_BYTES) {
+    if (contentLength > options.inlineImageMaxBytes) {
       throw new Error(`Image too large (${contentLength} bytes)`);
     }
 
     const arrayBuffer = await response.arrayBuffer();
     const sourceBuffer = Buffer.from(arrayBuffer);
-    const optimized = await optimizeImageForInlineUpload(sourceBuffer);
+    const optimized = await optimizeImageForInlineUpload(sourceBuffer, {
+      inlineImageMaxBytes: options.inlineImageMaxBytes,
+      inlineImageMaxDim: options.inlineImageMaxDim,
+      inlineImageQuality: options.inlineImageQuality,
+      inlineImageMinDim: options.inlineImageMinDim,
+      inlineImageMinQuality: options.inlineImageMinQuality,
+    });
     const base64 = optimized.buffer.toString('base64');
 
     return {
@@ -160,13 +180,22 @@ function toProviderErrorDetails(payload: { error?: unknown } | null) {
   return 'Unknown provider error';
 }
 
-async function optimizeImageForInlineUpload(inputBuffer: Buffer) {
+async function optimizeImageForInlineUpload(
+  inputBuffer: Buffer,
+  options: {
+    inlineImageMaxBytes: number;
+    inlineImageMaxDim: number;
+    inlineImageQuality: number;
+    inlineImageMinDim: number;
+    inlineImageMinQuality: number;
+  },
+) {
   const metadata = await sharp(inputBuffer, { failOn: 'none' }).metadata();
   const hasAlpha = Boolean(metadata.hasAlpha);
-  const minDimension = Math.max(256, INLINE_IMAGE_MIN_DIM);
-  const startDimension = Math.max(minDimension, INLINE_IMAGE_MAX_DIM);
-  const minQuality = Math.min(95, Math.max(30, INLINE_IMAGE_MIN_QUALITY));
-  const startQuality = Math.min(95, Math.max(minQuality, INLINE_IMAGE_QUALITY));
+  const minDimension = Math.max(256, options.inlineImageMinDim);
+  const startDimension = Math.max(minDimension, options.inlineImageMaxDim);
+  const minQuality = Math.min(95, Math.max(30, options.inlineImageMinQuality));
+  const startQuality = Math.min(95, Math.max(minQuality, options.inlineImageQuality));
 
   const encode = async (quality: number, dimension: number) => {
     const transformed = sharp(inputBuffer, { failOn: 'none' })
@@ -197,7 +226,7 @@ async function optimizeImageForInlineUpload(inputBuffer: Buffer) {
   let quality = startQuality;
   let encoded = await encode(quality, dimension);
 
-  while (encoded.buffer.byteLength > INLINE_IMAGE_MAX_BYTES) {
+  while (encoded.buffer.byteLength > options.inlineImageMaxBytes) {
     if (quality > minQuality) {
       quality = Math.max(minQuality, quality - 8);
       encoded = await encode(quality, dimension);
@@ -214,7 +243,7 @@ async function optimizeImageForInlineUpload(inputBuffer: Buffer) {
     break;
   }
 
-  if (encoded.buffer.byteLength > INLINE_IMAGE_MAX_BYTES) {
+  if (encoded.buffer.byteLength > options.inlineImageMaxBytes) {
     throw new Error(`Image too large after resize/compression (${encoded.buffer.byteLength} bytes)`);
   }
 
@@ -222,6 +251,7 @@ async function optimizeImageForInlineUpload(inputBuffer: Buffer) {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
+  const config = readRuntimeConfig();
   const body = (await request.json().catch(() => null)) as { imageUrl?: string } | null;
   const imageUrl = body?.imageUrl?.trim();
 
@@ -229,7 +259,7 @@ export const POST: RequestHandler = async ({ request }) => {
     return json({ error: 'Valid imageUrl is required' }, { status: 400 });
   }
 
-  if (!OPENROUTER_API_KEY) {
+  if (!config.openRouterApiKey) {
     return json(
       {
         description: fallbackDescriptionFromUrl(imageUrl),
@@ -252,10 +282,17 @@ export const POST: RequestHandler = async ({ request }) => {
         optimizedContentType: string;
       }
     | undefined;
-  const visionModel = OPENROUTER_VISION_MODEL || 'sourceful/riverflow-v2-fast';
+  const visionModel = config.visionModel;
 
   try {
-    const inline = await toInlineImageDataUrl(imageUrl);
+    const inline = await toInlineImageDataUrl(imageUrl, {
+      inlineImageTimeoutMs: config.inlineImageTimeoutMs,
+      inlineImageMaxBytes: config.inlineImageMaxBytes,
+      inlineImageMaxDim: config.inlineImageMaxDim,
+      inlineImageQuality: config.inlineImageQuality,
+      inlineImageMinDim: config.inlineImageMinDim,
+      inlineImageMinQuality: config.inlineImageMinQuality,
+    });
     imageSourceForModel = inline.dataUrl;
     imageProcessing = {
       sourceBytes: inline.sourceBytes,
@@ -265,7 +302,7 @@ export const POST: RequestHandler = async ({ request }) => {
     };
     inputMode = 'inline';
   } catch (error) {
-    if (OPENROUTER_VISION_INLINE_ONLY) {
+    if (config.inlineOnly) {
       return json(
         {
           description: fallbackDescriptionFromUrl(imageUrl),
@@ -293,7 +330,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const fetchPromise = fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        Authorization: `Bearer ${config.openRouterApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -322,7 +359,10 @@ export const POST: RequestHandler = async ({ request }) => {
     return await Promise.race([
       fetchPromise,
       new Promise<Response>((_, reject) => {
-        setTimeout(() => reject(new Error(`Vision provider timeout after ${OPENROUTER_TIMEOUT_MS}ms`)), OPENROUTER_TIMEOUT_MS);
+        setTimeout(
+          () => reject(new Error(`Vision provider timeout after ${config.openRouterTimeoutMs}ms`)),
+          config.openRouterTimeoutMs,
+        );
       }),
     ]);
   };
@@ -331,7 +371,7 @@ export const POST: RequestHandler = async ({ request }) => {
     upstream = await requestVision(imageSourceForModel);
 
     if (upstream.status === 413 && imageSourceForModel.startsWith('data:image/')) {
-      if (OPENROUTER_VISION_INLINE_ONLY) {
+      if (config.inlineOnly) {
         return json(
           {
             description: fallbackDescriptionFromUrl(imageUrl),

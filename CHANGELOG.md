@@ -50,6 +50,7 @@ The format is based on Keep a Changelog.
 
 ### Fixed
 
+- Vision-Endpoint liest Umgebungsvariablen jetzt zur Request-Zeit (statt nur beim Modul-Load), wodurch geänderte Runtime-Config im laufenden Dev-Flow konsistenter übernommen wird.
 - Vision-Endpoint liefert zusätzlich `imageProcessing` (Quelle/optimierte Bytes und MIME), damit Inline-Resize-Verhalten transparent nachvollziehbar ist.
 - Vision-Endpoint antwortet bei fehlendem `OPENROUTER_API_KEY` jetzt mit robustem Fallback (`200` + Warning) statt mit hartem `500`.
 - Hash-basierte Bilddateinamen werden im Vision-Fallback nicht mehr als kryptische Beschreibung ausgegeben, sondern als `Uploaded image` normalisiert.
