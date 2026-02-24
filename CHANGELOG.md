@@ -19,6 +19,7 @@ The format is based on Keep a Changelog.
 
 - TypeScript/SvelteKit Tooling auf lauffähigen Monorepo-Stand gebracht.
 - Upload-Client um optionale `timeoutMs` und `AbortSignal`-Unterstützung erweitert.
+- Demo-App von `@sveltejs/adapter-auto` auf festen Node-Adapter (`@sveltejs/adapter-node`) umgestellt.
 
 ### Fixed
 
