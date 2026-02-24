@@ -8,6 +8,7 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- Demo zeigt standardmäßig unter dem Upload-Input eine Metadaten-Zielsektion mit Bildvorschau (falls kein separates Target verwendet wird).
 - Demo-Uploadflow für Bilder um verpflichtende Metadaten-Eingabe erweitert (Beschreibung, Alt-Attribution; optional Autor, Lizenz, Keywords).
 - Demo publiziert nach Bild-Upload automatisch ein NIP-94 File-Metadata-Event (kind `1063`) plus kompatibles kind-`1` Fallback.
 - Subpath-Exports für gezielte Imports ergänzt: `@blossom/plugin/core`, `@blossom/plugin/svelte`, `@blossom/plugin/tiptap`.
@@ -27,6 +28,7 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- Metadaten aus der Default-Zielsektion können über einen Edit-Button nachträglich aktualisiert und erneut publiziert werden.
 - Metadaten-Erfassung in der Demo von Browser-Prompts auf einen In-Page-Dialog mit Pflichtfeld-Validierung umgestellt.
 - Publish-Helper in der Demo unterstützt nun variable Event-Kinds statt festem kind `1`.
 - Blossom-Tag-Normalisierung bewahrt zusätzliche Tag-Segmente (mehr als 2 Werte) statt sie abzuschneiden.

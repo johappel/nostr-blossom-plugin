@@ -11,7 +11,11 @@
   import StarterKit from '@tiptap/starter-kit';
   import { onMount } from 'svelte';
   import { authStore } from '$lib/stores/auth';
-  import { addUploadHistory, uploadHistoryStore } from '$lib/stores/uploads';
+  import {
+    addUploadHistory,
+    updateLatestUploadHistoryByUrl,
+    uploadHistoryStore,
+  } from '$lib/stores/uploads';
   import { connectNip07Signer, connectNip46Signer } from '$lib/nostr/signers';
   import type { SignerAdapter } from '$lib/nostr/signers';
   import {
@@ -44,7 +48,10 @@
   let metadataLicense = $state('');
   let metadataKeywords = $state('');
   let metadataValidationError = $state('');
+  let metadataDialogTitle = $state('Bild-Metadaten');
+  let metadataDialogSubmitLabel = $state('Metadaten speichern');
   let metadataResolver: ((value: ImageMetadataInput | null) => void) | null = null;
+  let uploadTagsByUrl = $state<Record<string, string[][]>>({});
 
   function resolveMetadataDialog(value: ImageMetadataInput | null) {
     const resolver = metadataResolver;
@@ -57,14 +64,22 @@
     }
   }
 
-  function openMetadataDialog(fileName: string): Promise<ImageMetadataInput | null> {
+  function openMetadataDialog(
+    fileName: string,
+    options?: {
+      mode?: 'create' | 'edit';
+      initialMetadata?: ImageMetadataInput;
+    },
+  ): Promise<ImageMetadataInput | null> {
     metadataDialogFileName = fileName;
-    metadataDescription = '';
-    metadataAltAttribution = '';
-    metadataAuthor = '';
-    metadataLicense = '';
-    metadataKeywords = '';
+    metadataDescription = options?.initialMetadata?.description ?? '';
+    metadataAltAttribution = options?.initialMetadata?.altAttribution ?? '';
+    metadataAuthor = options?.initialMetadata?.author ?? '';
+    metadataLicense = options?.initialMetadata?.license ?? '';
+    metadataKeywords = options?.initialMetadata?.keywords?.join(', ') ?? '';
     metadataValidationError = '';
+    metadataDialogTitle = options?.mode === 'edit' ? 'Metadaten bearbeiten' : 'Bild-Metadaten';
+    metadataDialogSubmitLabel = options?.mode === 'edit' ? 'Metadaten aktualisieren' : 'Metadaten speichern';
     metadataDialogOpen = true;
 
     return new Promise((resolve) => {
@@ -95,6 +110,63 @@
         .map((value) => value.trim())
         .filter(Boolean),
     });
+  }
+
+  function getCurrentUploadItem() {
+    if (!uploadUrl) {
+      return null;
+    }
+
+    return $uploadHistoryStore.find((item) => item.url === uploadUrl) ?? null;
+  }
+
+  async function onEditCurrentUploadMetadata() {
+    if (!uploadUrl) {
+      status = 'No uploaded URL available';
+      return;
+    }
+
+    if (!signer) {
+      status = 'Login required before metadata update';
+      return;
+    }
+
+    const currentItem = getCurrentUploadItem();
+    const initialMetadata: ImageMetadataInput = currentItem?.metadata ?? {
+      description: '',
+      altAttribution: '',
+      author: '',
+      license: '',
+      keywords: [],
+    };
+
+    const metadata = await openMetadataDialog(uploadUrl, {
+      mode: 'edit',
+      initialMetadata,
+    });
+
+    if (!metadata) {
+      status = 'Metadata update canceled';
+      return;
+    }
+
+    const fallbackTags: string[][] = [
+      ['url', uploadUrl],
+      ...(currentItem?.mime ? [['m', currentItem.mime]] : []),
+    ];
+    const uploadTags = uploadTagsByUrl[uploadUrl] ?? fallbackTags;
+
+    const kind1063Tags = buildImageMetadataTags(uploadTags, metadata);
+    const kind1Tags = buildKind1FallbackTags(uploadTags, metadata);
+
+    await publishEvent(signer, relayUrl, metadata.description, kind1063Tags, 1063);
+    await publishEvent(signer, relayUrl, metadata.description, kind1Tags, 1);
+
+    updateLatestUploadHistoryByUrl(uploadUrl, {
+      metadata,
+      publishedKinds: [1063, 1],
+    });
+    status = 'Metadata updated and republished as kind 1063 + kind 1';
   }
 
   onMount(() => {
@@ -185,6 +257,10 @@
       const result = await bridge.uploadFile(file);
       const uploadTags = result.tags.map((tag) => [...tag]);
       const mime = uploadTags.find((tag) => tag[0] === 'm')?.[1];
+      uploadTagsByUrl = {
+        ...uploadTagsByUrl,
+        [result.url]: uploadTags,
+      };
 
       uploadUrl = result.url;
 
@@ -194,7 +270,7 @@
         return result.url;
       }
 
-      const metadata = await openMetadataDialog(file.name);
+      const metadata = await openMetadataDialog(file.name, { mode: 'create' });
       if (!metadata) {
         status = 'Upload completed, but metadata entry was canceled';
         return null;
@@ -314,6 +390,41 @@
       placeholder="https://..."
       use:useBlossomInput={{ onSelectUrl: selectUploadUrl, iconLabel: 'Upload with Blossom' }}
     />
+
+    {#if uploadUrl}
+      {@const currentUploadItem = getCurrentUploadItem()}
+      {#if currentUploadItem?.mime?.startsWith('image/')}
+        <div class="metadata-target">
+          <h3>Bildvorschau & Metadaten</h3>
+          <img
+            class="upload-preview"
+            src={uploadUrl}
+            alt={
+              currentUploadItem.metadata?.altAttribution ||
+              currentUploadItem.metadata?.description ||
+              'Uploaded image preview'
+            }
+          />
+          <p>
+            <strong>Beschreibung:</strong>
+            {currentUploadItem.metadata?.description ?? 'Noch nicht erfasst'}
+          </p>
+          <p>
+            <strong>Alt-Attribution:</strong>
+            {currentUploadItem.metadata?.altAttribution ?? 'Noch nicht erfasst'}
+          </p>
+          <p><strong>Autor:</strong> {currentUploadItem.metadata?.author || '—'}</p>
+          <p><strong>Lizenz:</strong> {currentUploadItem.metadata?.license || '—'}</p>
+          <p>
+            <strong>Keywords:</strong>
+            {currentUploadItem.metadata?.keywords?.length
+              ? currentUploadItem.metadata.keywords.join(', ')
+              : '—'}
+          </p>
+          <button type="button" onclick={onEditCurrentUploadMetadata}>Metadaten bearbeiten</button>
+        </div>
+      {/if}
+    {/if}
   </section>
 
   <section>
@@ -360,7 +471,7 @@
         aria-modal="true"
         aria-labelledby="metadata-dialog-title"
       >
-        <h2 id="metadata-dialog-title">Bild-Metadaten</h2>
+        <h2 id="metadata-dialog-title">{metadataDialogTitle}</h2>
         <p>Datei: {metadataDialogFileName}</p>
         <form
           onsubmit={(event) => {
@@ -395,7 +506,7 @@
 
           <div class="dialog-actions">
             <button type="button" onclick={cancelMetadataDialog}>Abbrechen</button>
-            <button type="submit">Metadaten speichern</button>
+            <button type="submit">{metadataDialogSubmitLabel}</button>
           </div>
         </form>
       </div>
@@ -465,6 +576,26 @@
 
   .dialog-error {
     margin: 0;
+  }
+
+  .metadata-target {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 0.75rem;
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .metadata-target h3,
+  .metadata-target p {
+    margin: 0;
+  }
+
+  .upload-preview {
+    max-width: 320px;
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid #ddd;
   }
 
   input,
