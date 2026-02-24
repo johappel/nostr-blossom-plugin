@@ -8,6 +8,8 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- Neuer Service `apps/image-describer` (Fastify + Sharp) für Vision-Beschreibungen als eigenständiger HTTP-Dienst mit `POST /describe` und `GET /health`.
+- `docker-compose.yml` ergänzt, um den `image-describer` als separaten Container zu betreiben.
 - Vision-Endpoint unterstützt jetzt `OPENROUTER_VISION_INLINE_ONLY=true`, um URL-Fallbacks vollständig zu verhindern und ausschließlich Inline-Bilddaten zu verwenden.
 - Demo-Metadaten-Dialog kann jetzt per Vision-Modell eine Kurzbeschreibung (und optionale Keywords) aus der Bild-URL vorschlagen.
 - Demo unterstützt jetzt Auto-Fill von Bild-Metadaten aus Input-Quellen (`Default Metadata Source`) und optionalen `data-metadata-*` Attributen am Upload-Input.
@@ -31,6 +33,8 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- Demo unterstützt jetzt einen externen Vision-Service via `PUBLIC_IMAGE_DESCRIBER_URL` (Fallback bleibt lokale Route `/api/vision/describe`).
+- Standardmodell für Vision-Beschreibungen wurde auf qwen/qwen3-vl-8b-instruct umgestellt (über OPENROUTER_VISION_MODEL weiterhin überschreibbar).
 - Vision-Optimierung nutzt jetzt eine harte Mehrstufen-Strategie: erst Qualitätsreduktion, danach schrittweise Dimensionsreduktion bis zur Mindestgröße, um Inline-Requests stabil unter dem Größenlimit zu halten.
 - Vision-Endpoint skaliert und komprimiert Bilder jetzt serverseitig (max. Dimension + Qualität) vor dem Inline-Base64-Upload an das Modell.
 - Vision-Endpoint liefert jetzt `inputMode` (`inline`, `remote-url`, `inline-then-remote-url`, `none`) zurück, damit transparent ist, welches Bild-Eingabeformat tatsächlich an den Provider ging.
@@ -67,6 +71,8 @@ The format is based on Keep a Changelog.
 
 ### Docs
 
+- README um Compose-Setup für den separaten `image-describer`-Service erweitert.
+- Anleitung für Demo-Umgebungsvariablen via `apps/demo/.env` ergänzt (inkl. `apps/demo/.env.example`).
 - Dokumentation um Hinweise zum Metadaten-Publish nach Bild-Upload (kind `1063` + kind `1`) ergänzt.
 - Regeln für Komponenten-, Usage- und Progress-Dokumentation festgelegt.
 - Root-Dokumentation in `README.md` mit Setup und Usage-Beispielen ergänzt.

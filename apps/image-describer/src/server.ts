@@ -1,9 +1,14 @@
-import { json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
 import sharp from 'sharp';
+
+type DescribeRequestBody = {
+  imageUrl?: string;
+};
 
 function readRuntimeConfig() {
   return {
+    port: Number(process.env.PORT ?? 8787),
     openRouterApiKey: process.env.OPENROUTER_API_KEY,
     visionModel: process.env.OPENROUTER_VISION_MODEL || 'qwen/qwen3-vl-8b-instruct',
     openRouterTimeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS ?? 15000),
@@ -93,6 +98,76 @@ function parseResponseContent(rawContent: unknown, imageUrl: string) {
   };
 }
 
+async function optimizeImageForInlineUpload(
+  inputBuffer: Buffer,
+  options: {
+    inlineImageMaxBytes: number;
+    inlineImageMaxDim: number;
+    inlineImageQuality: number;
+    inlineImageMinDim: number;
+    inlineImageMinQuality: number;
+  },
+) {
+  const metadata = await sharp(inputBuffer, { failOn: 'none' }).metadata();
+  const hasAlpha = Boolean(metadata.hasAlpha);
+  const minDimension = Math.max(256, options.inlineImageMinDim);
+  const startDimension = Math.max(minDimension, options.inlineImageMaxDim);
+  const minQuality = Math.min(95, Math.max(30, options.inlineImageMinQuality));
+  const startQuality = Math.min(95, Math.max(minQuality, options.inlineImageQuality));
+
+  const encode = async (quality: number, dimension: number) => {
+    const transformed = sharp(inputBuffer, { failOn: 'none' })
+      .rotate()
+      .resize({
+        width: dimension,
+        height: dimension,
+        fit: 'inside',
+        withoutEnlargement: true,
+      });
+
+    if (hasAlpha) {
+      const buffer = await transformed.webp({ quality }).toBuffer();
+      return {
+        buffer,
+        contentType: 'image/webp',
+      } as const;
+    }
+
+    const buffer = await transformed.jpeg({ quality, mozjpeg: true }).toBuffer();
+    return {
+      buffer,
+      contentType: 'image/jpeg',
+    } as const;
+  };
+
+  let dimension = startDimension;
+  let quality = startQuality;
+  let encoded = await encode(quality, dimension);
+
+  while (encoded.buffer.byteLength > options.inlineImageMaxBytes) {
+    if (quality > minQuality) {
+      quality = Math.max(minQuality, quality - 8);
+      encoded = await encode(quality, dimension);
+      continue;
+    }
+
+    if (dimension > minDimension) {
+      dimension = Math.max(minDimension, Math.floor(dimension * 0.8));
+      quality = startQuality;
+      encoded = await encode(quality, dimension);
+      continue;
+    }
+
+    break;
+  }
+
+  if (encoded.buffer.byteLength > options.inlineImageMaxBytes) {
+    throw new Error(`Image too large after resize/compression (${encoded.buffer.byteLength} bytes)`);
+  }
+
+  return encoded;
+}
+
 async function toInlineImageDataUrl(
   imageUrl: string,
   options: {
@@ -180,95 +255,31 @@ function toProviderErrorDetails(payload: { error?: unknown } | null) {
   return 'Unknown provider error';
 }
 
-async function optimizeImageForInlineUpload(
-  inputBuffer: Buffer,
-  options: {
-    inlineImageMaxBytes: number;
-    inlineImageMaxDim: number;
-    inlineImageQuality: number;
-    inlineImageMinDim: number;
-    inlineImageMinQuality: number;
-  },
-) {
-  const metadata = await sharp(inputBuffer, { failOn: 'none' }).metadata();
-  const hasAlpha = Boolean(metadata.hasAlpha);
-  const minDimension = Math.max(256, options.inlineImageMinDim);
-  const startDimension = Math.max(minDimension, options.inlineImageMaxDim);
-  const minQuality = Math.min(95, Math.max(30, options.inlineImageMinQuality));
-  const startQuality = Math.min(95, Math.max(minQuality, options.inlineImageQuality));
+const app = Fastify({ logger: true });
 
-  const encode = async (quality: number, dimension: number) => {
-    const transformed = sharp(inputBuffer, { failOn: 'none' })
-      .rotate()
-      .resize({
-        width: dimension,
-        height: dimension,
-        fit: 'inside',
-        withoutEnlargement: true,
-      });
+await app.register(cors, {
+  origin: true,
+});
 
-    if (hasAlpha) {
-      const buffer = await transformed.webp({ quality }).toBuffer();
-      return {
-        buffer,
-        contentType: 'image/webp',
-      } as const;
-    }
+app.get('/health', async () => {
+  return { ok: true };
+});
 
-    const buffer = await transformed.jpeg({ quality, mozjpeg: true }).toBuffer();
-    return {
-      buffer,
-      contentType: 'image/jpeg',
-    } as const;
-  };
-
-  let dimension = startDimension;
-  let quality = startQuality;
-  let encoded = await encode(quality, dimension);
-
-  while (encoded.buffer.byteLength > options.inlineImageMaxBytes) {
-    if (quality > minQuality) {
-      quality = Math.max(minQuality, quality - 8);
-      encoded = await encode(quality, dimension);
-      continue;
-    }
-
-    if (dimension > minDimension) {
-      dimension = Math.max(minDimension, Math.floor(dimension * 0.8));
-      quality = startQuality;
-      encoded = await encode(quality, dimension);
-      continue;
-    }
-
-    break;
-  }
-
-  if (encoded.buffer.byteLength > options.inlineImageMaxBytes) {
-    throw new Error(`Image too large after resize/compression (${encoded.buffer.byteLength} bytes)`);
-  }
-
-  return encoded;
-}
-
-export const POST: RequestHandler = async ({ request }) => {
+app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
   const config = readRuntimeConfig();
-  const body = (await request.json().catch(() => null)) as { imageUrl?: string } | null;
-  const imageUrl = body?.imageUrl?.trim();
+  const imageUrl = request.body?.imageUrl?.trim();
 
   if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
-    return json({ error: 'Valid imageUrl is required' }, { status: 400 });
+    return reply.status(400).send({ error: 'Valid imageUrl is required' });
   }
 
   if (!config.openRouterApiKey) {
-    return json(
-      {
-        description: fallbackDescriptionFromUrl(imageUrl),
-        tags: [],
-        inputMode: 'none',
-        warning: 'OPENROUTER_API_KEY is not configured. Returning fallback description.',
-      },
-      { status: 200 },
-    );
+    return reply.send({
+      description: fallbackDescriptionFromUrl(imageUrl),
+      tags: [],
+      inputMode: 'none',
+      warning: 'OPENROUTER_API_KEY is not configured. Returning fallback description.',
+    });
   }
 
   let imageSourceForModel = imageUrl;
@@ -303,19 +314,16 @@ export const POST: RequestHandler = async ({ request }) => {
     inputMode = 'inline';
   } catch (error) {
     if (config.inlineOnly) {
-      return json(
-        {
-          description: fallbackDescriptionFromUrl(imageUrl),
-          tags: [],
-          inputMode: 'remote-url',
-          ...(imageProcessing ? { imageProcessing } : {}),
-          warning:
-            error instanceof Error
-              ? `Inline image conversion failed: ${error.message}. OPENROUTER_VISION_INLINE_ONLY=true prevents remote URL fallback.`
-              : 'Inline image conversion failed. OPENROUTER_VISION_INLINE_ONLY=true prevents remote URL fallback.',
-        },
-        { status: 200 },
-      );
+      return reply.send({
+        description: fallbackDescriptionFromUrl(imageUrl),
+        tags: [],
+        inputMode: 'remote-url',
+        ...(imageProcessing ? { imageProcessing } : {}),
+        warning:
+          error instanceof Error
+            ? `Inline image conversion failed: ${error.message}. OPENROUTER_VISION_INLINE_ONLY=true prevents remote URL fallback.`
+            : 'Inline image conversion failed. OPENROUTER_VISION_INLINE_ONLY=true prevents remote URL fallback.',
+      });
     }
 
     imageSourceWarning =
@@ -372,17 +380,14 @@ export const POST: RequestHandler = async ({ request }) => {
 
     if (upstream.status === 413 && imageSourceForModel.startsWith('data:image/')) {
       if (config.inlineOnly) {
-        return json(
-          {
-            description: fallbackDescriptionFromUrl(imageUrl),
-            tags: [],
-            inputMode: 'inline',
-            ...(imageProcessing ? { imageProcessing } : {}),
-            warning:
-              'Vision provider rejected inline image payload with 413. OPENROUTER_VISION_INLINE_ONLY=true prevents remote URL fallback.',
-          },
-          { status: 200 },
-        );
+        return reply.send({
+          description: fallbackDescriptionFromUrl(imageUrl),
+          tags: [],
+          inputMode: 'inline',
+          ...(imageProcessing ? { imageProcessing } : {}),
+          warning:
+            'Vision provider rejected inline image payload with 413. OPENROUTER_VISION_INLINE_ONLY=true prevents remote URL fallback.',
+        });
       }
 
       inputMode = 'inline-then-remote-url';
@@ -396,21 +401,18 @@ export const POST: RequestHandler = async ({ request }) => {
       upstream = await requestVision(imageUrl);
     }
   } catch (error) {
-    return json(
-      {
-        description: fallbackDescriptionFromUrl(imageUrl),
-        tags: [],
-        inputMode,
-        ...(imageProcessing ? { imageProcessing } : {}),
-        warning: [
-          imageSourceWarning,
-          error instanceof Error ? error.message : 'Vision provider request failed',
-        ]
-          .filter(Boolean)
-          .join(' '),
-      },
-      { status: 200 },
-    );
+    return reply.send({
+      description: fallbackDescriptionFromUrl(imageUrl),
+      tags: [],
+      inputMode,
+      ...(imageProcessing ? { imageProcessing } : {}),
+      warning: [
+        imageSourceWarning,
+        error instanceof Error ? error.message : 'Vision provider request failed',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    });
   }
 
   const upstreamPayload = (await upstream.json().catch(() => null)) as
@@ -429,31 +431,40 @@ export const POST: RequestHandler = async ({ request }) => {
   if (!upstream.ok) {
     const providerDetails = toProviderErrorDetails(upstreamPayload);
 
-    return json(
-      {
-        description: fallbackDescriptionFromUrl(imageUrl),
-        tags: [],
-        inputMode,
-        ...(imageProcessing ? { imageProcessing } : {}),
-        warning: [
-          imageSourceWarning,
-          `Vision provider request failed (status ${upstream.status}, model ${visionModel})`,
-          providerDetails,
-        ]
-          .filter(Boolean)
-          .join(' '),
-      },
-      { status: 200 },
-    );
+    return reply.send({
+      description: fallbackDescriptionFromUrl(imageUrl),
+      tags: [],
+      inputMode,
+      ...(imageProcessing ? { imageProcessing } : {}),
+      warning: [
+        imageSourceWarning,
+        `Vision provider request failed (status ${upstream.status}, model ${visionModel})`,
+        providerDetails,
+      ]
+        .filter(Boolean)
+        .join(' '),
+    });
   }
 
   const modelContent = upstreamPayload?.choices?.[0]?.message?.content;
   const parsed = parseResponseContent(modelContent, imageUrl);
 
-  return json({
+  return reply.send({
     ...parsed,
     inputMode,
     ...(imageProcessing ? { imageProcessing } : {}),
     ...(imageSourceWarning ? { warning: imageSourceWarning } : {}),
   });
-};
+});
+
+const config = readRuntimeConfig();
+
+app
+  .listen({ port: config.port, host: '0.0.0.0' })
+  .then(() => {
+    app.log.info(`image-describer listening on ${config.port}`);
+  })
+  .catch((error) => {
+    app.log.error(error);
+    process.exit(1);
+  });

@@ -10,6 +10,7 @@
   import Image from '@tiptap/extension-image';
   import StarterKit from '@tiptap/starter-kit';
   import { onMount } from 'svelte';
+  import { PUBLIC_IMAGE_DESCRIBER_URL } from '$env/static/public';
   import { authStore } from '$lib/stores/auth';
   import {
     addUploadHistory,
@@ -58,6 +59,20 @@
   let uploadTagsByUrl = $state<Record<string, string[][]>>({});
   let sourceAuthor = $state('');
   let sourceLicense = $state('');
+
+  function getVisionDescribeEndpoint() {
+    const configured = PUBLIC_IMAGE_DESCRIBER_URL?.trim();
+    if (!configured) {
+      return '/api/vision/describe';
+    }
+
+    const normalized = configured.replace(/\/$/, '');
+    if (/\/describe$/i.test(normalized) || /\/api\/vision\/describe$/i.test(normalized)) {
+      return normalized;
+    }
+
+    return `${normalized}/describe`;
+  }
 
   function toKeywords(value: string) {
     return value
@@ -140,7 +155,7 @@
     metadataSuggestError = '';
 
     try {
-      const response = await fetch('/api/vision/describe', {
+      const response = await fetch(getVisionDescribeEndpoint(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

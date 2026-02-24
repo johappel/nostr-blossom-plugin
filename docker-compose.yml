@@ -1,0 +1,17 @@
+services:
+  image-describer:
+    build:
+      context: ./apps/image-describer
+      dockerfile: Dockerfile
+    container_name: image-describer
+    restart: unless-stopped
+    env_file:
+      - ./apps/image-describer/.env
+    ports:
+      - '8787:8787'
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
