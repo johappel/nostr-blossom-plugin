@@ -8,6 +8,7 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- `image-describer` unterstützt jetzt `OPENROUTER_RESPONSE_LANGUAGE` zur Steuerung der Modell-Antwortsprache für `description`, `alt` und `genre` (Default: `German`).
 - Bild-Metadaten unterstützen jetzt ein zusätzliches Feld `Genre` (z. B. comic, photorealistic, aquarell) im Dialog, in der Vorschau und in der Upload-History.
 - Metadaten-Dialog unterstützt jetzt KI-Attribution für Bilder: Auswahl zwischen „KI generiert“ und „Mit Hilfe von KI generiert“ inkl. automatischer Autor-Setzung.
 - Bei KI-Bild-Attribution wird die Lizenz automatisch auf CC0 gesetzt.

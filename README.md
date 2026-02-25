@@ -43,6 +43,7 @@ Copy-Item apps/image-describer/.env.example apps/image-describer/.env
 ```
 
 2. In `apps/image-describer/.env` mindestens `OPENROUTER_API_KEY` setzen.
+  Optional: `OPENROUTER_RESPONSE_LANGUAGE` (Default: `German`) für die Sprache von `description`, `alt` und `genre`.
 
 3. Service starten:
 

@@ -22,6 +22,7 @@ function readRuntimeConfig() {
     port: Number(process.env.PORT ?? 8787),
     openRouterApiKey: process.env.OPENROUTER_API_KEY,
     visionModel: process.env.OPENROUTER_VISION_MODEL || 'qwen/qwen3-vl-8b-instruct',
+    visionResponseLanguage: process.env.OPENROUTER_RESPONSE_LANGUAGE || 'German',
     openRouterTimeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS ?? 15000),
     inlineImageTimeoutMs: Number(process.env.OPENROUTER_IMAGE_FETCH_TIMEOUT_MS ?? 12000),
     inlineImageMaxBytes: Number(process.env.OPENROUTER_IMAGE_MAX_BYTES ?? 4_000_000),
@@ -388,8 +389,7 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
             content: [
               {
                 type: 'text',
-                text:
-                  'Analyze this image and return JSON only with keys description (max 140 chars), alt (max 140 chars, suitable for an HTML img alt attribute), genre (one short style/category label like comic, photorealistic, watercolor), and tags (array of up to 6 short lowercase keywords).',
+                text: `Analyze this image and return JSON only with keys description (max 140 chars), alt (max 140 chars, suitable for an HTML img alt attribute), genre (one short style/category label like comic, photorealistic, watercolor), and tags (array of up to 6 short lowercase keywords). The values for description, alt and genre must be written in ${config.visionResponseLanguage}.`,
               },
               {
                 type: 'image_url',
