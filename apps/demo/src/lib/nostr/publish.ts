@@ -7,6 +7,8 @@ export interface ImageMetadataInput {
   licenseLabel?: string;
   keywords: string[];
   altAttribution: string;
+  aiImageMode?: 'generated' | 'assisted';
+  aiMetadataGenerated?: boolean;
 }
 
 function buildLicenseTag(metadata: ImageMetadataInput): string[] | null {
@@ -26,6 +28,24 @@ function buildLicenseTag(metadata: ImageMetadataInput): string[] | null {
   }
 
   return ['license', canonical, label];
+}
+
+function buildAiHintTags(metadata: ImageMetadataInput): string[][] {
+  const tags: string[][] = [];
+
+  if (metadata.aiImageMode === 'generated') {
+    tags.push(['hint', 'ai-image-generated']);
+  }
+
+  if (metadata.aiImageMode === 'assisted') {
+    tags.push(['hint', 'ai-image-assisted']);
+  }
+
+  if (metadata.aiMetadataGenerated) {
+    tags.push(['hint', 'ai-metadata-generated']);
+  }
+
+  return tags;
 }
 
 export function buildImageMetadataTags(uploadTags: string[][], metadata: ImageMetadataInput): string[][] {
@@ -51,6 +71,8 @@ export function buildImageMetadataTags(uploadTags: string[][], metadata: ImageMe
       tags.push(['t', normalizedKeyword]);
     }
   }
+
+  tags.push(...buildAiHintTags(metadata));
 
   return tags;
 }
@@ -85,6 +107,8 @@ export function buildKind1FallbackTags(uploadTags: string[][], metadata: ImageMe
       tags.push(['t', normalizedKeyword]);
     }
   }
+
+  tags.push(...buildAiHintTags(metadata));
 
   return tags;
 }

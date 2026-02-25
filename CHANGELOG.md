@@ -8,6 +8,9 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- Metadaten-Dialog unterstützt jetzt KI-Attribution für Bilder: Auswahl zwischen „KI generiert“ und „Mit Hilfe von KI generiert“ inkl. automatischer Autor-Setzung.
+- Bei KI-Bild-Attribution wird die Lizenz automatisch auf CC0 gesetzt.
+- Publish-Helper ergänzt `hint`-Tags für KI-Herkunft (`ai-image-generated`, `ai-image-assisted`) und KI-generierte Metadaten (`ai-metadata-generated`).
 - Demo-Metadaten-Dialog hat jetzt ein Lizenz-Dropdown mit bekannten OER-Presets (CC/PD/MIT) sowie die Option „Andere Lizenz" mit Eingabeformat `uri|label`.
 - `Default Metadata Source` nutzt jetzt ebenfalls ein Lizenz-Dropdown (CC/PD/MIT) plus „Andere Lizenz" (`uri|label`) für konsistente Auto-Fill-Vorgaben.
 - `image-describer` liefert jetzt optional ein `alt`-Feld (für HTML-`img` Alt-Attribute) zusätzlich zu `description` und `tags`.
@@ -94,6 +97,7 @@ The format is based on Keep a Changelog.
 
 ### Tests
 
+- Tests für KI-`hint`-Tags im Publish-Flow ergänzt (kind `1063` und kind `1` Fallback).
 - Tests für Lizenz-Tagging ergänzt (3-teiliges `license`-Tag und Validierungsfehler bei fehlendem kanonischem Wert).
 - Tests für Metadaten-Tag-Building und kind-`1063` Publish-Pfad ergänzt.
 - Upload-Client-Test ergänzt, der mehrteilige Tags validiert.

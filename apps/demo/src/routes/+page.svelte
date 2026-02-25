@@ -40,6 +40,9 @@
 
   const NO_LICENSE_ID = 'none';
   const CUSTOM_LICENSE_ID = 'custom';
+  const CC0_LICENSE_ID = 'cc0-1.0';
+  const AI_IMAGE_AUTHOR_GENERATED = 'KI generiert';
+  const AI_IMAGE_AUTHOR_ASSISTED = 'Mit Hilfe von KI generiert';
   const LICENSE_PRESETS: LicensePreset[] = [
     {
       id: 'cc-by-4.0',
@@ -88,6 +91,8 @@
   let metadataDescription = $state('');
   let metadataAltAttribution = $state('');
   let metadataAuthor = $state('');
+  let metadataAiImageMode = $state<'none' | 'generated' | 'assisted'>('none');
+  let metadataAiMetadataGenerated = $state(false);
   let metadataLicenseChoice = $state(NO_LICENSE_ID);
   let metadataCustomLicenseSpec = $state('');
   let metadataKeywords = $state('');
@@ -154,7 +159,25 @@
       license: parsedLicense.canonical,
       licenseLabel: parsedLicense.label,
       keywords: toKeywords(dataset?.metadataKeywords || ''),
+      aiImageMode: undefined,
+      aiMetadataGenerated: false,
     };
+  }
+
+  function toAiImageAuthor(mode: 'generated' | 'assisted') {
+    return mode === 'generated' ? AI_IMAGE_AUTHOR_GENERATED : AI_IMAGE_AUTHOR_ASSISTED;
+  }
+
+  function formatAiImageMode(mode?: 'generated' | 'assisted') {
+    if (mode === 'generated') {
+      return AI_IMAGE_AUTHOR_GENERATED;
+    }
+
+    if (mode === 'assisted') {
+      return AI_IMAGE_AUTHOR_ASSISTED;
+    }
+
+    return '—';
   }
 
   function getLicenseFromChoice(choice: string, customSpec: string) {
@@ -247,6 +270,27 @@
     return label ? `${label} (${canonical})` : canonical;
   }
 
+  function formatAiHints(metadata?: {
+    aiImageMode?: 'generated' | 'assisted';
+    aiMetadataGenerated?: boolean;
+  }) {
+    const hints: string[] = [];
+
+    if (metadata?.aiImageMode === 'generated') {
+      hints.push('hint: ai-image-generated');
+    }
+
+    if (metadata?.aiImageMode === 'assisted') {
+      hints.push('hint: ai-image-assisted');
+    }
+
+    if (metadata?.aiMetadataGenerated) {
+      hints.push('hint: ai-metadata-generated');
+    }
+
+    return hints.length > 0 ? hints.join(', ') : '—';
+  }
+
   function resolveMetadataDialog(value: ImageMetadataInput | null) {
     const resolver = metadataResolver;
     metadataResolver = null;
@@ -271,6 +315,8 @@
     metadataDescription = options?.initialMetadata?.description ?? '';
     metadataAltAttribution = options?.initialMetadata?.altAttribution ?? '';
     metadataAuthor = options?.initialMetadata?.author ?? '';
+    metadataAiImageMode = options?.initialMetadata?.aiImageMode ?? 'none';
+    metadataAiMetadataGenerated = Boolean(options?.initialMetadata?.aiMetadataGenerated);
     metadataKeywords = options?.initialMetadata?.keywords?.join(', ') ?? '';
     const licenseChoice = resolveLicenseChoice(options?.initialMetadata);
     metadataLicenseChoice = licenseChoice.choice;
@@ -328,6 +374,7 @@
         const nextDescription = payload.description.trim();
         metadataVisionChangedDescription = nextDescription !== metadataDescription;
         metadataDescription = nextDescription;
+        metadataAiMetadataGenerated = true;
       }
 
       if (payload.alt?.trim()) {
@@ -340,6 +387,7 @@
         const nextKeywords = payload.tags.join(', ');
         metadataVisionChangedKeywords = nextKeywords !== metadataKeywords;
         metadataKeywords = nextKeywords;
+        metadataAiMetadataGenerated = true;
       }
     } catch (error) {
       metadataSuggestError = error instanceof Error ? error.message : 'Vision request failed';
@@ -357,10 +405,24 @@
       return;
     }
 
+    let author = metadataAuthor.trim();
     let license = '';
     let licenseLabel = '';
 
-    if (metadataLicenseChoice === CUSTOM_LICENSE_ID) {
+    if (metadataAiImageMode !== 'none') {
+      author = toAiImageAuthor(metadataAiImageMode);
+
+      const cc0Preset = LICENSE_PRESETS.find((item) => item.id === CC0_LICENSE_ID);
+      if (!cc0Preset) {
+        metadataValidationError = 'CC0-Lizenz-Preset fehlt.';
+        return;
+      }
+
+      license = cc0Preset.canonical;
+      licenseLabel = cc0Preset.licenseLabel;
+    }
+
+    if (metadataAiImageMode === 'none' && metadataLicenseChoice === CUSTOM_LICENSE_ID) {
       if (!metadataCustomLicenseSpec.includes('|')) {
         metadataValidationError = 'Für "andere Lizenz" bitte das Format uri|label verwenden.';
         return;
@@ -374,7 +436,7 @@
 
       license = parsed.canonical;
       licenseLabel = parsed.label;
-    } else if (metadataLicenseChoice !== NO_LICENSE_ID) {
+    } else if (metadataAiImageMode === 'none' && metadataLicenseChoice !== NO_LICENSE_ID) {
       const preset = LICENSE_PRESETS.find((item) => item.id === metadataLicenseChoice);
       if (!preset) {
         metadataValidationError = 'Ungültige Lizenzauswahl.';
@@ -388,9 +450,11 @@
     resolveMetadataDialog({
       description,
       altAttribution,
-      author: metadataAuthor.trim(),
+      author,
       license,
       licenseLabel,
+      aiImageMode: metadataAiImageMode === 'none' ? undefined : metadataAiImageMode,
+      aiMetadataGenerated: metadataAiMetadataGenerated,
       keywords: metadataKeywords
         .split(',')
         .map((value) => value.trim())
@@ -425,6 +489,8 @@
       license: '',
       licenseLabel: '',
       keywords: [],
+      aiImageMode: undefined,
+      aiMetadataGenerated: false,
     };
 
     const metadata = await openMetadataDialog(uploadUrl, {
@@ -493,6 +559,16 @@
       status = $authStore.sessionInfo ?? 'NIP-46 connection failed';
       return;
     }
+  });
+
+  $effect(() => {
+    if (metadataAiImageMode === 'none') {
+      return;
+    }
+
+    metadataAuthor = toAiImageAuthor(metadataAiImageMode);
+    metadataLicenseChoice = CC0_LICENSE_ID;
+    metadataCustomLicenseSpec = '';
   });
 
   async function loginNip07() {
@@ -725,6 +801,12 @@
             {currentUploadItem.metadata?.altAttribution ?? 'Noch nicht erfasst'}
           </p>
           <p><strong>Autor:</strong> {currentUploadItem.metadata?.author || '—'}</p>
+          <p><strong>KI-Bildstatus:</strong> {formatAiImageMode(currentUploadItem.metadata?.aiImageMode)}</p>
+          <p>
+            <strong>KI-Metadaten:</strong>
+            {currentUploadItem.metadata?.aiMetadataGenerated ? 'Ja (Beschreibung/Keywords)' : 'Nein'}
+          </p>
+          <p><strong>KI-Hints:</strong> {formatAiHints(currentUploadItem.metadata)}</p>
           <p><strong>Lizenz:</strong> {formatLicenseDisplay(currentUploadItem.metadata)}</p>
           <p>
             <strong>Keywords:</strong>
@@ -764,6 +846,9 @@
           {#if item.metadata}
             | desc: {item.metadata.description} | alt: {item.metadata.altAttribution}
             {#if item.metadata.author} | author: {item.metadata.author}{/if}
+            {#if item.metadata.aiImageMode} | ai-image: {formatAiImageMode(item.metadata.aiImageMode)}{/if}
+            {#if item.metadata.aiMetadataGenerated} | ai-metadata: generated{/if}
+            | ai-hints: {formatAiHints(item.metadata)}
             {#if item.metadata.license} | license: {formatLicenseDisplay(item.metadata)}{/if}
             {#if item.metadata.keywords.length > 0}
               | keywords: {item.metadata.keywords.join(', ')}
@@ -817,11 +902,24 @@
           </label>
           <label>
             Autor
-            <input bind:value={metadataAuthor} />
+            <input bind:value={metadataAuthor} disabled={metadataAiImageMode !== 'none'} />
           </label>
           <label>
+            KI-Status Bild
+            <select bind:value={metadataAiImageMode}>
+              <option value="none">Keine KI-Angabe</option>
+              <option value="generated">KI generiert</option>
+              <option value="assisted">Mit Hilfe von KI generiert</option>
+            </select>
+          </label>
+          {#if metadataAiImageMode !== 'none'}
+            <p class="dialog-note">
+              Bei KI-Bildern wird der Autor automatisch gesetzt und die Lizenz auf CC0 erzwungen.
+            </p>
+          {/if}
+          <label>
             Lizenz
-            <select bind:value={metadataLicenseChoice}>
+            <select bind:value={metadataLicenseChoice} disabled={metadataAiImageMode !== 'none'}>
               <option value={NO_LICENSE_ID}>Keine Lizenz</option>
               {#each LICENSE_PRESETS as preset}
                 <option value={preset.id}>{preset.label}</option>
@@ -829,12 +927,17 @@
               <option value={CUSTOM_LICENSE_ID}>Andere Lizenz</option>
             </select>
           </label>
-          {#if metadataLicenseChoice === CUSTOM_LICENSE_ID}
+          {#if metadataAiImageMode === 'none' && metadataLicenseChoice === CUSTOM_LICENSE_ID}
             <label>
               Andere Lizenz (uri|label)
               <input bind:value={metadataCustomLicenseSpec} placeholder="https://example.com/license|Custom License" />
             </label>
           {/if}
+          <label>
+            KI-Metadaten-Tag
+            <input type="checkbox" bind:checked={metadataAiMetadataGenerated} />
+            Beschreibung/Keywords wurden mit KI erzeugt
+          </label>
           <label>
             Keywords
             <input
@@ -920,6 +1023,11 @@
 
   .dialog-error {
     margin: 0;
+  }
+
+  .dialog-note {
+    margin: 0;
+    font-size: 0.9rem;
   }
 
   .vision-updated {

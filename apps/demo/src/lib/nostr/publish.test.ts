@@ -64,4 +64,24 @@ describe('publish metadata helpers', () => {
       }),
     ).toThrowError('License label requires a canonical license value.');
   });
+
+  it('adds hint tags for AI-generated image and AI-generated metadata', () => {
+    const tags = buildImageMetadataTags(uploadTags, {
+      ...metadata,
+      aiImageMode: 'generated',
+      aiMetadataGenerated: true,
+    });
+
+    expect(tags).toContainEqual(['hint', 'ai-image-generated']);
+    expect(tags).toContainEqual(['hint', 'ai-metadata-generated']);
+  });
+
+  it('adds hint tags for AI-assisted image in kind 1 fallback', () => {
+    const tags = buildKind1FallbackTags(uploadTags, {
+      ...metadata,
+      aiImageMode: 'assisted',
+    });
+
+    expect(tags).toContainEqual(['hint', 'ai-image-assisted']);
+  });
 });

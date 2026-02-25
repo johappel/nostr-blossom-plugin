@@ -11,6 +11,8 @@ export interface UploadHistoryItem {
     licenseLabel?: string;
     keywords: string[];
     altAttribution: string;
+    aiImageMode?: 'generated' | 'assisted';
+    aiMetadataGenerated?: boolean;
   };
   publishedKinds?: number[];
 }
