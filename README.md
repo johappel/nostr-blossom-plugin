@@ -24,7 +24,7 @@ Copy-Item apps/demo/.env.example apps/demo/.env
 
 In `apps/demo/.env` muss gesetzt sein:
 
-- `PUBLIC_IMAGE_DESCRIBER_URL=http://localhost:8787`
+- `VITE_IMAGE_DESCRIBER_URL=http://localhost:8787`
 
 Start dann am besten gezielt die Demo:
 
@@ -52,7 +52,7 @@ docker compose up -d image-describer
 
 4. Demo auf Service zeigen (`apps/demo/.env`):
 
-- `PUBLIC_IMAGE_DESCRIBER_URL=http://localhost:8787`
+- `VITE_IMAGE_DESCRIBER_URL=http://localhost:8787`
 
 Dann ruft die Demo `POST /describe` auf dem Container auf.
 

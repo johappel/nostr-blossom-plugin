@@ -58,12 +58,15 @@
   let uploadTagsByUrl = $state<Record<string, string[][]>>({});
   let sourceAuthor = $state('');
   let sourceLicense = $state('');
-  const publicImageDescriberUrl = (import.meta.env.PUBLIC_IMAGE_DESCRIBER_URL as string | undefined) ?? '';
+  const imageDescriberUrl =
+    (import.meta.env.VITE_IMAGE_DESCRIBER_URL as string | undefined) ??
+    (import.meta.env.PUBLIC_IMAGE_DESCRIBER_URL as string | undefined) ??
+    '';
 
   function getVisionDescribeEndpoint() {
-    const configured = publicImageDescriberUrl.trim();
+    const configured = imageDescriberUrl.trim();
     if (!configured) {
-      throw new Error('PUBLIC_IMAGE_DESCRIBER_URL is required. Local vision endpoint is disabled.');
+      throw new Error('VITE_IMAGE_DESCRIBER_URL is required. Local vision endpoint is disabled.');
     }
 
     const normalized = configured.replace(/\/$/, '');

@@ -33,6 +33,7 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- Demo verwendet für den externen Vision-Service jetzt die Browser-Variable `VITE_IMAGE_DESCRIBER_URL` (statt `PUBLIC_IMAGE_DESCRIBER_URL`) für robuste Client-Auflösung.
 - Vision-Flow der Demo ist jetzt eindeutig auf externen `image-describer` ausgerichtet; `PUBLIC_IMAGE_DESCRIBER_URL` ist als Ziel-Endpoint vorgesehen.
 - Demo unterstützt jetzt einen externen Vision-Service via `PUBLIC_IMAGE_DESCRIBER_URL` ohne lokalen Fallback.
 - Standardmodell für Vision-Beschreibungen wurde auf qwen/qwen3-vl-8b-instruct umgestellt (über OPENROUTER_VISION_MODEL weiterhin überschreibbar).
