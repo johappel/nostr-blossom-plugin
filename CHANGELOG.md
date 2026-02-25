@@ -9,6 +9,7 @@ The format is based on Keep a Changelog.
 ### Added
 
 - Demo-Metadaten-Dialog hat jetzt ein Lizenz-Dropdown mit bekannten OER-Presets (CC/PD/MIT) sowie die Option „Andere Lizenz" mit Eingabeformat `uri|label`.
+- `Default Metadata Source` nutzt jetzt ebenfalls ein Lizenz-Dropdown (CC/PD/MIT) plus „Andere Lizenz" (`uri|label`) für konsistente Auto-Fill-Vorgaben.
 - `image-describer` liefert jetzt optional ein `alt`-Feld (für HTML-`img` Alt-Attribute) zusätzlich zu `description` und `tags`.
 - Neuer Service `apps/image-describer` (Fastify + Sharp) für Vision-Beschreibungen als eigenständiger HTTP-Dienst mit `POST /describe` und `GET /health`.
 - `docker-compose.yml` ergänzt, um den `image-describer` als separaten Container zu betreiben.

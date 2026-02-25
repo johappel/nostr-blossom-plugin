@@ -103,7 +103,8 @@
   let metadataResolver: ((value: ImageMetadataInput | null) => void) | null = null;
   let uploadTagsByUrl = $state<Record<string, string[][]>>({});
   let sourceAuthor = $state('');
-  let sourceLicense = $state('');
+  let sourceLicenseChoice = $state(NO_LICENSE_ID);
+  let sourceCustomLicenseSpec = $state('');
   const imageDescriberUrl =
     (import.meta.env.VITE_IMAGE_DESCRIBER_URL as string | undefined) ??
     (import.meta.env.PUBLIC_IMAGE_DESCRIBER_URL as string | undefined) ??
@@ -142,7 +143,9 @@
     const fallback = fileNameFallback(file);
     const description = dataset?.metadataDescription?.trim() || fallback || 'Uploaded image';
     const altAttribution = dataset?.metadataAltAttribution?.trim() || description || 'Uploaded image';
-    const parsedLicense = parseLicenseSpec(sourceLicense.trim() || dataset?.metadataLicense?.trim() || '');
+    const sourceLicense = getLicenseFromChoice(sourceLicenseChoice, sourceCustomLicenseSpec);
+    const parsedDatasetLicense = parseLicenseSpec(dataset?.metadataLicense?.trim() || '');
+    const parsedLicense = sourceLicense.canonical ? sourceLicense : parsedDatasetLicense;
 
     return {
       description,
@@ -151,6 +154,26 @@
       license: parsedLicense.canonical,
       licenseLabel: parsedLicense.label,
       keywords: toKeywords(dataset?.metadataKeywords || ''),
+    };
+  }
+
+  function getLicenseFromChoice(choice: string, customSpec: string) {
+    if (choice === NO_LICENSE_ID) {
+      return { canonical: '', label: '' };
+    }
+
+    if (choice === CUSTOM_LICENSE_ID) {
+      return parseLicenseSpec(customSpec);
+    }
+
+    const preset = LICENSE_PRESETS.find((item) => item.id === choice);
+    if (!preset) {
+      return { canonical: '', label: '' };
+    }
+
+    return {
+      canonical: preset.canonical,
+      label: preset.licenseLabel,
     };
   }
 
@@ -664,7 +687,19 @@
     <div class="metadata-source">
       <h3>Default Metadata Source (Autor/Lizenz)</h3>
       <input bind:value={sourceAuthor} placeholder="Autor (Auto-Fill)" />
-      <input bind:value={sourceLicense} placeholder="Lizenz (Auto-Fill, optional: uri|label)" />
+      <label>
+        Lizenz (Auto-Fill)
+        <select bind:value={sourceLicenseChoice}>
+          <option value={NO_LICENSE_ID}>Keine Lizenz</option>
+          {#each LICENSE_PRESETS as preset}
+            <option value={preset.id}>{preset.label}</option>
+          {/each}
+          <option value={CUSTOM_LICENSE_ID}>Andere Lizenz</option>
+        </select>
+      </label>
+      {#if sourceLicenseChoice === CUSTOM_LICENSE_ID}
+        <input bind:value={sourceCustomLicenseSpec} placeholder="uri|label" />
+      {/if}
     </div>
 
     {#if uploadUrl}
