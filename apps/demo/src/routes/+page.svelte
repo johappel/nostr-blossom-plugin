@@ -90,6 +90,7 @@
   let metadataDialogFileName = $state('');
   let metadataDescription = $state('');
   let metadataAltAttribution = $state('');
+  let metadataGenre = $state('');
   let metadataAuthor = $state('');
   let metadataAiImageMode = $state<'none' | 'generated' | 'assisted'>('none');
   let metadataAiMetadataGenerated = $state(false);
@@ -104,6 +105,7 @@
   let metadataSuggestError = $state('');
   let metadataVisionChangedDescription = $state(false);
   let metadataVisionChangedAlt = $state(false);
+  let metadataVisionChangedGenre = $state(false);
   let metadataVisionChangedKeywords = $state(false);
   let metadataResolver: ((value: ImageMetadataInput | null) => void) | null = null;
   let uploadTagsByUrl = $state<Record<string, string[][]>>({});
@@ -155,6 +157,7 @@
     return {
       description,
       altAttribution,
+      genre: dataset?.metadataGenre?.trim() || '',
       author: sourceAuthor.trim() || dataset?.metadataAuthor?.trim() || '',
       license: parsedLicense.canonical,
       licenseLabel: parsedLicense.label,
@@ -314,6 +317,7 @@
     metadataDialogImageUrl = options?.imageUrl ?? '';
     metadataDescription = options?.initialMetadata?.description ?? '';
     metadataAltAttribution = options?.initialMetadata?.altAttribution ?? '';
+    metadataGenre = options?.initialMetadata?.genre ?? '';
     metadataAuthor = options?.initialMetadata?.author ?? '';
     metadataAiImageMode = options?.initialMetadata?.aiImageMode ?? 'none';
     metadataAiMetadataGenerated = Boolean(options?.initialMetadata?.aiMetadataGenerated);
@@ -326,6 +330,7 @@
     metadataSuggestLoading = false;
     metadataVisionChangedDescription = false;
     metadataVisionChangedAlt = false;
+    metadataVisionChangedGenre = false;
     metadataVisionChangedKeywords = false;
     metadataDialogTitle = options?.mode === 'edit' ? 'Metadaten bearbeiten' : 'Bild-Metadaten';
     metadataDialogSubmitLabel = options?.mode === 'edit' ? 'Metadaten aktualisieren' : 'Metadaten speichern';
@@ -362,6 +367,7 @@
       const payload = (await response.json()) as {
         description?: string;
         alt?: string;
+        genre?: string;
         tags?: string[];
         error?: string;
       };
@@ -381,6 +387,13 @@
         const nextAlt = payload.alt.trim();
         metadataVisionChangedAlt = nextAlt !== metadataAltAttribution;
         metadataAltAttribution = nextAlt;
+      }
+
+      if (payload.genre?.trim()) {
+        const nextGenre = payload.genre.trim();
+        metadataVisionChangedGenre = nextGenre !== metadataGenre;
+        metadataGenre = nextGenre;
+        metadataAiMetadataGenerated = true;
       }
 
       if (!metadataKeywords.trim() && payload.tags?.length) {
@@ -450,6 +463,7 @@
     resolveMetadataDialog({
       description,
       altAttribution,
+      genre: metadataGenre.trim(),
       author,
       license,
       licenseLabel,
@@ -485,6 +499,7 @@
     const initialMetadata: ImageMetadataInput = currentItem?.metadata ?? {
       description: '',
       altAttribution: '',
+      genre: '',
       author: '',
       license: '',
       licenseLabel: '',
@@ -801,6 +816,7 @@
             {currentUploadItem.metadata?.altAttribution ?? 'Noch nicht erfasst'}
           </p>
           <p><strong>Autor:</strong> {currentUploadItem.metadata?.author || '—'}</p>
+          <p><strong>Genre:</strong> {currentUploadItem.metadata?.genre || '—'}</p>
           <p><strong>KI-Bildstatus:</strong> {formatAiImageMode(currentUploadItem.metadata?.aiImageMode)}</p>
           <p>
             <strong>KI-Metadaten:</strong>
@@ -846,6 +862,7 @@
           {#if item.metadata}
             | desc: {item.metadata.description} | alt: {item.metadata.altAttribution}
             {#if item.metadata.author} | author: {item.metadata.author}{/if}
+            {#if item.metadata.genre} | genre: {item.metadata.genre}{/if}
             {#if item.metadata.aiImageMode} | ai-image: {formatAiImageMode(item.metadata.aiImageMode)}{/if}
             {#if item.metadata.aiMetadataGenerated} | ai-metadata: generated{/if}
             | ai-hints: {formatAiHints(item.metadata)}
@@ -899,6 +916,14 @@
           <label>
             Alt-Attribution *
             <input bind:value={metadataAltAttribution} required class:vision-updated={metadataVisionChangedAlt} />
+          </label>
+          <label>
+            Genre
+            <input
+              bind:value={metadataGenre}
+              placeholder="z. B. comic, photorealistic, aquarell"
+              class:vision-updated={metadataVisionChangedGenre}
+            />
           </label>
           <label>
             Autor
