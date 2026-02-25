@@ -8,6 +8,7 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- Bild-Metadaten unterstützen jetzt ein zusätzliches Feld `Genre` (z. B. comic, photorealistic, aquarell) im Dialog, in der Vorschau und in der Upload-History.
 - Metadaten-Dialog unterstützt jetzt KI-Attribution für Bilder: Auswahl zwischen „KI generiert“ und „Mit Hilfe von KI generiert“ inkl. automatischer Autor-Setzung.
 - Bei KI-Bild-Attribution wird die Lizenz automatisch auf CC0 gesetzt.
 - Publish-Helper ergänzt `hint`-Tags für KI-Herkunft (`ai-image-generated`, `ai-image-assisted`) und KI-generierte Metadaten (`ai-metadata-generated`).
@@ -39,6 +40,7 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- Vision-Service `image-describer` liefert jetzt zusätzlich `genre` in der `/describe`-Antwort (inkl. Fallback-Pfaden) und fragt das Modell explizit danach.
 - Lizenz-Tags werden im Publish-Helper jetzt als `['license', canonical, label?]` aufgebaut; bekannte Presets liefern automatisch URL + Kurzlabel.
 - `image-describer` normalisiert `alt` jetzt explizit (Control-Chars/`<>` entfernen, Whitespace glätten, Länge auf 140 Zeichen begrenzen) und liefert `alt` konsistent auch in Fallback-/Fehlerpfaden zurück.
 - Demo verwendet für den externen Vision-Service jetzt die Browser-Variable `VITE_IMAGE_DESCRIBER_URL` (statt `PUBLIC_IMAGE_DESCRIBER_URL`) für robuste Client-Auflösung.
@@ -97,6 +99,7 @@ The format is based on Keep a Changelog.
 
 ### Tests
 
+- Tests für Metadaten-Tag-Building prüfen jetzt auch den neuen `genre`-Tag.
 - Tests für KI-`hint`-Tags im Publish-Flow ergänzt (kind `1063` und kind `1` Fallback).
 - Tests für Lizenz-Tagging ergänzt (3-teiliges `license`-Tag und Validierungsfehler bei fehlendem kanonischem Wert).
 - Tests für Metadaten-Tag-Building und kind-`1063` Publish-Pfad ergänzt.

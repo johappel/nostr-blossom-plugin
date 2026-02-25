@@ -74,6 +74,7 @@ function parseResponseContent(rawContent: unknown, imageUrl: string) {
     return {
       description: fallback,
       alt: normalizeAltText(fallback),
+      genre: '',
       tags: [] as string[],
     };
   }
@@ -88,6 +89,7 @@ function parseResponseContent(rawContent: unknown, imageUrl: string) {
       description?: unknown;
       alt?: unknown;
       altText?: unknown;
+      genre?: unknown;
       tags?: unknown;
     };
     const description = typeof parsed.description === 'string' ? parsed.description.trim() : '';
@@ -100,12 +102,14 @@ function parseResponseContent(rawContent: unknown, imageUrl: string) {
     const tags = Array.isArray(parsed.tags)
       ? parsed.tags.map((tag) => String(tag).trim()).filter(Boolean)
       : [];
+    const genre = typeof parsed.genre === 'string' ? parsed.genre.trim().slice(0, 80) : '';
 
     if (description) {
       const normalizedDescription = description.slice(0, 280);
       return {
         description: normalizedDescription,
         alt: normalizeAltText(altCandidate || normalizedDescription),
+        genre,
         tags,
       };
     }
@@ -122,6 +126,7 @@ function parseResponseContent(rawContent: unknown, imageUrl: string) {
   return {
     description: fallback,
     alt: normalizeAltText(fallback),
+    genre: '',
     tags: [] as string[],
   };
 }
@@ -306,6 +311,7 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
     return reply.send({
       description: fallback,
       alt: normalizeAltText(fallback),
+      genre: '',
       tags: [],
       inputMode: 'none',
       warning: 'OPENROUTER_API_KEY is not configured. Returning fallback description.',
@@ -348,6 +354,7 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
       return reply.send({
         description: fallback,
         alt: normalizeAltText(fallback),
+        genre: '',
         tags: [],
         inputMode: 'remote-url',
         ...(imageProcessing ? { imageProcessing } : {}),
@@ -382,7 +389,7 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
               {
                 type: 'text',
                 text:
-                  'Analyze this image and return JSON only with keys description (max 140 chars), alt (max 140 chars, suitable for an HTML img alt attribute), and tags (array of up to 6 short lowercase keywords).',
+                  'Analyze this image and return JSON only with keys description (max 140 chars), alt (max 140 chars, suitable for an HTML img alt attribute), genre (one short style/category label like comic, photorealistic, watercolor), and tags (array of up to 6 short lowercase keywords).',
               },
               {
                 type: 'image_url',
@@ -416,6 +423,7 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
         return reply.send({
           description: fallback,
           alt: normalizeAltText(fallback),
+          genre: '',
           tags: [],
           inputMode: 'inline',
           ...(imageProcessing ? { imageProcessing } : {}),
@@ -439,6 +447,7 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
     return reply.send({
       description: fallback,
       alt: normalizeAltText(fallback),
+      genre: '',
       tags: [],
       inputMode,
       ...(imageProcessing ? { imageProcessing } : {}),
@@ -471,6 +480,7 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
     return reply.send({
       description: fallback,
       alt: normalizeAltText(fallback),
+      genre: '',
       tags: [],
       inputMode,
       ...(imageProcessing ? { imageProcessing } : {}),
