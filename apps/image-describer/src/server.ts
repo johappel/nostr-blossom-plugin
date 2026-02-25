@@ -6,6 +6,17 @@ type DescribeRequestBody = {
   imageUrl?: string;
 };
 
+const ALT_MAX_LENGTH = 140;
+
+function normalizeAltText(value: string) {
+  return value
+    .replace(/[\u0000-\u001F\u007F]+/g, ' ')
+    .replace(/[<>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, ALT_MAX_LENGTH);
+}
+
 function readRuntimeConfig() {
   return {
     port: Number(process.env.PORT ?? 8787),
@@ -59,8 +70,10 @@ function parseResponseContent(rawContent: unknown, imageUrl: string) {
 
   const normalizedText = text.trim();
   if (!normalizedText) {
+    const fallback = fallbackDescriptionFromUrl(imageUrl);
     return {
-      description: fallbackDescriptionFromUrl(imageUrl),
+      description: fallback,
+      alt: normalizeAltText(fallback),
       tags: [] as string[],
     };
   }
@@ -71,15 +84,28 @@ function parseResponseContent(rawContent: unknown, imageUrl: string) {
     .trim();
 
   try {
-    const parsed = JSON.parse(withoutFence) as { description?: unknown; tags?: unknown };
+    const parsed = JSON.parse(withoutFence) as {
+      description?: unknown;
+      alt?: unknown;
+      altText?: unknown;
+      tags?: unknown;
+    };
     const description = typeof parsed.description === 'string' ? parsed.description.trim() : '';
+    const altCandidate =
+      typeof parsed.alt === 'string'
+        ? parsed.alt.trim()
+        : typeof parsed.altText === 'string'
+          ? parsed.altText.trim()
+          : '';
     const tags = Array.isArray(parsed.tags)
       ? parsed.tags.map((tag) => String(tag).trim()).filter(Boolean)
       : [];
 
     if (description) {
+      const normalizedDescription = description.slice(0, 280);
       return {
-        description,
+        description: normalizedDescription,
+        alt: normalizeAltText(altCandidate || normalizedDescription),
         tags,
       };
     }
@@ -92,8 +118,10 @@ function parseResponseContent(rawContent: unknown, imageUrl: string) {
     .replace(/^beschreibung\s*:\s*/i, '')
     .trim();
 
+  const fallback = plainDescription.slice(0, 280) || fallbackDescriptionFromUrl(imageUrl);
   return {
-    description: plainDescription.slice(0, 280) || fallbackDescriptionFromUrl(imageUrl),
+    description: fallback,
+    alt: normalizeAltText(fallback),
     tags: [] as string[],
   };
 }
@@ -274,8 +302,10 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
   }
 
   if (!config.openRouterApiKey) {
+    const fallback = fallbackDescriptionFromUrl(imageUrl);
     return reply.send({
-      description: fallbackDescriptionFromUrl(imageUrl),
+      description: fallback,
+      alt: normalizeAltText(fallback),
       tags: [],
       inputMode: 'none',
       warning: 'OPENROUTER_API_KEY is not configured. Returning fallback description.',
@@ -314,8 +344,10 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
     inputMode = 'inline';
   } catch (error) {
     if (config.inlineOnly) {
+      const fallback = fallbackDescriptionFromUrl(imageUrl);
       return reply.send({
-        description: fallbackDescriptionFromUrl(imageUrl),
+        description: fallback,
+        alt: normalizeAltText(fallback),
         tags: [],
         inputMode: 'remote-url',
         ...(imageProcessing ? { imageProcessing } : {}),
@@ -350,7 +382,7 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
               {
                 type: 'text',
                 text:
-                  'Analyze this image and return JSON only with keys description (max 140 chars) and tags (array of up to 6 short lowercase keywords).',
+                  'Analyze this image and return JSON only with keys description (max 140 chars), alt (max 140 chars, suitable for an HTML img alt attribute), and tags (array of up to 6 short lowercase keywords).',
               },
               {
                 type: 'image_url',
@@ -380,8 +412,10 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
 
     if (upstream.status === 413 && imageSourceForModel.startsWith('data:image/')) {
       if (config.inlineOnly) {
+        const fallback = fallbackDescriptionFromUrl(imageUrl);
         return reply.send({
-          description: fallbackDescriptionFromUrl(imageUrl),
+          description: fallback,
+          alt: normalizeAltText(fallback),
           tags: [],
           inputMode: 'inline',
           ...(imageProcessing ? { imageProcessing } : {}),
@@ -401,8 +435,10 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
       upstream = await requestVision(imageUrl);
     }
   } catch (error) {
+    const fallback = fallbackDescriptionFromUrl(imageUrl);
     return reply.send({
-      description: fallbackDescriptionFromUrl(imageUrl),
+      description: fallback,
+      alt: normalizeAltText(fallback),
       tags: [],
       inputMode,
       ...(imageProcessing ? { imageProcessing } : {}),
@@ -430,9 +466,11 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
 
   if (!upstream.ok) {
     const providerDetails = toProviderErrorDetails(upstreamPayload);
+    const fallback = fallbackDescriptionFromUrl(imageUrl);
 
     return reply.send({
-      description: fallbackDescriptionFromUrl(imageUrl),
+      description: fallback,
+      alt: normalizeAltText(fallback),
       tags: [],
       inputMode,
       ...(imageProcessing ? { imageProcessing } : {}),

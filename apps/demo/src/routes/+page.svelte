@@ -169,6 +169,7 @@
 
       const payload = (await response.json()) as {
         description?: string;
+        alt?: string;
         tags?: string[];
         error?: string;
       };
@@ -179,6 +180,10 @@
 
       if (payload.description?.trim()) {
         metadataDescription = payload.description.trim();
+      }
+
+      if (payload.alt?.trim()) {
+        metadataAltAttribution = payload.alt.trim();
       }
 
       if (!metadataKeywords.trim() && payload.tags?.length) {
