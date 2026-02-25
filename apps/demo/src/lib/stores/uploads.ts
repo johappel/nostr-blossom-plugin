@@ -9,6 +9,7 @@ export interface UploadHistoryItem {
     author: string;
     license: string;
     licenseLabel?: string;
+    genre?: string;
     keywords: string[];
     altAttribution: string;
     aiImageMode?: 'generated' | 'assisted';

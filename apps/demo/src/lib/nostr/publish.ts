@@ -5,6 +5,7 @@ export interface ImageMetadataInput {
   author: string;
   license: string;
   licenseLabel?: string;
+  genre?: string;
   keywords: string[];
   altAttribution: string;
   aiImageMode?: 'generated' | 'assisted';
@@ -65,6 +66,10 @@ export function buildImageMetadataTags(uploadTags: string[][], metadata: ImageMe
     tags.push(licenseTag);
   }
 
+  if (metadata.genre?.trim()) {
+    tags.push(['genre', metadata.genre.trim()]);
+  }
+
   for (const keyword of metadata.keywords) {
     const normalizedKeyword = keyword.trim();
     if (normalizedKeyword) {
@@ -99,6 +104,10 @@ export function buildKind1FallbackTags(uploadTags: string[][], metadata: ImageMe
   const licenseTag = buildLicenseTag(metadata);
   if (licenseTag) {
     tags.push(licenseTag);
+  }
+
+  if (metadata.genre?.trim()) {
+    tags.push(['genre', metadata.genre.trim()]);
   }
 
   for (const keyword of metadata.keywords) {

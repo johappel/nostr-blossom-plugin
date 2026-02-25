@@ -15,6 +15,7 @@ describe('publish metadata helpers', () => {
     altAttribution: 'Photo by Alice',
     author: 'Alice',
     license: 'CC-BY-4.0',
+    genre: 'photorealistic',
     keywords: ['sunset', 'bay'],
   };
 
@@ -28,6 +29,7 @@ describe('publish metadata helpers', () => {
     expect(tags).toContainEqual(['alt', 'Photo by Alice']);
     expect(tags).toContainEqual(['author', 'Alice']);
     expect(tags).toContainEqual(['license', 'CC-BY-4.0']);
+    expect(tags).toContainEqual(['genre', 'photorealistic']);
     expect(tags).toContainEqual(['t', 'sunset']);
     expect(tags).toContainEqual(['t', 'bay']);
   });
@@ -41,6 +43,7 @@ describe('publish metadata helpers', () => {
     expect(tags).toContainEqual(['alt', 'Photo by Alice']);
     expect(tags).toContainEqual(['author', 'Alice']);
     expect(tags).toContainEqual(['license', 'CC-BY-4.0']);
+    expect(tags).toContainEqual(['genre', 'photorealistic']);
     expect(tags).toContainEqual(['t', 'sunset']);
     expect(tags).toContainEqual(['t', 'bay']);
   });
