@@ -11,5 +11,10 @@
     "start": "pnpm --filter demo preview",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/node": "22.13.10"
+    }
   }
 }

@@ -16,16 +16,15 @@ pnpm dev
 
 ## Demo `.env` konfigurieren
 
-Für Vision-Beschreibung in der Demo (`/api/vision/describe`) kann die Runtime-Konfiguration in `apps/demo/.env` liegen.
+Die Demo nutzt Vision-Beschreibung ausschließlich über den externen `image-describer` Service.
 
 ```powershell
 Copy-Item apps/demo/.env.example apps/demo/.env
 ```
 
-Danach in `apps/demo/.env` mindestens setzen:
+In `apps/demo/.env` muss gesetzt sein:
 
-- `OPENROUTER_API_KEY`
-- optional `OPENROUTER_VISION_MODEL` (Default: `qwen/qwen3-vl-8b-instruct`)
+- `PUBLIC_IMAGE_DESCRIBER_URL=http://localhost:8787`
 
 Start dann am besten gezielt die Demo:
 
@@ -35,7 +34,7 @@ pnpm --filter demo dev
 
 ## Image Describer als Docker-Service
 
-Wenn die Vision-Logik nicht im Demo-Server laufen soll, kann sie als separater Service betrieben werden.
+Die Vision-Logik läuft als separater Service.
 
 1. Service-Env anlegen:
 
@@ -51,11 +50,11 @@ Copy-Item apps/image-describer/.env.example apps/image-describer/.env
 docker compose up -d image-describer
 ```
 
-4. Demo auf externen Service zeigen (`apps/demo/.env`):
+4. Demo auf Service zeigen (`apps/demo/.env`):
 
 - `PUBLIC_IMAGE_DESCRIBER_URL=http://localhost:8787`
 
-Dann ruft die Demo `POST /describe` auf dem Container auf statt der lokalen Route.
+Dann ruft die Demo `POST /describe` auf dem Container auf.
 
 ## Fokus: Unknown Client Integration
 

@@ -10,7 +10,6 @@
   import Image from '@tiptap/extension-image';
   import StarterKit from '@tiptap/starter-kit';
   import { onMount } from 'svelte';
-  import { PUBLIC_IMAGE_DESCRIBER_URL } from '$env/static/public';
   import { authStore } from '$lib/stores/auth';
   import {
     addUploadHistory,
@@ -59,11 +58,12 @@
   let uploadTagsByUrl = $state<Record<string, string[][]>>({});
   let sourceAuthor = $state('');
   let sourceLicense = $state('');
+  const publicImageDescriberUrl = (import.meta.env.PUBLIC_IMAGE_DESCRIBER_URL as string | undefined) ?? '';
 
   function getVisionDescribeEndpoint() {
-    const configured = PUBLIC_IMAGE_DESCRIBER_URL?.trim();
+    const configured = publicImageDescriberUrl.trim();
     if (!configured) {
-      return '/api/vision/describe';
+      throw new Error('PUBLIC_IMAGE_DESCRIBER_URL is required. Local vision endpoint is disabled.');
     }
 
     const normalized = configured.replace(/\/$/, '');
@@ -155,7 +155,8 @@
     metadataSuggestError = '';
 
     try {
-      const response = await fetch(getVisionDescribeEndpoint(), {
+      const endpoint = getVisionDescribeEndpoint();
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
