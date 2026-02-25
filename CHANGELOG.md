@@ -40,6 +40,7 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- Lizenz-Dropdowns enthalten jetzt die vollständige CC-4.0-Auswahl (`BY`, `BY-SA`, `BY-ND`, `BY-NC`, `BY-NC-SA`, `BY-NC-ND`) zusätzlich zu `CC0`/`PDM`.
 - Vision-Service `image-describer` liefert jetzt zusätzlich `genre` in der `/describe`-Antwort (inkl. Fallback-Pfaden) und fragt das Modell explizit danach.
 - Lizenz-Tags werden im Publish-Helper jetzt als `['license', canonical, label?]` aufgebaut; bekannte Presets liefern automatisch URL + Kurzlabel.
 - `image-describer` normalisiert `alt` jetzt explizit (Control-Chars/`<>` entfernen, Whitespace glätten, Länge auf 140 Zeichen begrenzen) und liefert `alt` konsistent auch in Fallback-/Fehlerpfaden zurück.

@@ -57,6 +57,30 @@
       licenseLabel: 'CC-BY-SA-4.0',
     },
     {
+      id: 'cc-by-nd-4.0',
+      canonical: 'https://creativecommons.org/licenses/by-nd/4.0/',
+      label: 'CC BY-ND 4.0',
+      licenseLabel: 'CC-BY-ND-4.0',
+    },
+    {
+      id: 'cc-by-nc-4.0',
+      canonical: 'https://creativecommons.org/licenses/by-nc/4.0/',
+      label: 'CC BY-NC 4.0',
+      licenseLabel: 'CC-BY-NC-4.0',
+    },
+    {
+      id: 'cc-by-nc-sa-4.0',
+      canonical: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+      label: 'CC BY-NC-SA 4.0',
+      licenseLabel: 'CC-BY-NC-SA-4.0',
+    },
+    {
+      id: 'cc-by-nc-nd-4.0',
+      canonical: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+      label: 'CC BY-NC-ND 4.0',
+      licenseLabel: 'CC-BY-NC-ND-4.0',
+    },
+    {
       id: 'cc0-1.0',
       canonical: 'https://creativecommons.org/publicdomain/zero/1.0/',
       label: 'CC0 1.0 (Public Domain)',
