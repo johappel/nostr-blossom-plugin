@@ -54,6 +54,9 @@
   let metadataDialogImageUrl = $state('');
   let metadataSuggestLoading = $state(false);
   let metadataSuggestError = $state('');
+  let metadataVisionChangedDescription = $state(false);
+  let metadataVisionChangedAlt = $state(false);
+  let metadataVisionChangedKeywords = $state(false);
   let metadataResolver: ((value: ImageMetadataInput | null) => void) | null = null;
   let uploadTagsByUrl = $state<Record<string, string[][]>>({});
   let sourceAuthor = $state('');
@@ -135,6 +138,9 @@
     metadataValidationError = '';
     metadataSuggestError = '';
     metadataSuggestLoading = false;
+    metadataVisionChangedDescription = false;
+    metadataVisionChangedAlt = false;
+    metadataVisionChangedKeywords = false;
     metadataDialogTitle = options?.mode === 'edit' ? 'Metadaten bearbeiten' : 'Bild-Metadaten';
     metadataDialogSubmitLabel = options?.mode === 'edit' ? 'Metadaten aktualisieren' : 'Metadaten speichern';
     metadataDialogOpen = true;
@@ -179,15 +185,21 @@
       }
 
       if (payload.description?.trim()) {
-        metadataDescription = payload.description.trim();
+        const nextDescription = payload.description.trim();
+        metadataVisionChangedDescription = nextDescription !== metadataDescription;
+        metadataDescription = nextDescription;
       }
 
       if (payload.alt?.trim()) {
-        metadataAltAttribution = payload.alt.trim();
+        const nextAlt = payload.alt.trim();
+        metadataVisionChangedAlt = nextAlt !== metadataAltAttribution;
+        metadataAltAttribution = nextAlt;
       }
 
       if (!metadataKeywords.trim() && payload.tags?.length) {
-        metadataKeywords = payload.tags.join(', ');
+        const nextKeywords = payload.tags.join(', ');
+        metadataVisionChangedKeywords = nextKeywords !== metadataKeywords;
+        metadataKeywords = nextKeywords;
       }
     } catch (error) {
       metadataSuggestError = error instanceof Error ? error.message : 'Vision request failed';
@@ -598,7 +610,12 @@
         >
           <label>
             Beschreibung *
-            <textarea bind:value={metadataDescription} rows="3" required></textarea>
+            <textarea
+              bind:value={metadataDescription}
+              rows="3"
+              required
+              class:vision-updated={metadataVisionChangedDescription}
+            ></textarea>
           </label>
           <button
             type="button"
@@ -614,7 +631,7 @@
           {/if}
           <label>
             Alt-Attribution *
-            <input bind:value={metadataAltAttribution} required />
+            <input bind:value={metadataAltAttribution} required class:vision-updated={metadataVisionChangedAlt} />
           </label>
           <label>
             Autor
@@ -626,7 +643,11 @@
           </label>
           <label>
             Keywords
-            <input bind:value={metadataKeywords} placeholder="nostr, blossom, photo" />
+            <input
+              bind:value={metadataKeywords}
+              placeholder="nostr, blossom, photo"
+              class:vision-updated={metadataVisionChangedKeywords}
+            />
           </label>
 
           {#if metadataValidationError}
@@ -705,6 +726,12 @@
 
   .dialog-error {
     margin: 0;
+  }
+
+  .vision-updated {
+    border-width: 2px;
+    outline: 2px dashed currentColor;
+    outline-offset: 1px;
   }
 
   .metadata-target {
