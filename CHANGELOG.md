@@ -8,6 +8,7 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- Demo-Metadaten-Dialog hat jetzt ein Lizenz-Dropdown mit bekannten OER-Presets (CC/PD/MIT) sowie die Option „Andere Lizenz" mit Eingabeformat `uri|label`.
 - `image-describer` liefert jetzt optional ein `alt`-Feld (für HTML-`img` Alt-Attribute) zusätzlich zu `description` und `tags`.
 - Neuer Service `apps/image-describer` (Fastify + Sharp) für Vision-Beschreibungen als eigenständiger HTTP-Dienst mit `POST /describe` und `GET /health`.
 - `docker-compose.yml` ergänzt, um den `image-describer` als separaten Container zu betreiben.
@@ -34,6 +35,7 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- Lizenz-Tags werden im Publish-Helper jetzt als `['license', canonical, label?]` aufgebaut; bekannte Presets liefern automatisch URL + Kurzlabel.
 - `image-describer` normalisiert `alt` jetzt explizit (Control-Chars/`<>` entfernen, Whitespace glätten, Länge auf 140 Zeichen begrenzen) und liefert `alt` konsistent auch in Fallback-/Fehlerpfaden zurück.
 - Demo verwendet für den externen Vision-Service jetzt die Browser-Variable `VITE_IMAGE_DESCRIBER_URL` (statt `PUBLIC_IMAGE_DESCRIBER_URL`) für robuste Client-Auflösung.
 - Vision-Flow der Demo ist jetzt eindeutig auf externen `image-describer` ausgerichtet; `PUBLIC_IMAGE_DESCRIBER_URL` ist als Ziel-Endpoint vorgesehen.
@@ -58,6 +60,7 @@ The format is based on Keep a Changelog.
 
 ### Fixed
 
+- Publisher validiert jetzt Lizenz-Attribution strikt: ein Label ohne kanonischen Lizenzwert wird mit klarer Fehlermeldung abgewiesen.
 - Im Demo-Metadaten-Dialog überschreibt ein Vision-Vorschlag die Alt-Attribution jetzt konsistent mit dem gelieferten `alt`-Wert.
 - Lokale Demo-Route `/api/vision/describe` gibt jetzt bewusst `410` zurück, damit versehentliche lokale Vision-Nutzung früh und eindeutig auffällt.
 - Vision-Endpoint liest Umgebungsvariablen jetzt zur Request-Zeit (statt nur beim Modul-Load), wodurch geänderte Runtime-Config im laufenden Dev-Flow konsistenter übernommen wird.
@@ -90,6 +93,7 @@ The format is based on Keep a Changelog.
 
 ### Tests
 
+- Tests für Lizenz-Tagging ergänzt (3-teiliges `license`-Tag und Validierungsfehler bei fehlendem kanonischem Wert).
 - Tests für Metadaten-Tag-Building und kind-`1063` Publish-Pfad ergänzt.
 - Upload-Client-Test ergänzt, der mehrteilige Tags validiert.
 - Unit-Tests für `createBlossomBridge` (Datei-Upload, Cancel, Input-Attach-Flow) ergänzt.

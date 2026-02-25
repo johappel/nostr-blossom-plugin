@@ -44,4 +44,24 @@ describe('publish metadata helpers', () => {
     expect(tags).toContainEqual(['t', 'sunset']);
     expect(tags).toContainEqual(['t', 'bay']);
   });
+
+  it('builds a three-part license tag when canonical + label are provided', () => {
+    const tags = buildImageMetadataTags(uploadTags, {
+      ...metadata,
+      license: 'https://creativecommons.org/licenses/by/4.0/',
+      licenseLabel: 'CC-BY-4.0',
+    });
+
+    expect(tags).toContainEqual(['license', 'https://creativecommons.org/licenses/by/4.0/', 'CC-BY-4.0']);
+  });
+
+  it('throws when license label exists without canonical value', () => {
+    expect(() =>
+      buildImageMetadataTags(uploadTags, {
+        ...metadata,
+        license: '   ',
+        licenseLabel: 'royalty-free',
+      }),
+    ).toThrowError('License label requires a canonical license value.');
+  });
 });

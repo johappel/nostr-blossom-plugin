@@ -4,8 +4,28 @@ export interface ImageMetadataInput {
   description: string;
   author: string;
   license: string;
+  licenseLabel?: string;
   keywords: string[];
   altAttribution: string;
+}
+
+function buildLicenseTag(metadata: ImageMetadataInput): string[] | null {
+  const canonical = metadata.license.trim();
+  const label = metadata.licenseLabel?.trim() ?? '';
+
+  if (!canonical && label) {
+    throw new Error('License label requires a canonical license value.');
+  }
+
+  if (!canonical) {
+    return null;
+  }
+
+  if (!label) {
+    return ['license', canonical];
+  }
+
+  return ['license', canonical, label];
 }
 
 export function buildImageMetadataTags(uploadTags: string[][], metadata: ImageMetadataInput): string[][] {
@@ -20,8 +40,9 @@ export function buildImageMetadataTags(uploadTags: string[][], metadata: ImageMe
     tags.push(['author', metadata.author.trim()]);
   }
 
-  if (metadata.license.trim()) {
-    tags.push(['license', metadata.license.trim()]);
+  const licenseTag = buildLicenseTag(metadata);
+  if (licenseTag) {
+    tags.push(licenseTag);
   }
 
   for (const keyword of metadata.keywords) {
@@ -53,8 +74,9 @@ export function buildKind1FallbackTags(uploadTags: string[][], metadata: ImageMe
     tags.push(['author', metadata.author.trim()]);
   }
 
-  if (metadata.license.trim()) {
-    tags.push(['license', metadata.license.trim()]);
+  const licenseTag = buildLicenseTag(metadata);
+  if (licenseTag) {
+    tags.push(licenseTag);
   }
 
   for (const keyword of metadata.keywords) {

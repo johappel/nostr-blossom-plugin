@@ -31,6 +31,48 @@
     'https://blossom.band/'
   ];
 
+  type LicensePreset = {
+    id: string;
+    canonical: string;
+    label: string;
+    licenseLabel: string;
+  };
+
+  const NO_LICENSE_ID = 'none';
+  const CUSTOM_LICENSE_ID = 'custom';
+  const LICENSE_PRESETS: LicensePreset[] = [
+    {
+      id: 'cc-by-4.0',
+      canonical: 'https://creativecommons.org/licenses/by/4.0/',
+      label: 'CC BY 4.0',
+      licenseLabel: 'CC-BY-4.0',
+    },
+    {
+      id: 'cc-by-sa-4.0',
+      canonical: 'https://creativecommons.org/licenses/by-sa/4.0/',
+      label: 'CC BY-SA 4.0',
+      licenseLabel: 'CC-BY-SA-4.0',
+    },
+    {
+      id: 'cc0-1.0',
+      canonical: 'https://creativecommons.org/publicdomain/zero/1.0/',
+      label: 'CC0 1.0 (Public Domain)',
+      licenseLabel: 'CC0-1.0',
+    },
+    {
+      id: 'pdm-1.0',
+      canonical: 'https://creativecommons.org/publicdomain/mark/1.0/',
+      label: 'Public Domain Mark 1.0',
+      licenseLabel: 'PDM-1.0',
+    },
+    {
+      id: 'mit',
+      canonical: 'https://opensource.org/licenses/MIT',
+      label: 'MIT License',
+      licenseLabel: 'MIT',
+    },
+  ];
+
   let signer: SignerAdapter | null = null;
   let bunkerUrl = $state('');
   let relayUrl = $state('wss://relay.damus.io');
@@ -46,7 +88,8 @@
   let metadataDescription = $state('');
   let metadataAltAttribution = $state('');
   let metadataAuthor = $state('');
-  let metadataLicense = $state('');
+  let metadataLicenseChoice = $state(NO_LICENSE_ID);
+  let metadataCustomLicenseSpec = $state('');
   let metadataKeywords = $state('');
   let metadataValidationError = $state('');
   let metadataDialogTitle = $state('Bild-Metadaten');
@@ -99,14 +142,86 @@
     const fallback = fileNameFallback(file);
     const description = dataset?.metadataDescription?.trim() || fallback || 'Uploaded image';
     const altAttribution = dataset?.metadataAltAttribution?.trim() || description || 'Uploaded image';
+    const parsedLicense = parseLicenseSpec(sourceLicense.trim() || dataset?.metadataLicense?.trim() || '');
 
     return {
       description,
       altAttribution,
       author: sourceAuthor.trim() || dataset?.metadataAuthor?.trim() || '',
-      license: sourceLicense.trim() || dataset?.metadataLicense?.trim() || '',
+      license: parsedLicense.canonical,
+      licenseLabel: parsedLicense.label,
       keywords: toKeywords(dataset?.metadataKeywords || ''),
     };
+  }
+
+  function parseLicenseSpec(value: string) {
+    const normalized = value.trim();
+    if (!normalized) {
+      return { canonical: '', label: '' };
+    }
+
+    const pipeIndex = normalized.indexOf('|');
+    if (pipeIndex < 0) {
+      return { canonical: normalized, label: '' };
+    }
+
+    const canonical = normalized.slice(0, pipeIndex).trim();
+    const label = normalized.slice(pipeIndex + 1).trim();
+    return { canonical, label };
+  }
+
+  function toLicenseSpec(canonical: string, label: string) {
+    if (!canonical) {
+      return '';
+    }
+
+    if (!label) {
+      return canonical;
+    }
+
+    return `${canonical}|${label}`;
+  }
+
+  function resolveLicenseChoice(metadata?: ImageMetadataInput) {
+    const canonical = metadata?.license?.trim() ?? '';
+    const label = metadata?.licenseLabel?.trim() ?? '';
+
+    if (!canonical) {
+      return {
+        choice: NO_LICENSE_ID,
+        customSpec: '',
+        canonical: '',
+        label: '',
+      };
+    }
+
+    const preset = LICENSE_PRESETS.find((item) => item.canonical === canonical);
+    if (preset) {
+      return {
+        choice: preset.id,
+        customSpec: '',
+        canonical: preset.canonical,
+        label: label || preset.licenseLabel,
+      };
+    }
+
+    return {
+      choice: CUSTOM_LICENSE_ID,
+      customSpec: toLicenseSpec(canonical, label),
+      canonical,
+      label,
+    };
+  }
+
+  function formatLicenseDisplay(metadata?: { license?: string; licenseLabel?: string }) {
+    const canonical = metadata?.license?.trim() || '';
+    const label = metadata?.licenseLabel?.trim() || '';
+
+    if (!canonical) {
+      return '—';
+    }
+
+    return label ? `${label} (${canonical})` : canonical;
   }
 
   function resolveMetadataDialog(value: ImageMetadataInput | null) {
@@ -133,8 +248,10 @@
     metadataDescription = options?.initialMetadata?.description ?? '';
     metadataAltAttribution = options?.initialMetadata?.altAttribution ?? '';
     metadataAuthor = options?.initialMetadata?.author ?? '';
-    metadataLicense = options?.initialMetadata?.license ?? '';
     metadataKeywords = options?.initialMetadata?.keywords?.join(', ') ?? '';
+    const licenseChoice = resolveLicenseChoice(options?.initialMetadata);
+    metadataLicenseChoice = licenseChoice.choice;
+    metadataCustomLicenseSpec = licenseChoice.customSpec;
     metadataValidationError = '';
     metadataSuggestError = '';
     metadataSuggestLoading = false;
@@ -217,11 +334,40 @@
       return;
     }
 
+    let license = '';
+    let licenseLabel = '';
+
+    if (metadataLicenseChoice === CUSTOM_LICENSE_ID) {
+      if (!metadataCustomLicenseSpec.includes('|')) {
+        metadataValidationError = 'Für "andere Lizenz" bitte das Format uri|label verwenden.';
+        return;
+      }
+
+      const parsed = parseLicenseSpec(metadataCustomLicenseSpec);
+      if (!parsed.canonical || !parsed.label) {
+        metadataValidationError = 'Für "andere Lizenz" sind sowohl URI/Code als auch Label erforderlich.';
+        return;
+      }
+
+      license = parsed.canonical;
+      licenseLabel = parsed.label;
+    } else if (metadataLicenseChoice !== NO_LICENSE_ID) {
+      const preset = LICENSE_PRESETS.find((item) => item.id === metadataLicenseChoice);
+      if (!preset) {
+        metadataValidationError = 'Ungültige Lizenzauswahl.';
+        return;
+      }
+
+      license = preset.canonical;
+      licenseLabel = preset.licenseLabel;
+    }
+
     resolveMetadataDialog({
       description,
       altAttribution,
       author: metadataAuthor.trim(),
-      license: metadataLicense.trim(),
+      license,
+      licenseLabel,
       keywords: metadataKeywords
         .split(',')
         .map((value) => value.trim())
@@ -254,6 +400,7 @@
       altAttribution: '',
       author: '',
       license: '',
+      licenseLabel: '',
       keywords: [],
     };
 
@@ -517,7 +664,7 @@
     <div class="metadata-source">
       <h3>Default Metadata Source (Autor/Lizenz)</h3>
       <input bind:value={sourceAuthor} placeholder="Autor (Auto-Fill)" />
-      <input bind:value={sourceLicense} placeholder="Lizenz (Auto-Fill)" />
+      <input bind:value={sourceLicense} placeholder="Lizenz (Auto-Fill, optional: uri|label)" />
     </div>
 
     {#if uploadUrl}
@@ -543,7 +690,7 @@
             {currentUploadItem.metadata?.altAttribution ?? 'Noch nicht erfasst'}
           </p>
           <p><strong>Autor:</strong> {currentUploadItem.metadata?.author || '—'}</p>
-          <p><strong>Lizenz:</strong> {currentUploadItem.metadata?.license || '—'}</p>
+          <p><strong>Lizenz:</strong> {formatLicenseDisplay(currentUploadItem.metadata)}</p>
           <p>
             <strong>Keywords:</strong>
             {currentUploadItem.metadata?.keywords?.length
@@ -582,7 +729,7 @@
           {#if item.metadata}
             | desc: {item.metadata.description} | alt: {item.metadata.altAttribution}
             {#if item.metadata.author} | author: {item.metadata.author}{/if}
-            {#if item.metadata.license} | license: {item.metadata.license}{/if}
+            {#if item.metadata.license} | license: {formatLicenseDisplay(item.metadata)}{/if}
             {#if item.metadata.keywords.length > 0}
               | keywords: {item.metadata.keywords.join(', ')}
             {/if}
@@ -639,8 +786,20 @@
           </label>
           <label>
             Lizenz
-            <input bind:value={metadataLicense} placeholder="z. B. CC-BY-4.0" />
+            <select bind:value={metadataLicenseChoice}>
+              <option value={NO_LICENSE_ID}>Keine Lizenz</option>
+              {#each LICENSE_PRESETS as preset}
+                <option value={preset.id}>{preset.label}</option>
+              {/each}
+              <option value={CUSTOM_LICENSE_ID}>Andere Lizenz</option>
+            </select>
           </label>
+          {#if metadataLicenseChoice === CUSTOM_LICENSE_ID}
+            <label>
+              Andere Lizenz (uri|label)
+              <input bind:value={metadataCustomLicenseSpec} placeholder="https://example.com/license|Custom License" />
+            </label>
+          {/if}
           <label>
             Keywords
             <input

@@ -8,6 +8,7 @@ export interface UploadHistoryItem {
     description: string;
     author: string;
     license: string;
+    licenseLabel?: string;
     keywords: string[];
     altAttribution: string;
   };
