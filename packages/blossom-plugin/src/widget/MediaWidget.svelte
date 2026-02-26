@@ -337,8 +337,8 @@
     border: none;
     border-radius: 12px;
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.22);
-    width: min(92vw, 960px);
-    height: min(90vh, 700px);
+    width: min(95vw, 1200px);
+    height: min(95vh, 900px);
     background: #fff;
     overflow: hidden;
   }

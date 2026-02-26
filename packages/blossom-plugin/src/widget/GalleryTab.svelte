@@ -320,97 +320,99 @@
               </div>
             </div>
           {:else}
-            <!-- Preview -->
-            {@const previewUrl = getPreviewUrl(selectedItem)}
-            {#if previewUrl}
-              <img class="sidebar-preview" src={previewUrl} alt={selectedItem.metadata?.altAttribution || ''} />
-            {:else if selectedItem.mime?.includes('pdf')}
-              <div class="pdf-preview">📄 PDF — <a href={selectedItem.url} target="_blank" rel="noreferrer">Öffnen</a></div>
-            {/if}
-
-            <!-- Metadata -->
-            {#if selectedItem.metadata}
-              <dl class="meta-list">
-                {#if selectedItem.metadata.description}
-                  <dt>Beschreibung</dt>
-                  <dd>{selectedItem.metadata.description}</dd>
-                {/if}
-                {#if selectedItem.metadata.altAttribution}
-                  <dt>Alt-Text</dt>
-                  <dd>{selectedItem.metadata.altAttribution}</dd>
-                {/if}
-                {#if selectedItem.metadata.author}
-                  <dt>Autor</dt>
-                  <dd>{selectedItem.metadata.author}</dd>
-                {/if}
-                {#if selectedItem.metadata.genre}
-                  <dt>Genre</dt>
-                  <dd>{selectedItem.metadata.genre}</dd>
-                {/if}
-                {#if selectedItem.metadata.license}
-                  <dt>Lizenz</dt>
-                  <dd>{formatLicenseDisplay(selectedItem.metadata.license, selectedItem.metadata.licenseLabel)}</dd>
-                {/if}
-                {#if selectedItem.metadata.keywords?.length}
-                  <dt>Keywords</dt>
-                  <dd>
-                    {#each selectedItem.metadata.keywords as kw}
-                      <button type="button" class="keyword-tag" class:active={activeKeyword === kw.toLowerCase()} onclick={() => toggleKeyword(kw.toLowerCase())}>{kw}</button>
-                    {/each}
-                  </dd>
-                {/if}
-                <dt>Datum</dt>
-                <dd>{formatDate(selectedItem.createdAt)}</dd>
-                {#if selectedItem.mime}
-                  <dt>Typ</dt>
-                  <dd>{selectedItem.mime}</dd>
-                {/if}
-              </dl>
-            {:else}
-              <!-- Basic info for items without full metadata -->
-              <dl class="meta-list">
-                <dt>Datum</dt>
-                <dd>{formatDate(selectedItem.createdAt)}</dd>
-                {#if selectedItem.mime}
-                  <dt>Typ</dt>
-                  <dd>{selectedItem.mime}</dd>
-                {/if}
-                {#if selectedItem.sha256}
-                  <dt>SHA-256</dt>
-                  <dd class="mono">{selectedItem.sha256.slice(0, 16)}…</dd>
-                {/if}
-              </dl>
-              <!-- Vision sidebar for items without metadata -->
-              {#if visionOptions && features.aiDescription !== false}
-                <MetadataSidebar
-                  fileUrl={selectedItem.url}
-                  mime={selectedItem.mime ?? 'application/octet-stream'}
-                  thumbnailUrl={getPreviewUrl(selectedItem)}
-                  mode="create"
-                  {visionOptions}
-                  showDelete={features.deleteFiles !== false && !isRemoteOnly}
-                  showMetadata={true}
-                  onSubmit={(meta) => {
-                    if (selectedItem) {
-                      onInserted({ ...buildInsertResult(selectedItem), ...meta, keywords: meta.keywords });
-                    }
-                  }}
-                  onDelete={features.deleteFiles !== false && !isRemoteOnly ? handleDeleteClick : undefined}
-                />
+            <div class="sidebar-scroll">
+              <!-- Preview (image-size from NIP-94 `image` tag) -->
+              {#if getPreviewUrl(selectedItem)}
+                <img class="sidebar-preview" src={getPreviewUrl(selectedItem)} alt={selectedItem.metadata?.altAttribution || ''} />
+              {:else if selectedItem.mime?.includes('pdf')}
+                <div class="pdf-preview">📄 PDF — <a href={selectedItem.url} target="_blank" rel="noreferrer">Öffnen</a></div>
               {/if}
-            {/if}
 
-            <!-- Action buttons (always visible when an item is selected) -->
-            <div class="sidebar-actions">
+              <!-- Metadata -->
+              {#if selectedItem.metadata}
+                <dl class="meta-list">
+                  {#if selectedItem.metadata.description}
+                    <dt>Beschreibung</dt>
+                    <dd>{selectedItem.metadata.description}</dd>
+                  {/if}
+                  {#if selectedItem.metadata.altAttribution}
+                    <dt>Alt-Text</dt>
+                    <dd>{selectedItem.metadata.altAttribution}</dd>
+                  {/if}
+                  {#if selectedItem.metadata.author}
+                    <dt>Autor</dt>
+                    <dd>{selectedItem.metadata.author}</dd>
+                  {/if}
+                  {#if selectedItem.metadata.genre}
+                    <dt>Genre</dt>
+                    <dd>{selectedItem.metadata.genre}</dd>
+                  {/if}
+                  {#if selectedItem.metadata.license}
+                    <dt>Lizenz</dt>
+                    <dd>{formatLicenseDisplay(selectedItem.metadata.license, selectedItem.metadata.licenseLabel)}</dd>
+                  {/if}
+                  {#if selectedItem.metadata.keywords?.length}
+                    <dt>Keywords</dt>
+                    <dd>
+                      {#each selectedItem.metadata.keywords as kw}
+                        <button type="button" class="keyword-tag" class:active={activeKeyword === kw.toLowerCase()} onclick={() => toggleKeyword(kw.toLowerCase())}>{kw}</button>
+                      {/each}
+                    </dd>
+                  {/if}
+                  <dt>Datum</dt>
+                  <dd>{formatDate(selectedItem.createdAt)}</dd>
+                  {#if selectedItem.mime}
+                    <dt>Typ</dt>
+                    <dd>{selectedItem.mime}</dd>
+                  {/if}
+                </dl>
+              {:else}
+                <!-- Basic info for items without full metadata -->
+                <dl class="meta-list">
+                  <dt>Datum</dt>
+                  <dd>{formatDate(selectedItem.createdAt)}</dd>
+                  {#if selectedItem.mime}
+                    <dt>Typ</dt>
+                    <dd>{selectedItem.mime}</dd>
+                  {/if}
+                  {#if selectedItem.sha256}
+                    <dt>SHA-256</dt>
+                    <dd class="mono">{selectedItem.sha256.slice(0, 16)}…</dd>
+                  {/if}
+                </dl>
+                <!-- Vision sidebar for items without metadata -->
+                {#if visionOptions && features.aiDescription !== false}
+                  <MetadataSidebar
+                    fileUrl={selectedItem.url}
+                    mime={selectedItem.mime ?? 'application/octet-stream'}
+                    thumbnailUrl={getPreviewUrl(selectedItem)}
+                    mode="create"
+                    {visionOptions}
+                    showDelete={features.deleteFiles !== false && !isRemoteOnly}
+                    showMetadata={true}
+                    onSubmit={(meta) => {
+                      if (selectedItem) {
+                        onInserted({ ...buildInsertResult(selectedItem), ...meta, keywords: meta.keywords });
+                      }
+                    }}
+                    onDelete={features.deleteFiles !== false && !isRemoteOnly ? handleDeleteClick : undefined}
+                  />
+                {/if}
+              {/if}
+            </div>
+
+            <!-- Toolbar pinned at bottom -->
+            <div class="sidebar-toolbar">
               {#if onEditMetadata}
                 <button
                   type="button"
                   class="btn-secondary"
                   onclick={() => onEditMetadata?.(selectedItem!)}
-                >Metadaten bearbeiten ✏️</button>
+                  title="Metadaten bearbeiten"
+                >✏️ Bearbeiten</button>
               {/if}
               {#if features.deleteFiles !== false && !isRemoteOnly}
-                <button type="button" class="btn-delete" onclick={handleDeleteClick}>🗑 Löschen</button>
+                <button type="button" class="btn-delete" onclick={handleDeleteClick} title="Datei löschen">🗑</button>
               {/if}
               <button type="button" class="btn-primary" onclick={handleApply}>Übernehmen</button>
             </div>
@@ -557,17 +559,27 @@
   }
 
   .sidebar-panel {
-    overflow-y: auto;
     border-left: 1px solid #eee;
     padding-left: 0.75rem;
     display: grid;
+    grid-template-rows: 1fr auto;
+    gap: 0;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .sidebar-scroll {
+    overflow-y: auto;
+    display: grid;
     gap: 0.5rem;
     align-content: start;
+    padding-bottom: 0.5rem;
+    min-height: 0;
   }
 
   .sidebar-preview {
     max-width: 100%;
-    max-height: 160px;
+    max-height: 280px;
     object-fit: contain;
     border-radius: 6px;
     border: 1px solid #ddd;
@@ -612,11 +624,16 @@
     font-size: 0.75rem;
   }
 
-  .sidebar-actions {
+  .sidebar-toolbar {
     display: flex;
-    flex-direction: column;
     gap: 0.4rem;
-    margin-top: 0.25rem;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-top: 1px solid #eee;
+  }
+
+  .sidebar-toolbar .btn-primary {
+    flex: 1;
   }
 
   .delete-confirm {
@@ -646,7 +663,6 @@
     border-radius: 5px;
     cursor: pointer;
     font-size: 0.875rem;
-    width: 100%;
   }
 
   .btn-primary:hover {
@@ -661,20 +677,19 @@
     border-radius: 5px;
     cursor: pointer;
     font-size: 0.875rem;
-    width: 100%;
     text-align: center;
+    white-space: nowrap;
   }
 
   .btn-delete {
     font: inherit;
-    padding: 0.45rem 0.9rem;
+    padding: 0.45rem 0.6rem;
     background: #fff;
     color: #c0392b;
     border: 1px solid #c0392b;
     border-radius: 5px;
     cursor: pointer;
     font-size: 0.875rem;
-    width: 100%;
   }
 
   .btn-delete:hover {
