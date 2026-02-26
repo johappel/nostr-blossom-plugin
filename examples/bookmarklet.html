@@ -46,6 +46,7 @@
       font-size: 0.95rem;
       text-decoration: none;
       cursor: grab;
+      -webkit-user-select: none;
       user-select: none;
       transition: background 0.15s;
     }
@@ -124,6 +125,9 @@
     #bookmarklet-output {
       margin-top: 0.75rem;
     }
+    .step p {
+      margin: 0;
+    }
   </style>
 </head>
 <body>
@@ -140,7 +144,7 @@
 
 <div class="step">
   <span class="step-num">1</span>
-  <p style="margin: 0;">
+  <p>
     Ziehe den folgenden Link in die <strong>Lesezeichenleiste</strong>
     deines Browsers (oder Rechtsklick → Lesezeichen hinzufügen):
   </p>
@@ -153,7 +157,7 @@
 
 <div class="step">
   <span class="step-num">2</span>
-  <p style="margin: 0;">
+  <p>
     Auf einer beliebigen Webseite das Lesezeichen klicken →
     die <strong>Mediathek</strong> öffnet sich als Overlay.
   </p>
@@ -161,7 +165,7 @@
 
 <div class="step">
   <span class="step-num">3</span>
-  <p style="margin: 0;">
+  <p>
     Datei hochladen oder aus der Mediathek auswählen →
     die <strong>URL wird in die Zwischenablage kopiert</strong>
     und kann überall mit <kbd>Strg+V</kbd> eingefügt werden.

@@ -38,6 +38,33 @@ Dann direkt `examples/simple-input.html` im Browser öffnen.
 Felder mit `data-blossom` erhalten automatisch einen **🌸 Mediathek**-Button.  
 Nach Auswahl wird die URL direkt ins Feld geschrieben.
 
+### Ausgabeformat per `data-format`
+
+Das Ausgabeformat wird vom Ziel-Element bestimmt, nicht vom Benutzer.
+Per `data-format` Attribut legt das Host-Feld fest, in welchem Format der eingefügte Text formatiert wird:
+
+| Element | Attribut | Format | Beispiel-Ausgabe |
+|---|---|---|---|
+| `<input data-blossom>` | _(keines)_ | `url` (Default) | `https://blossom.example/abc.webp` |
+| `<textarea data-blossom data-format="markdown">` | `markdown` | Markdown | `![Beschreibung](url)` |
+| `<div contenteditable data-blossom data-format="html">` | `html` | HTML | `<figure><img …><figcaption>…</figcaption></figure>` |
+| `<pre data-blossom data-format="nostr-tag">` | `nostr-tag` | Nostr imeta | `["imeta", "url …", "m …", …]` |
+| `<pre data-blossom data-format="json">` | `json` | JSON | `{ "url": "…", "mimeType": "…" }` |
+
+```html
+<!-- URL (default) -->
+<input type="text" data-blossom name="imageUrl" />
+
+<!-- Markdown -->
+<textarea data-blossom data-format="markdown" name="content"></textarea>
+
+<!-- HTML -->
+<div contenteditable data-blossom data-format="html"></div>
+```
+
+> **Ohne Ziel-Element** (z. B. über das Bookmarklet) erscheint stattdessen ein
+> Format-Dropdown in der Toolbar und der Text wird in die Zwischenablage kopiert.
+
 ### Variante B — Manuelles Init
 
 ```js
