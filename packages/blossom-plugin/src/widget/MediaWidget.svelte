@@ -58,7 +58,7 @@
   let activeTab = $state<TabId>(untrack(() => tabs[0]?.id ?? 'upload'));
 
   // ── Signer ────────────────────────────────────────────────────────────────
-  let signer = $derived<BlossomSigner | null>(() => {
+  let signer = $derived.by<BlossomSigner | null>(() => {
     if (config.signer) return config.signer;
     if (typeof window !== 'undefined' && (window as Window & { nostr?: BlossomSigner }).nostr) {
       return (window as Window & { nostr?: BlossomSigner }).nostr ?? null;
@@ -73,7 +73,7 @@
   let galleryError = $state('');
 
   // ── Vision config ─────────────────────────────────────────────────────────
-  let visionOptions = $derived<VisionClientOptions | undefined>(() => {
+  let visionOptions = $derived.by<VisionClientOptions | undefined>(() => {
     const ep = config.visionEndpoint ? resolveVisionEndpoint(config.visionEndpoint) : null;
     return ep ? { endpoint: ep } : undefined;
   });
@@ -159,8 +159,8 @@
 
   // ── Handle insert ─────────────────────────────────────────────────────────
   function handleInserted(result: InsertResult) {
-    config.onInsert?.(result);
-    config.onUpload?.(result);
+    config.onInsert?.(result, _targetElement ?? null);
+    config.onUpload?.(result.tags, result.url);
     open = false;
     onClose?.();
   }
