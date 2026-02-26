@@ -152,7 +152,13 @@
   );
 
   let isRemoteOnly = $derived(
-    selectedItem ? !items.some((i) => i.url === selectedItem!.url) : false,
+    selectedItem
+      ? !items.some(
+          (i) =>
+            i.url === selectedItem!.url ||
+            (i.sha256 && selectedItem!.sha256 && i.sha256.toLowerCase() === selectedItem!.sha256.toLowerCase()),
+        )
+      : false,
   );
 
   function getThumbnailUrl(item: UploadHistoryItem): string {
