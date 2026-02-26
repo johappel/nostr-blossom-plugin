@@ -130,9 +130,8 @@ await uploadAndInsertBlossomMedia(editor, async () => ({
 
 ## Dokumentation
 
-- Widget-Konfiguration: [`docs/simple-integration.md`](docs/simple-integration.md)
-- Beispiele: [`examples/`](examples/)
-- Docs-Beispiele: [`docs/examples/`](docs/examples/)
+- Vollständige Integrations-Referenz: [`integration.md`](integration.md)
+- Einbettungsbeispiele: [`examples/`](examples/)
 
 
 ## Demo `.env` konfigurieren

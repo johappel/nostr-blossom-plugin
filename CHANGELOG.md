@@ -24,6 +24,11 @@ The format is based on Keep a Changelog.
 
 - **`apps/demo` entfernt**: Die SvelteKit-Demo-App wurde entfernt. Ihre Inhalte sind vollständig im Plugin (`@blossom/plugin/core` + `@blossom/plugin/widget`) aufgegangen. Anstelle der Demo gibt es jetzt eigenständige HTML-Beispiele unter `examples/`.
 - Root-`package.json`: `dev`- und `start`-Skripte (Demo-spezifisch) entfernt; `build:widget`-Shortcut ergänzt.
+- **`docs/`-Ordner entfernt**: Veraltete Einzeldokumente ersetzt durch [`integration.md`](../integration.md) im Repo-Root.
+
+### Docs
+
+- **`integration.md`** (neu): Vollständige Integrations-Referenz mit tabellarischen Config-Optionen (`BlossomMediaConfig`, `BlossomMediaFeatures`, `InsertMode`, `InsertResult`), Methoden-Beschreibungen (`init`, `open`, `close`, `destroy`), Signer-Interface, Vision-Service-Setup und Sicherheitshinweisen.
 
 
 - **Blossom Gallery**: Neuer „Blossom Gallery"-Button neben dem Upload-Input öffnet eine WordPress-ähnliche Mediathek-Dialog mit Thumbnail-Grid aller hochgeladenen Dateien.
