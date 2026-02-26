@@ -3,6 +3,9 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [sveltekit()],
+  optimizeDeps: {
+    exclude: ['pdfjs-dist'],
+  },
   test: {
     environment: 'jsdom',
   },

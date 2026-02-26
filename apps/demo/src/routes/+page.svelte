@@ -43,6 +43,8 @@
   const CC0_LICENSE_ID = 'cc0-1.0';
   const AI_IMAGE_AUTHOR_GENERATED = 'KI generiert';
   const AI_IMAGE_AUTHOR_ASSISTED = 'Mit Hilfe von KI generiert';
+  const THUMB_PREVIEW_MAX_DIM = 200;
+  const IMAGE_PREVIEW_MAX_DIM = 600;
   const LICENSE_PRESETS: LicensePreset[] = [
     {
       id: 'cc-by-4.0',
@@ -168,6 +170,168 @@
       .replace(/\.[^.]+$/, '')
       .replace(/[_-]+/g, ' ')
       .trim();
+  }
+
+  function previewFileBaseName(file: File) {
+    const normalized = file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]+/gi, '-').trim();
+    return normalized || 'upload';
+  }
+
+  function normalizeMime(value?: string) {
+    return value?.trim().toLowerCase() ?? '';
+  }
+
+  function scaleDimensions(width: number, height: number, maxDimension: number) {
+    const longestSide = Math.max(width, height);
+    if (longestSide <= maxDimension) {
+      return {
+        width,
+        height,
+      };
+    }
+
+    const scale = maxDimension / longestSide;
+    return {
+      width: Math.max(1, Math.round(width * scale)),
+      height: Math.max(1, Math.round(height * scale)),
+    };
+  }
+
+  async function canvasToImageFile(canvas: HTMLCanvasElement, filename: string) {
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (nextBlob) => {
+          if (nextBlob) {
+            resolve(nextBlob);
+            return;
+          }
+
+          reject(new Error('Canvas conversion failed'));
+        },
+        'image/webp',
+        0.82,
+      );
+    });
+
+    return new File([blob], filename, { type: blob.type || 'image/webp' });
+  }
+
+  async function createImagePreviewFile(file: File, maxDimension: number, filename: string) {
+    const bitmap = await createImageBitmap(file);
+
+    try {
+      const target = scaleDimensions(bitmap.width, bitmap.height, maxDimension);
+      const canvas = document.createElement('canvas');
+      canvas.width = target.width;
+      canvas.height = target.height;
+
+      const context = canvas.getContext('2d');
+      if (!context) {
+        throw new Error('Canvas context unavailable');
+      }
+
+      context.drawImage(bitmap, 0, 0, target.width, target.height);
+      return await canvasToImageFile(canvas, filename);
+    } finally {
+      bitmap.close();
+    }
+  }
+
+  async function createPdfPreviewFile(file: File, maxDimension: number, filename: string) {
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+
+    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/legacy/build/pdf.worker.mjs',
+        import.meta.url,
+      ).href;
+    }
+
+    const pdfBytes = await file.arrayBuffer();
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(pdfBytes),
+    });
+    const documentRef = await loadingTask.promise;
+
+    try {
+      const page = await documentRef.getPage(1);
+      const viewport = page.getViewport({ scale: 1 });
+      const target = scaleDimensions(viewport.width, viewport.height, maxDimension);
+      const scale = target.width / viewport.width;
+      const renderViewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.ceil(renderViewport.width));
+      canvas.height = Math.max(1, Math.ceil(renderViewport.height));
+
+      const context = canvas.getContext('2d');
+      if (!context) {
+        throw new Error('Canvas context unavailable');
+      }
+
+      await page.render({
+        canvas: canvas as unknown as HTMLCanvasElement,
+        canvasContext: context as never,
+        viewport: renderViewport,
+      }).promise;
+
+      return await canvasToImageFile(canvas, filename);
+    } finally {
+      await documentRef.destroy();
+    }
+  }
+
+  function getTagValue(tags: string[][], key: string) {
+    return tags.find((tag) => tag[0] === key)?.[1]?.trim() || '';
+  }
+
+  function mergePreviewReferenceTags(uploadTags: string[][], previewTags: string[][]) {
+    const tagsWithoutPreview = uploadTags.filter((tag) => tag[0] !== 'thumb' && tag[0] !== 'image');
+    return [...tagsWithoutPreview, ...previewTags];
+  }
+
+  async function createPreviewReferenceTags(
+    file: File,
+    mime: string,
+    bridge: ReturnType<typeof createBlossomBridge>,
+  ) {
+    const normalizedMime = normalizeMime(mime);
+
+    if (!normalizedMime.startsWith('image/') && normalizedMime !== 'application/pdf') {
+      return [] as string[][];
+    }
+
+    const baseName = previewFileBaseName(file);
+    const specs =
+      normalizedMime === 'application/pdf'
+        ? ([{ tagName: 'thumb', maxDimension: THUMB_PREVIEW_MAX_DIM, suffix: 'thumb' }] as const)
+        : ([
+            { tagName: 'thumb', maxDimension: THUMB_PREVIEW_MAX_DIM, suffix: 'thumb' },
+            { tagName: 'image', maxDimension: IMAGE_PREVIEW_MAX_DIM, suffix: 'preview' },
+          ] as const);
+    const referenceTags: string[][] = [];
+
+    for (const spec of specs) {
+      try {
+        const previewFileName = `${baseName}-${spec.suffix}.webp`;
+        const previewFile =
+          normalizedMime === 'application/pdf'
+            ? await createPdfPreviewFile(file, spec.maxDimension, previewFileName)
+            : await createImagePreviewFile(file, spec.maxDimension, previewFileName);
+        const previewUpload = await bridge.uploadFile(previewFile);
+        const previewUrl = getTagValue(previewUpload.tags, 'url');
+
+        if (!previewUrl) {
+          continue;
+        }
+
+        const previewHash = getTagValue(previewUpload.tags, 'x');
+        referenceTags.push(previewHash ? [spec.tagName, previewUrl, previewHash] : [spec.tagName, previewUrl]);
+      } catch (error) {
+        console.warn(`Failed to create ${spec.tagName} preview`, error);
+      }
+    }
+
+    return referenceTags;
   }
 
   function collectInitialMetadata(file: File): ImageMetadataInput {
@@ -667,10 +831,13 @@
     try {
       const result = await bridge.uploadFile(file);
       const uploadTags = result.tags.map((tag) => [...tag]);
-      const mime = uploadTags.find((tag) => tag[0] === 'm')?.[1];
+      const uploadedMime = uploadTags.find((tag) => tag[0] === 'm')?.[1]?.trim() || '';
+      const mime = normalizeMime(uploadedMime || file.type || '');
+      const previewTags = await createPreviewReferenceTags(file, mime, bridge);
+      const uploadTagsWithPreviews = mergePreviewReferenceTags(uploadTags, previewTags);
       uploadTagsByUrl = {
         ...uploadTagsByUrl,
-        [result.url]: uploadTags,
+        [result.url]: uploadTagsWithPreviews,
       };
 
       uploadUrl = result.url;
@@ -694,8 +861,8 @@
         return null;
       }
 
-      const kind1063Tags = buildImageMetadataTags(uploadTags, metadata);
-      const kind1Tags = buildKind1FallbackTags(uploadTags, metadata);
+      const kind1063Tags = buildImageMetadataTags(uploadTagsWithPreviews, metadata);
+      const kind1Tags = buildKind1FallbackTags(uploadTagsWithPreviews, metadata);
 
       await publishEvent(signer, relayUrl, metadata.description, kind1063Tags, 1063);
       await publishEvent(signer, relayUrl, metadata.description, kind1Tags, 1);
@@ -830,14 +997,29 @@
 
     {#if uploadUrl}
       {@const currentUploadItem = getCurrentUploadItem()}
-      {#if currentUploadItem?.mime?.startsWith('image/') || currentUploadItem?.mime === 'application/pdf'}
+      {@const currentUploadTags = uploadTagsByUrl[uploadUrl] ?? []}
+      {@const currentThumbUrl = currentUploadTags.find((tag) => tag[0] === 'thumb')?.[1] ?? ''}
+      {@const currentPreviewUrl = currentUploadTags.find((tag) => tag[0] === 'image')?.[1] ?? ''}
+      {@const currentMime = normalizeMime(currentUploadItem?.mime)}
+      {#if currentUploadItem && (currentMime.startsWith('image/') || currentMime === 'application/pdf')}
         <div class="metadata-target">
           <h3>
-            {currentUploadItem.mime === 'application/pdf'
+            {currentMime === 'application/pdf'
               ? 'PDF-Vorschau & Metadaten'
               : 'Bildvorschau & Metadaten'}
           </h3>
-          {#if currentUploadItem.mime?.startsWith('image/')}
+          {#if currentThumbUrl}
+            <img
+              class="upload-preview"
+              src={currentThumbUrl}
+              alt={
+                currentUploadItem.metadata?.altAttribution ||
+                currentUploadItem.metadata?.description ||
+                'Uploaded preview thumbnail'
+              }
+            />
+          {/if}
+          {#if currentMime.startsWith('image/') && !currentThumbUrl}
             <img
               class="upload-preview"
               src={uploadUrl}
@@ -847,10 +1029,22 @@
                 'Uploaded image preview'
               }
             />
-          {:else}
+          {:else if currentMime === 'application/pdf'}
             <p>
               <strong>Datei:</strong>
               <a href={uploadUrl} target="_blank" rel="noreferrer">PDF öffnen</a>
+            </p>
+          {/if}
+          {#if currentThumbUrl}
+            <p>
+              <strong>Thumbnail:</strong>
+              <a href={currentThumbUrl} target="_blank" rel="noreferrer">{currentThumbUrl}</a>
+            </p>
+          {/if}
+          {#if currentPreviewUrl && currentMime !== 'application/pdf'}
+            <p>
+              <strong>Preview:</strong>
+              <a href={currentPreviewUrl} target="_blank" rel="noreferrer">{currentPreviewUrl}</a>
             </p>
           {/if}
           <p>

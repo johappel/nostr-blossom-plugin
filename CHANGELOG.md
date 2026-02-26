@@ -8,6 +8,7 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- Demo-Upload erzeugt jetzt automatisch NIP-94 `thumb` (200px) und `image`-Preview (600px) für Bilder und PDFs und nimmt diese in Publish-Tags auf.
 - Upload-Bereich der Demo zeigt jetzt auch für PDFs einen Metadaten-Vorschau-Block mit direktem Link zur Datei.
 - Demo-Metadaten-Dialog öffnet jetzt auch für PDF-Uploads (`application/pdf`) und erlaubt Vision-gestützte Kurzbeschreibungen.
 - `image-describer` unterstützt jetzt PDF-Beschreibung über mehrere gerenderte Seiten plus Textauszug, damit Dokumentinhalt statt nur Cover analysiert wird.

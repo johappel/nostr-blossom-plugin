@@ -8,6 +8,8 @@ describe('publish metadata helpers', () => {
     ['x', 'sha256-hash'],
     ['size', '12345'],
     ['dim', '1200x800'],
+    ['thumb', 'https://blossom.example/image-thumb.webp', 'thumb-hash'],
+    ['image', 'https://blossom.example/image-preview.webp', 'preview-hash'],
   ];
 
   const metadata = {
@@ -25,6 +27,8 @@ describe('publish metadata helpers', () => {
     expect(tags).toContainEqual(['url', 'https://blossom.example/image.png']);
     expect(tags).toContainEqual(['m', 'image/png']);
     expect(tags).toContainEqual(['x', 'sha256-hash']);
+    expect(tags).toContainEqual(['thumb', 'https://blossom.example/image-thumb.webp', 'thumb-hash']);
+    expect(tags).toContainEqual(['image', 'https://blossom.example/image-preview.webp', 'preview-hash']);
     expect(tags).toContainEqual(['summary', 'Sunset over the bay']);
     expect(tags).toContainEqual(['alt', 'Photo by Alice']);
     expect(tags).toContainEqual(['author', 'Alice']);
@@ -39,6 +43,8 @@ describe('publish metadata helpers', () => {
 
     expect(tags).toContainEqual(['url', 'https://blossom.example/image.png']);
     expect(tags).toContainEqual(['m', 'image/png']);
+    expect(tags).toContainEqual(['thumb', 'https://blossom.example/image-thumb.webp', 'thumb-hash']);
+    expect(tags).toContainEqual(['image', 'https://blossom.example/image-preview.webp', 'preview-hash']);
     expect(tags).toContainEqual(['summary', 'Sunset over the bay']);
     expect(tags).toContainEqual(['alt', 'Photo by Alice']);
     expect(tags).toContainEqual(['author', 'Alice']);

@@ -37,6 +37,9 @@ importers:
       nostr-tools:
         specifier: ^2.17.0
         version: 2.23.1(typescript@5.9.3)
+      pdfjs-dist:
+        specifier: ^5.4.296
+        version: 5.4.624
       sharp:
         specifier: ^0.34.5
         version: 0.34.5

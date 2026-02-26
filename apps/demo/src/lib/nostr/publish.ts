@@ -52,7 +52,7 @@ function buildAiHintTags(metadata: ImageMetadataInput): string[][] {
 export function buildImageMetadataTags(uploadTags: string[][], metadata: ImageMetadataInput): string[][] {
   const passthroughTags = uploadTags.filter((tag) => {
     const key = tag[0];
-    return Boolean(key) && ['url', 'm', 'x', 'size', 'dim', 'blurhash'].includes(key);
+    return Boolean(key) && ['url', 'm', 'x', 'size', 'dim', 'blurhash', 'thumb', 'image'].includes(key);
   });
 
   const tags: string[][] = [...passthroughTags, ['summary', metadata.description], ['alt', metadata.altAttribution]];
@@ -85,6 +85,7 @@ export function buildImageMetadataTags(uploadTags: string[][], metadata: ImageMe
 export function buildKind1FallbackTags(uploadTags: string[][], metadata: ImageMetadataInput): string[][] {
   const url = uploadTags.find((tag) => tag[0] === 'url')?.[1];
   const mime = uploadTags.find((tag) => tag[0] === 'm')?.[1];
+  const previewTags = uploadTags.filter((tag) => tag[0] === 'thumb' || tag[0] === 'image');
   const tags: string[][] = [];
 
   if (url) {
@@ -94,6 +95,8 @@ export function buildKind1FallbackTags(uploadTags: string[][], metadata: ImageMe
   if (mime) {
     tags.push(['m', mime]);
   }
+
+  tags.push(...previewTags);
 
   tags.push(['summary', metadata.description], ['alt', metadata.altAttribution]);
 
