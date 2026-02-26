@@ -8,6 +8,13 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- **Blossom Gallery**: Neuer „Blossom Gallery"-Button neben dem Upload-Input öffnet eine WordPress-ähnliche Mediathek-Dialog mit Thumbnail-Grid aller hochgeladenen Dateien.
+- Gallery-Seitenleiste zeigt bei Selektion Vorschau und Metadaten (URL, Typ, Datum, SHA-256, Beschreibung, Autor, Lizenz, Genre, Keywords, KI-Hints, Event IDs).
+- „Übernehmen"-Button in der Gallery überträgt die URL der selektierten Datei ins Upload-Input.
+- „Löschen"-Button in der Gallery mit Bestätigungsdialog löscht die Datei (inkl. Thumbnails/Vorschaubilder) von allen Blossom-Servern und publiziert ein NIP-09 Kind-5 Deletion-Event für zugehörige NIP-94 Events.
+- Upload-History speichert jetzt `sha256`, `uploadTags` und `publishedEventIds` für vollständige Metadaten-Nachverfolgung und Löschung.
+- Neue Lösch-Logik in `blossom-delete.ts`: BUD-02-konforme `DELETE`-Requests mit signiertem Kind-24242 Auth-Event sowie NIP-09 Deletion-Events.
+
 - Demo-Upload erzeugt jetzt automatisch NIP-94 `thumb` (200px) und `image`-Preview (600px) für Bilder und PDFs und nimmt diese in Publish-Tags auf.
 - Upload-Bereich der Demo zeigt jetzt auch für PDFs einen Metadaten-Vorschau-Block mit direktem Link zur Datei.
 - Demo-Metadaten-Dialog öffnet jetzt auch für PDF-Uploads (`application/pdf`) und erlaubt Vision-gestützte Kurzbeschreibungen.

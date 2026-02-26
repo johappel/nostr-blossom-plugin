@@ -14,8 +14,10 @@
   import {
     addUploadHistory,
     updateLatestUploadHistoryByUrl,
+    removeUploadHistoryByUrl,
     uploadHistoryStore,
   } from '$lib/stores/uploads';
+  import type { UploadHistoryItem } from '$lib/stores/uploads';
   import { connectNip07Signer, connectNip46Signer } from '$lib/nostr/signers';
   import type { SignerAdapter } from '$lib/nostr/signers';
   import {
@@ -24,6 +26,8 @@
     publishEvent,
     type ImageMetadataInput,
   } from '$lib/nostr/publish';
+  import { deleteBlossomBlob, publishDeletionEvent } from '$lib/nostr/blossom-delete';
+  import BlossomGallery from '$lib/components/BlossomGallery.svelte';
 
   const servers = [
     'https://blossom.primal.net/',
@@ -139,6 +143,8 @@
   let sourceAuthor = $state('');
   let sourceLicenseChoice = $state(NO_LICENSE_ID);
   let sourceCustomLicenseSpec = $state('');
+  let galleryOpen = $state(false);
+  let galleryDeleteStatus = $state('');
   const imageDescriberUrl =
     (import.meta.env.VITE_IMAGE_DESCRIBER_URL as string | undefined) ??
     (import.meta.env.PUBLIC_IMAGE_DESCRIBER_URL as string | undefined) ??
@@ -724,12 +730,21 @@
     const kind1063Tags = buildImageMetadataTags(uploadTags, metadata);
     const kind1Tags = buildKind1FallbackTags(uploadTags, metadata);
 
-    await publishEvent(signer, relayUrl, metadata.description, kind1063Tags, 1063);
-    await publishEvent(signer, relayUrl, metadata.description, kind1Tags, 1);
+    const pub1063 = await publishEvent(signer, relayUrl, metadata.description, kind1063Tags, 1063);
+    const pub1 = await publishEvent(signer, relayUrl, metadata.description, kind1Tags, 1);
+
+    const newEventIds: string[] = [];
+    if (pub1063.event && typeof (pub1063.event as Record<string, unknown>).id === 'string') {
+      newEventIds.push((pub1063.event as Record<string, unknown>).id as string);
+    }
+    if (pub1.event && typeof (pub1.event as Record<string, unknown>).id === 'string') {
+      newEventIds.push((pub1.event as Record<string, unknown>).id as string);
+    }
 
     updateLatestUploadHistoryByUrl(uploadUrl, {
       metadata,
       publishedKinds: [1063, 1],
+      publishedEventIds: newEventIds,
     });
     status = 'Metadata updated and republished as kind 1063 + kind 1';
   }
@@ -842,10 +857,17 @@
 
       uploadUrl = result.url;
 
+      const fileSha256 = getTagValue(uploadTagsWithPreviews, 'x');
       const supportsMetadataDialog = mime?.startsWith('image/') || mime === 'application/pdf';
 
       if (!supportsMetadataDialog) {
-        addUploadHistory({ url: result.url, mime, createdAt: new Date().toISOString() });
+        addUploadHistory({
+          url: result.url,
+          mime,
+          sha256: fileSha256 || undefined,
+          uploadTags: uploadTagsWithPreviews,
+          createdAt: new Date().toISOString(),
+        });
         status = 'Upload success';
         return result.url;
       }
@@ -864,15 +886,26 @@
       const kind1063Tags = buildImageMetadataTags(uploadTagsWithPreviews, metadata);
       const kind1Tags = buildKind1FallbackTags(uploadTagsWithPreviews, metadata);
 
-      await publishEvent(signer, relayUrl, metadata.description, kind1063Tags, 1063);
-      await publishEvent(signer, relayUrl, metadata.description, kind1Tags, 1);
+      const pub1063 = await publishEvent(signer, relayUrl, metadata.description, kind1063Tags, 1063);
+      const pub1 = await publishEvent(signer, relayUrl, metadata.description, kind1Tags, 1);
+
+      const publishedEventIds: string[] = [];
+      if (pub1063.event && typeof (pub1063.event as Record<string, unknown>).id === 'string') {
+        publishedEventIds.push((pub1063.event as Record<string, unknown>).id as string);
+      }
+      if (pub1.event && typeof (pub1.event as Record<string, unknown>).id === 'string') {
+        publishedEventIds.push((pub1.event as Record<string, unknown>).id as string);
+      }
 
       addUploadHistory({
         url: result.url,
         mime,
+        sha256: fileSha256 || undefined,
+        uploadTags: uploadTagsWithPreviews,
         createdAt: new Date().toISOString(),
         metadata,
         publishedKinds: [1063, 1],
+        publishedEventIds,
       });
 
       status = 'Upload success. Metadata published as kind 1063 + kind 1';
@@ -943,6 +976,90 @@
     signer = null;
     status = 'Disconnected';
   }
+
+  function openGallery() {
+    galleryDeleteStatus = '';
+    galleryOpen = true;
+  }
+
+  function closeGallery() {
+    galleryOpen = false;
+  }
+
+  function onGallerySelect(url: string) {
+    uploadUrl = url;
+    galleryOpen = false;
+    status = `URL aus Galerie übernommen: ${url}`;
+  }
+
+  async function onGalleryDelete(item: UploadHistoryItem) {
+    if (!signer) {
+      status = 'Login erforderlich zum Löschen';
+      return;
+    }
+
+    galleryDeleteStatus = 'Lösche Dateien...';
+
+    try {
+      // Collect all sha256 hashes to delete (original + thumb + preview)
+      const hashesToDelete: string[] = [];
+
+      if (item.sha256) {
+        hashesToDelete.push(item.sha256);
+      }
+
+      // Extract thumb and preview hashes from upload tags
+      if (item.uploadTags) {
+        for (const tag of item.uploadTags) {
+          if ((tag[0] === 'thumb' || tag[0] === 'image') && tag[2]) {
+            hashesToDelete.push(tag[2]);
+          }
+        }
+      }
+
+      // Delete blobs from all Blossom servers
+      const deleteResults = [];
+      for (const hash of hashesToDelete) {
+        const result = await deleteBlossomBlob(signer, servers, hash);
+        deleteResults.push(result);
+      }
+
+      // Publish NIP-09 kind 5 deletion for published events
+      if (item.publishedEventIds?.length && relayUrl) {
+        try {
+          await publishDeletionEvent(signer, relayUrl, item.publishedEventIds);
+        } catch (error) {
+          console.warn('Failed to publish deletion event:', error);
+        }
+      }
+
+      // Remove from local store and UI
+      removeUploadHistoryByUrl(item.url);
+
+      // Clean up uploadTagsByUrl
+      if (uploadTagsByUrl[item.url]) {
+        const { [item.url]: _, ...rest } = uploadTagsByUrl;
+        uploadTagsByUrl = rest;
+      }
+
+      // Clear uploadUrl if it was the deleted item
+      if (uploadUrl === item.url) {
+        uploadUrl = '';
+      }
+
+      const successCount = deleteResults.reduce(
+        (count, r) => count + r.results.filter((s) => s.ok).length,
+        0,
+      );
+      const totalCount = deleteResults.reduce((count, r) => count + r.results.length, 0);
+
+      galleryDeleteStatus = '';
+      status = `Datei gelöscht (${successCount}/${totalCount} Server-Löschungen erfolgreich)`;
+    } catch (error) {
+      galleryDeleteStatus = '';
+      status = `Löschfehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`;
+    }
+  }
 </script>
 
 <main>
@@ -970,12 +1087,15 @@
 
   <section>
     <h2>Input + Upload Injection</h2>
-    <input
-      bind:this={uploadUrlInput}
-      bind:value={uploadUrl}
-      placeholder="https://..."
-      use:useBlossomInput={{ onSelectUrl: selectUploadUrl, iconLabel: 'Upload with Blossom' }}
-    />
+    <div class="input-row">
+      <input
+        bind:this={uploadUrlInput}
+        bind:value={uploadUrl}
+        placeholder="https://..."
+        use:useBlossomInput={{ onSelectUrl: selectUploadUrl, iconLabel: 'Upload with Blossom' }}
+      />
+      <button type="button" class="gallery-btn" onclick={openGallery}>🖼 Blossom Gallery</button>
+    </div>
 
     <div class="metadata-source">
       <h3>Default Metadata Source (Autor/Lizenz)</h3>
@@ -1115,6 +1235,14 @@
       {/each}
     </ul>
   </section>
+
+  <BlossomGallery
+    items={$uploadHistoryStore}
+    open={galleryOpen}
+    onSelect={onGallerySelect}
+    onDelete={onGalleryDelete}
+    onClose={closeGallery}
+  />
 
   {#if metadataDialogOpen}
     <div class="dialog-backdrop" role="presentation">
@@ -1340,5 +1468,29 @@
   button {
     font: inherit;
     padding: 0.5rem;
+  }
+
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .input-row input {
+    flex: 1;
+  }
+
+  .gallery-btn {
+    white-space: nowrap;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.15s;
+  }
+
+  .gallery-btn:hover {
+    background: #e0e0e0;
   }
 </style>
