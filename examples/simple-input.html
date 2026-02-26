@@ -101,7 +101,7 @@
       data-blossom
       placeholder="Datei über Mediathek auswählen oder URL einfügen…"
     />
-    <p class="hint">Dieses Feld hat <code>data-blossom</code> → Button wird automatisch injiziert.</p>
+    <p class="hint">Einfaches <code>data-blossom</code> → Standardformat <strong>URL</strong>.</p>
   </label>
 
   <!-- 2. Textarea für Markdown -->
@@ -110,9 +110,10 @@
     <textarea
       name="content"
       data-blossom
+      data-format="markdown"
       placeholder="Text… oder Mediathek-Button nutzen, um ein Bild einzufügen."
     ></textarea>
-    <p class="hint">Auch <code>&lt;textarea&gt;</code> wird unterstützt.</p>
+    <p class="hint"><code>data-format="markdown"</code> → Ausgabe als <code>![alt](url)</code></p>
   </label>
 
 </form>

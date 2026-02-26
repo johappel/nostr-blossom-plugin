@@ -18,6 +18,8 @@
     relayUrl?: string;
     features: BlossomMediaFeatures;
     visionOptions?: VisionClientOptions;
+    /** The host-page element that triggered the widget (if any) */
+    targetElement?: HTMLElement;
     onInserted: (result: InsertResult) => void;
     onDelete: (item: UploadHistoryItem) => void;
     onRefresh: () => void;
@@ -35,6 +37,7 @@
     relayUrl: _relayUrl,
     features,
     visionOptions,
+    targetElement,
     onInserted,
     onDelete,
     onRefresh,
@@ -47,6 +50,22 @@
   let activeKeyword = $state<string | null>(null);
   let copiedUrl = $state(false);
   let insertMode = $state<InsertMode>('url');
+
+  /** true when opened from a host-page element (input/textarea/etc.) */
+  let hasTarget = $derived(!!targetElement);
+
+  /**
+   * Effective format: when a target element is present, read its `data-format`
+   * attribute (default: 'url'). Otherwise use the user-selected insertMode.
+   */
+  let effectiveMode = $derived.by((): InsertMode => {
+    if (targetElement) {
+      const fmt = targetElement.getAttribute('data-format');
+      if (fmt && fmt in INSERT_MODE_LABELS) return fmt as InsertMode;
+      return 'url';
+    }
+    return insertMode;
+  });
 
   async function copyUrl(url: string) {
     try {
@@ -211,8 +230,8 @@
   function handleApply() {
     if (!selectedItem) return;
     const result = buildInsertResult(selectedItem);
-    result.insertMode = insertMode;
-    result.formattedText = formatInsertResult(result, insertMode);
+    result.insertMode = effectiveMode;
+    result.formattedText = formatInsertResult(result, effectiveMode);
     onInserted(result);
     selectedUrl = null;
     deleteConfirmUrl = null;
@@ -427,12 +446,19 @@
               {#if features.deleteFiles !== false}
                 <button type="button" class="btn-icon btn-icon--danger" onclick={handleDeleteClick} title="Datei löschen"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
               {/if}
-              <select class="format-select" bind:value={insertMode} title="Ausgabeformat">
-                {#each Object.entries(INSERT_MODE_LABELS) as [value, label]}
-                  <option {value}>{label}</option>
-                {/each}
-              </select>
-              <button type="button" class="btn-icon btn-icon--accent" onclick={handleApply} title="Übernehmen (kopieren)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+              {#if hasTarget}
+                <!-- Target mode: format from data-format, checkmark = write to field -->
+                <span class="format-badge" title="Format: {INSERT_MODE_LABELS[effectiveMode]}">{INSERT_MODE_LABELS[effectiveMode]}</span>
+                <button type="button" class="btn-icon btn-icon--accent" onclick={handleApply} title="Übernehmen"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></button>
+              {:else}
+                <!-- Standalone mode (bookmarklet): dropdown + copy -->
+                <select class="format-select" bind:value={insertMode} title="Ausgabeformat">
+                  {#each Object.entries(INSERT_MODE_LABELS) as [value, label]}
+                    <option {value}>{label}</option>
+                  {/each}
+                </select>
+                <button type="button" class="btn-icon btn-icon--accent" onclick={handleApply} title="In Zwischenablage kopieren"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+              {/if}
             </div>
           {/if}
         </div>
@@ -732,6 +758,16 @@
     display: inline-block;
     vertical-align: -2px;
     margin-right: 2px;
+  }
+
+  .format-badge {
+    flex: 1;
+    font-size: 0.7rem;
+    color: var(--bm-text-muted, #888);
+    text-align: right;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
 
   .format-select {

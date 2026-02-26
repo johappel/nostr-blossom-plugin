@@ -498,6 +498,7 @@
                 relayUrl={config.relayUrl}
                 features={config.features ?? {}}
                 {visionOptions}
+                targetElement={_targetElement}
                 onInserted={handleInserted}
                 onDelete={handleDelete}
                 onRefresh={loadGalleryIfNeeded}
