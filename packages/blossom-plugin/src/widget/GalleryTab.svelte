@@ -87,7 +87,9 @@
           sha256: ev.sha256 || localItem?.sha256 || undefined,
           createdAt: localItem?.createdAt ?? new Date(ev.createdAt * 1000).toISOString(),
           metadata: ev.metadata,
-          uploadTags: localItem?.uploadTags ?? ev.tags,
+          // NIP-94 tags are richer (contain thumb, image, etc.) — prefer them,
+          // only fall back to bloblist tags if NIP-94 tags are absent.
+          uploadTags: ev.tags,
           publishedEventIds: localItem?.publishedEventIds ?? [ev.eventId],
           publishedKinds: localItem?.publishedKinds ?? [1063],
         });
