@@ -1,4 +1,5 @@
 import type { SignerAdapter } from './signers';
+import { Relay } from 'nostr-tools/relay';
 
 export interface ImageMetadataInput {
   description: string;
@@ -144,6 +145,20 @@ export async function publishEvent(
   };
 
   const signedEvent = await signer.signEvent(unsignedEvent);
+
+  // Actually publish to the relay
+  let relay: InstanceType<typeof Relay> | null = null;
+  try {
+    relay = await Relay.connect(relayUrl);
+    await relay.publish(signedEvent as never);
+    console.log(`[publish] kind ${kind} event published to ${relayUrl}`, (signedEvent as Record<string, unknown>).id);
+  } catch (err) {
+    console.warn(`[publish] Failed to send kind ${kind} to ${relayUrl}:`, err);
+    // Don't throw — the event is signed and can be retried. The caller
+    // still gets the signed event back for local bookkeeping.
+  } finally {
+    relay?.close();
+  }
 
   return {
     relayUrl,

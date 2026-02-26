@@ -1,22 +1,196 @@
 <script lang="ts">
   import type { UploadHistoryItem } from '$lib/stores/uploads';
+  import type { BlossomBlobDescriptor } from '$lib/nostr/blossom-list';
+  import type { Nip94FetchResult } from '$lib/nostr/nip94-fetch';
 
   interface GalleryProps {
     items: UploadHistoryItem[];
     open: boolean;
+    loading: boolean;
+    loadError: string;
+    remoteBlobs: BlossomBlobDescriptor[];
+    nip94Data: Nip94FetchResult | null;
     onSelect: (url: string) => void;
     onDelete: (item: UploadHistoryItem) => void;
     onClose: () => void;
+    onRefresh: () => void;
   }
 
-  let { items, open, onSelect, onDelete, onClose }: GalleryProps = $props();
+  let {
+    items,
+    open,
+    loading,
+    loadError,
+    remoteBlobs,
+    nip94Data,
+    onSelect,
+    onDelete,
+    onClose,
+    onRefresh,
+  }: GalleryProps = $props();
 
   let selectedUrl = $state<string | null>(null);
   let deleteConfirmUrl = $state<string | null>(null);
+  let filterQuery = $state('');
+
+  /**
+   * NIP-94-first merge strategy:
+   * 1. Start with NIP-94 events as primary items (richest metadata).
+   * 2. Add local upload history items not covered by NIP-94.
+   * 3. Add remote Blossom blobs that are neither in NIP-94 nor local history (orphans).
+   * 4. Filter out any URL that is a known thumb/image preview of another item.
+   */
+  let mergedItems = $derived.by(() => {
+    const result: UploadHistoryItem[] = [];
+    const seenUrls = new Set<string>();
+    const seenHashes = new Set<string>();
+
+    // Collect all known thumb/image preview URLs so we can exclude them
+    const previewUrls = new Set<string>();
+
+    // From NIP-94 events
+    if (nip94Data) {
+      for (const ev of nip94Data.events) {
+        if (ev.thumbUrl) previewUrls.add(ev.thumbUrl);
+        if (ev.imageUrl) previewUrls.add(ev.imageUrl);
+      }
+    }
+
+    // From local upload history
+    for (const item of items) {
+      if (item.uploadTags) {
+        for (const tag of item.uploadTags) {
+          if ((tag[0] === 'thumb' || tag[0] === 'image') && tag[1]) {
+            previewUrls.add(tag[1]);
+          }
+        }
+      }
+    }
+
+    // ── Step 1: NIP-94 events (primary source, richest metadata) ──
+    if (nip94Data) {
+      for (const ev of nip94Data.events) {
+        if (previewUrls.has(ev.url)) continue; // skip preview blobs
+        if (seenUrls.has(ev.url)) continue;
+        seenUrls.add(ev.url);
+        if (ev.sha256) seenHashes.add(ev.sha256.toLowerCase());
+
+        // Check if we have a matching local item for createdAt/uploadTags
+        const localItem = items.find(
+          (i) => i.url === ev.url || (i.sha256 && ev.sha256 && i.sha256.toLowerCase() === ev.sha256.toLowerCase()),
+        );
+
+        result.push({
+          url: ev.url,
+          mime: ev.mime || localItem?.mime || undefined,
+          sha256: ev.sha256 || localItem?.sha256 || undefined,
+          createdAt: localItem?.createdAt ?? new Date(ev.createdAt * 1000).toISOString(),
+          metadata: ev.metadata,
+          uploadTags: localItem?.uploadTags ?? ev.tags,
+          publishedEventIds: localItem?.publishedEventIds ?? [ev.eventId],
+          publishedKinds: localItem?.publishedKinds ?? [1063],
+        });
+      }
+    }
+
+    // ── Step 2: Local upload history not yet covered ──
+    for (const item of items) {
+      if (previewUrls.has(item.url)) continue;
+      if (seenUrls.has(item.url)) continue;
+      if (item.sha256 && seenHashes.has(item.sha256.toLowerCase())) continue;
+      seenUrls.add(item.url);
+      if (item.sha256) seenHashes.add(item.sha256.toLowerCase());
+      result.push(item);
+    }
+
+    // ── Step 3: Remote Blossom orphans (on server, no NIP-94, no local) ──
+    for (const blob of remoteBlobs) {
+      if (previewUrls.has(blob.url)) continue;
+      if (seenUrls.has(blob.url)) continue;
+      if (seenHashes.has(blob.sha256?.toLowerCase())) continue;
+      seenUrls.add(blob.url);
+      if (blob.sha256) seenHashes.add(blob.sha256.toLowerCase());
+
+      const createdMs =
+        typeof blob.created === 'number' && blob.created > 0
+          ? blob.created * 1000
+          : Date.now();
+
+      result.push({
+        url: blob.url,
+        mime: blob.type || undefined,
+        sha256: blob.sha256,
+        createdAt: new Date(createdMs).toISOString(),
+        uploadTags: [
+          ['url', blob.url],
+          ['x', blob.sha256],
+          ...(blob.type ? [['m', blob.type]] : []),
+          ...(blob.size ? [['size', String(blob.size)]] : []),
+        ],
+      });
+    }
+
+    return result;
+  });
+
+  /** All unique keywords across all items for quick-filter suggestions */
+  let allKeywords = $derived.by(() => {
+    const kws = new Set<string>();
+    for (const item of mergedItems) {
+      if (item.metadata?.keywords) {
+        for (const kw of item.metadata.keywords) {
+          kws.add(kw.toLowerCase());
+        }
+      }
+    }
+    return [...kws].sort();
+  });
+
+  /** Items filtered by keyword search */
+  let filteredItems = $derived.by(() => {
+    const query = filterQuery.trim().toLowerCase();
+    if (!query) return mergedItems;
+
+    const terms = query.split(/[,\s]+/).filter(Boolean);
+    return mergedItems.filter((item) => {
+      const keywords = item.metadata?.keywords?.map((k) => k.toLowerCase()) ?? [];
+      const desc = item.metadata?.description?.toLowerCase() ?? '';
+      const alt = item.metadata?.altAttribution?.toLowerCase() ?? '';
+      const author = item.metadata?.author?.toLowerCase() ?? '';
+      const genre = item.metadata?.genre?.toLowerCase() ?? '';
+      const mime = item.mime?.toLowerCase() ?? '';
+
+      return terms.every(
+        (term) =>
+          keywords.some((k) => k.includes(term)) ||
+          desc.includes(term) ||
+          alt.includes(term) ||
+          author.includes(term) ||
+          genre.includes(term) ||
+          mime.includes(term),
+      );
+    });
+  });
 
   let selectedItem = $derived(
-    selectedUrl ? items.find((item) => item.url === selectedUrl) ?? null : null,
+    selectedUrl ? mergedItems.find((item) => item.url === selectedUrl) ?? null : null,
   );
+
+  /** Whether the selected item is remote-only (not in local history) */
+  let isRemoteOnly = $derived(
+    selectedItem ? !items.some((i) => i.url === selectedItem!.url) : false,
+  );
+
+  /** Whether the selected item has NIP-94 data from a relay */
+  let hasNip94Data = $derived(
+    selectedItem
+      ? !!(nip94Data?.byUrl.get(selectedItem.url) ||
+          (selectedItem.sha256 && nip94Data?.bySha256.get(selectedItem.sha256.toLowerCase())))
+      : false,
+  );
+
+  /** Whether NIP-94 data was fetched (even if no match for current item) */
+  let nip94Available = $derived(nip94Data != null && nip94Data.events.length > 0);
 
   function getThumbnailUrl(item: UploadHistoryItem): string {
     const thumbTag = item.uploadTags?.find((t) => t[0] === 'thumb');
@@ -95,6 +269,7 @@
   function handleClose() {
     selectedUrl = null;
     deleteConfirmUrl = null;
+    filterQuery = '';
     onClose();
   }
 
@@ -105,6 +280,19 @@
       } else {
         handleClose();
       }
+    }
+  }
+
+  function toggleKeywordFilter(keyword: string) {
+    const lower = keyword.toLowerCase();
+    const terms = filterQuery.split(/[,\s]+/).filter(Boolean).map((t) => t.toLowerCase());
+
+    if (terms.includes(lower)) {
+      filterQuery = terms.filter((t) => t !== lower).join(', ');
+    } else {
+      filterQuery = filterQuery.trim()
+        ? `${filterQuery.trim()}, ${lower}`
+        : lower;
     }
   }
 
@@ -124,24 +312,73 @@
     >
       <header class="gallery-header">
         <h2 id="gallery-title">Blossom Mediathek</h2>
-        <button type="button" class="gallery-close" onclick={handleClose} aria-label="Schließen">
-          ✕
-        </button>
+        <div class="gallery-filter">
+          <input
+            type="search"
+            class="filter-input"
+            bind:value={filterQuery}
+            placeholder="Suche nach Keywords, Beschreibung, Autor…"
+          />
+          {#if allKeywords.length > 0}
+            <div class="filter-chips">
+              {#each allKeywords.slice(0, 20) as kw}
+                {@const isActive = filterQuery.toLowerCase().includes(kw)}
+                <button
+                  type="button"
+                  class="filter-chip"
+                  class:active={isActive}
+                  onclick={() => toggleKeywordFilter(kw)}
+                >
+                  {kw}
+                </button>
+              {/each}
+              {#if allKeywords.length > 20}
+                <span class="filter-chips-more">+{allKeywords.length - 20} weitere</span>
+              {/if}
+            </div>
+          {/if}
+        </div>
+        <div class="gallery-header-actions">
+          <button
+            type="button"
+            class="gallery-refresh"
+            onclick={onRefresh}
+            disabled={loading}
+            aria-label="Aktualisieren"
+          >
+            {loading ? '⏳' : '🔄'}
+          </button>
+          <button type="button" class="gallery-close" onclick={handleClose} aria-label="Schließen">
+            ✕
+          </button>
+        </div>
       </header>
 
       <div class="gallery-body">
         <!-- Thumbnail grid -->
         <div class="gallery-grid-area">
-          {#if items.length === 0}
+          {#if loading && filteredItems.length === 0}
+            <p class="gallery-loading">Lade Dateien vom Blossom-Server…</p>
+          {:else if filteredItems.length === 0 && filterQuery.trim()}
+            <p class="gallery-empty">Keine Dateien für „{filterQuery.trim()}" gefunden.</p>
+          {:else if filteredItems.length === 0}
             <p class="gallery-empty">Keine hochgeladenen Dateien vorhanden.</p>
           {:else}
+            {#if loadError}
+              <p class="gallery-warn">{loadError}</p>
+            {/if}
+            {#if loading}
+              <p class="gallery-loading-inline">Aktualisiere…</p>
+            {/if}
             <div class="gallery-grid">
-              {#each items as item (item.url)}
+              {#each filteredItems as item (item.sha256 ?? item.url)}
                 {@const thumbUrl = getThumbnailUrl(item)}
+                {@const isRemote = !items.some((i) => i.url === item.url)}
                 <button
                   type="button"
                   class="gallery-thumb"
                   class:selected={selectedUrl === item.url}
+                  class:remote-only={isRemote}
                   onclick={() => handleSelect(item.url)}
                   aria-label={item.metadata?.description || item.url}
                 >
@@ -156,11 +393,20 @@
                       <span class="thumb-icon">📄</span>
                       <span class="thumb-label">PDF</span>
                     </div>
+                  {:else if item.mime?.startsWith('image/')}
+                    <img
+                      src={item.url}
+                      alt={item.metadata?.altAttribution || 'Bild'}
+                      loading="lazy"
+                    />
                   {:else}
                     <div class="gallery-thumb-placeholder">
                       <span class="thumb-icon">📁</span>
                       <span class="thumb-label">{formatMime(item.mime)}</span>
                     </div>
+                  {/if}
+                  {#if isRemote}
+                    <span class="remote-badge" title="Nur auf dem Server">☁</span>
                   {/if}
                 </button>
               {/each}
@@ -193,6 +439,18 @@
 
             <div class="sidebar-meta">
               <h3>Details</h3>
+              {#if hasNip94Data}
+                <p class="nip94-badge">📡 NIP-94 Metadaten vom Relay</p>
+              {/if}
+              {#if isRemoteOnly && !hasNip94Data}
+                {#if nip94Available}
+                  <p class="nip94-badge nip94-miss">☁ Orphan — auf dem Server, aber kein NIP-94 Event vorhanden</p>
+                {:else if !nip94Data}
+                  <p class="remote-note">☁ Nur auf dem Server — NIP-94 Abfrage fehlgeschlagen.</p>
+                {:else}
+                  <p class="remote-note">☁ Nur auf dem Server — keine NIP-94 Events gefunden.</p>
+                {/if}
+              {/if}
 
               <dl class="meta-list">
                 <dt>URL</dt>
@@ -213,35 +471,44 @@
                   <dd class="meta-hash">{selectedItem.sha256}</dd>
                 {/if}
 
-                {#if selectedItem.metadata}
-                  <dt>Beschreibung</dt>
-                  <dd>{selectedItem.metadata.description || '—'}</dd>
+                <dt>Beschreibung</dt>
+                <dd>{selectedItem.metadata?.description || '—'}</dd>
 
-                  <dt>Alt-Attribution</dt>
-                  <dd>{selectedItem.metadata.altAttribution || '—'}</dd>
+                <dt>Alt-Attribution</dt>
+                <dd>{selectedItem.metadata?.altAttribution || '—'}</dd>
 
-                  <dt>Autor</dt>
-                  <dd>{selectedItem.metadata.author || '—'}</dd>
+                <dt>Autor</dt>
+                <dd>{selectedItem.metadata?.author || '—'}</dd>
 
-                  <dt>Genre</dt>
-                  <dd>{selectedItem.metadata.genre || '—'}</dd>
+                <dt>Genre</dt>
+                <dd>{selectedItem.metadata?.genre || '—'}</dd>
 
-                  <dt>Lizenz</dt>
-                  <dd>{formatLicense(selectedItem)}</dd>
+                <dt>Lizenz</dt>
+                <dd>{formatLicense(selectedItem)}</dd>
 
-                  {#if selectedItem.metadata.keywords?.length}
-                    <dt>Keywords</dt>
-                    <dd>{selectedItem.metadata.keywords.join(', ')}</dd>
-                  {/if}
+                {#if selectedItem.metadata?.keywords?.length}
+                  <dt>Keywords</dt>
+                  <dd class="keyword-tags">
+                    {#each selectedItem.metadata.keywords as kw}
+                      <button
+                        type="button"
+                        class="keyword-tag"
+                        onclick={() => toggleKeywordFilter(kw)}
+                        title={'Nach "' + kw + '" filtern'}
+                      >
+                        {kw}
+                      </button>
+                    {/each}
+                  </dd>
+                {/if}
 
-                  {#if selectedItem.metadata.aiImageMode}
-                    <dt>KI-Bild</dt>
-                    <dd>
-                      {selectedItem.metadata.aiImageMode === 'generated'
-                        ? 'KI generiert'
-                        : 'Mit Hilfe von KI generiert'}
-                    </dd>
-                  {/if}
+                {#if selectedItem.metadata?.aiImageMode}
+                  <dt>KI-Bild</dt>
+                  <dd>
+                    {selectedItem.metadata.aiImageMode === 'generated'
+                      ? 'KI generiert'
+                      : 'Mit Hilfe von KI generiert'}
+                  </dd>
                 {/if}
 
                 {#if selectedItem.publishedKinds?.length}
@@ -258,6 +525,10 @@
                   </dd>
                 {/if}
               </dl>
+
+              <p class="gallery-count">
+                {filteredItems.length} von {mergedItems.length} Dateien
+              </p>
             </div>
 
             <div class="sidebar-actions">
@@ -321,16 +592,107 @@
 
   .gallery-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     padding: 0.75rem 1.25rem;
     border-bottom: 1px solid #e0e0e0;
     background: #fafafa;
+    gap: 0.75rem;
+    flex-wrap: wrap;
   }
 
   .gallery-header h2 {
     margin: 0;
     font-size: 1.15rem;
+    white-space: nowrap;
+  }
+
+  .gallery-filter {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .filter-input {
+    width: 100%;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 0.85rem;
+    background: #fff;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .filter-input:focus {
+    border-color: #0078ff;
+    box-shadow: 0 0 0 2px rgba(0, 120, 255, 0.1);
+  }
+
+  .filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .filter-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    background: #f5f5f5;
+    color: #555;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+    font-family: inherit;
+    line-height: 1.4;
+  }
+
+  .filter-chip:hover {
+    background: #e8f4fd;
+    border-color: #a0c4ff;
+  }
+
+  .filter-chip.active {
+    background: #0078ff;
+    color: #fff;
+    border-color: #0078ff;
+  }
+
+  .filter-chips-more {
+    font-size: 0.72rem;
+    color: #999;
+    padding: 2px 4px;
+  }
+
+  .gallery-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .gallery-refresh {
+    background: none;
+    border: none;
+    font-size: 1.15rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    color: #666;
+  }
+
+  .gallery-refresh:hover:not(:disabled) {
+    background: #eee;
+    color: #333;
+  }
+
+  .gallery-refresh:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   .gallery-close {
@@ -365,6 +727,30 @@
     padding: 3rem 1rem;
   }
 
+  .gallery-loading {
+    color: #666;
+    text-align: center;
+    padding: 3rem 1rem;
+    font-style: italic;
+  }
+
+  .gallery-loading-inline {
+    color: #666;
+    font-size: 0.85rem;
+    font-style: italic;
+    margin: 0 0 0.5rem;
+  }
+
+  .gallery-warn {
+    color: #b45309;
+    font-size: 0.82rem;
+    margin: 0 0 0.5rem;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem;
+  }
+
   .gallery-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -394,6 +780,34 @@
   .gallery-thumb.selected {
     border-color: #0078ff;
     box-shadow: 0 0 0 3px rgba(0, 120, 255, 0.25);
+  }
+
+  .gallery-thumb.remote-only {
+    opacity: 0.85;
+  }
+
+  .remote-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    font-size: 0.8rem;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .remote-note {
+    font-size: 0.82rem;
+    color: #0078ff;
+    margin: 0 0 0.4rem;
+    padding: 0.3rem 0.5rem;
+    background: #e8f4fd;
+    border-radius: 4px;
   }
 
   .gallery-thumb img {
@@ -605,5 +1019,53 @@
 
   .btn-cancel:hover {
     background: #f5f5f5;
+  }
+
+  .nip94-badge {
+    font-size: 0.78rem;
+    color: #7c3aed;
+    background: #f3e8ff;
+    border: 1px solid #ddd6fe;
+    border-radius: 6px;
+    padding: 0.25rem 0.5rem;
+    margin: 0 0 0.4rem;
+  }
+
+  .nip94-badge.nip94-miss {
+    color: #b45309;
+    background: #fffbeb;
+    border-color: #fde68a;
+  }
+
+  .keyword-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .keyword-tag {
+    display: inline-block;
+    padding: 1px 7px;
+    font-size: 0.72rem;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background: #f5f5f5;
+    color: #555;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s, border-color 0.12s;
+  }
+
+  .keyword-tag:hover {
+    background: #e8f4fd;
+    border-color: #a0c4ff;
+    color: #0078ff;
+  }
+
+  .gallery-count {
+    font-size: 0.75rem;
+    color: #999;
+    margin: 0.75rem 0 0;
+    text-align: right;
   }
 </style>

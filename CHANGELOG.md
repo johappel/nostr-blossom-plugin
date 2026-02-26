@@ -9,11 +9,28 @@ The format is based on Keep a Changelog.
 ### Added
 
 - **Blossom Gallery**: Neuer „Blossom Gallery"-Button neben dem Upload-Input öffnet eine WordPress-ähnliche Mediathek-Dialog mit Thumbnail-Grid aller hochgeladenen Dateien.
+- **Blossom Gallery Server-Listing**: Gallery lädt beim Öffnen automatisch alle Blobs des eingeloggten Users von allen konfigurierten Blossom-Servern (`GET /list/{pubkey}`, BUD-02/BUD-04) und merged sie mit lokaler Upload-History. Remote-only Dateien werden mit ☁-Badge gekennzeichnet.
+- **Blossom Gallery NIP-94 Integration**: Gallery fetcht parallel zu den Blossom-Server-Blobs auch NIP-94 Kind-1063 Events vom Relay und reichert Galerie-Items automatisch mit Metadaten (Beschreibung, Autor, Lizenz, Genre, Keywords, KI-Hints, Thumbnails) an, soweit vorhanden.
+- **Gallery Keyword-Filter**: Neues Suchfeld und klickbare Keyword-Chips im Gallery-Header ermöglichen Volltextfilterung nach Keywords, Beschreibung, Autor, Genre und MIME-Typ.
+- Gallery unterstützt Refresh-Button zum erneuten Laden der Server-Daten und zeigt Loading-/Fehlerzustand an.
 - Gallery-Seitenleiste zeigt bei Selektion Vorschau und Metadaten (URL, Typ, Datum, SHA-256, Beschreibung, Autor, Lizenz, Genre, Keywords, KI-Hints, Event IDs).
 - „Übernehmen"-Button in der Gallery überträgt die URL der selektierten Datei ins Upload-Input.
 - „Löschen"-Button in der Gallery mit Bestätigungsdialog löscht die Datei (inkl. Thumbnails/Vorschaubilder) von allen Blossom-Servern und publiziert ein NIP-09 Kind-5 Deletion-Event für zugehörige NIP-94 Events.
 - Upload-History speichert jetzt `sha256`, `uploadTags` und `publishedEventIds` für vollständige Metadaten-Nachverfolgung und Löschung.
 - Neue Lösch-Logik in `blossom-delete.ts`: BUD-02-konforme `DELETE`-Requests mit signiertem Kind-24242 Auth-Event sowie NIP-09 Deletion-Events.
+- Neue List-Logik in `blossom-list.ts`: BUD-02/BUD-04-konforme `GET /list/{pubkey}`-Requests mit optionalem Auth-Header, Deduplizierung nach SHA-256.
+
+### Changed
+
+- **NIP-94-first Gallery-Architektur**: Gallery nutzt jetzt NIP-94 Kind-1063 Events als primäre Datenquelle (reichste Metadaten). Blossom-Server-Blobs dienen nur noch zur Erkennung von Orphan-Dateien (auf Server vorhanden, aber kein NIP-94 Event publiziert).
+- **Thumb/Image-Duplikat-Filter**: URLs, die als `thumb` oder `image` Preview in einem NIP-94 Event oder der lokalen Upload-History vorkommen, werden aus der Gallery-Übersicht gefiltert — keine doppelten Einträge mehr für Preview-Bilder.
+- Sidebar zeigt jetzt klar differenzierte Quell-Badges: 📡 NIP-94, ☁ Orphan, Fehlerstatus.
+- Metadaten-Felder (Beschreibung, Autor, Genre, Lizenz) werden immer angezeigt (mit „—" als Fallback), nicht mehr nur wenn `metadata` vorhanden ist.
+
+### Fixed
+
+- **`publishEvent()` sendet jetzt tatsächlich an Relays**: Events wurden bisher nur signiert und zurückgegeben, aber nie per WebSocket an den konfigurierten Relay gesendet. Daher waren NIP-94 Abfragen immer leer. Jetzt wird `Relay.connect()` + `relay.publish()` aus `nostr-tools/relay` verwendet.
+- **SHA-256 Case-Mismatch**: Die NIP-94 `bySha256`-Map normalisiert Hashes jetzt auf Lowercase, damit Blossom-Server-Hashes (ggf. anderer Case) zuverlässig matchen.
 
 - Demo-Upload erzeugt jetzt automatisch NIP-94 `thumb` (200px) und `image`-Preview (600px) für Bilder und PDFs und nimmt diese in Publish-Tags auf.
 - Upload-Bereich der Demo zeigt jetzt auch für PDFs einen Metadaten-Vorschau-Block mit direktem Link zur Datei.
