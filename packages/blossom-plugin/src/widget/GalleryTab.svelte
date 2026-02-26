@@ -294,6 +294,7 @@
       <!-- Sidebar -->
       {#if selectedItem}
         <div class="sidebar-panel">
+          <button type="button" class="sidebar-close" onclick={() => (selectedUrl = null)} title="Schließen">✕</button>
           <!-- Delete confirm -->
           {#if deleteConfirmUrl === selectedItem.url}
             <div class="delete-confirm">
@@ -563,6 +564,7 @@
   }
 
   .sidebar-panel {
+    position: relative;
     border-left: 1px solid var(--bm-border-muted, #eee);
     padding-left: 0.75rem;
     display: grid;
@@ -723,11 +725,41 @@
     font-size: 0.875rem;
   }
 
+  .sidebar-close {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: 1px solid var(--bm-border, #ddd);
+    background: var(--bm-bg-subtle, #f5f5f5);
+    color: var(--bm-text-muted, #666);
+    font-size: 1rem;
+    cursor: pointer;
+    z-index: 11;
+    transition: background 0.12s;
+  }
+
+  .sidebar-close:hover {
+    background: var(--bm-bg-hover, #e8e8e8);
+  }
+
   /* ── Mobile: sidebar as overlay ── */
   @media (max-width: 640px) {
+    .keyword-bar {
+      display: none;
+    }
+
+    .gallery-tab {
+      position: relative;
+    }
+
     .gallery-body {
       grid-template-columns: 1fr;
-      position: relative;
     }
 
     .sidebar-panel {
@@ -739,6 +771,22 @@
       background: var(--bm-bg, #fff);
       z-index: 10;
       border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-panel .sidebar-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    .sidebar-panel .sidebar-toolbar {
+      flex-shrink: 0;
+    }
+
+    .sidebar-close {
+      display: flex;
     }
   }
 </style>
