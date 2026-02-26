@@ -432,7 +432,7 @@
                   <option {value}>{label}</option>
                 {/each}
               </select>
-              <button type="button" class="btn-primary" onclick={handleApply}>Übernehmen</button>
+              <button type="button" class="btn-icon btn-icon--accent" onclick={handleApply} title="Übernehmen (kopieren)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
             </div>
           {/if}
         </div>
@@ -696,8 +696,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     border: 1px solid var(--bm-input-border, #ccc);
     border-radius: 6px;
@@ -717,26 +717,35 @@
     color: var(--bm-danger, #d63031);
   }
 
+  .sidebar-toolbar .btn-icon--accent {
+    background: var(--bm-accent, #6c63ff);
+    color: #fff;
+    border-color: var(--bm-accent, #6c63ff);
+  }
+
+  .sidebar-toolbar .btn-icon--accent:hover {
+    background: var(--bm-accent-hover, #5a52d5);
+    color: #fff;
+  }
+
   .icon-inline {
     display: inline-block;
     vertical-align: -2px;
     margin-right: 2px;
   }
 
-  .sidebar-toolbar .btn-primary {
-    flex: 1;
-  }
-
   .format-select {
+    flex: 1;
+    min-width: 0;
     font: inherit;
     font-size: 0.75rem;
-    padding: 0.3rem 0.4rem;
+    height: 28px;
+    padding: 0 0.4rem;
     border: 1px solid var(--bm-input-border, #ccc);
-    border-radius: 4px;
+    border-radius: 6px;
     background: var(--bm-input-bg, #fff);
     color: var(--bm-text, #222);
     cursor: pointer;
-    min-width: 0;
   }
 
   .delete-confirm {
@@ -755,22 +764,6 @@
     display: flex;
     gap: 0.5rem;
     justify-content: flex-end;
-  }
-
-  .btn-primary {
-    font: inherit;
-    padding: 0.45rem 0.9rem;
-    background: var(--bm-accent, #6c63ff);
-    color: #fff;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 0.875rem;
-    transition: background 0.12s;
-  }
-
-  .btn-primary:hover {
-    background: var(--bm-accent-hover, #5a52d5);
   }
 
   .btn-secondary {
