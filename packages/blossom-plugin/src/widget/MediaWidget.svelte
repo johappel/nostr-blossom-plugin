@@ -440,6 +440,7 @@
   .bm-tab-panel.active,
   .bm-tab-panel:not([hidden]) {
     display: grid;
+    overflow-y: auto;
   }
 
   .bm-custom-tab {

@@ -329,6 +329,7 @@
     padding: 0.75rem;
     box-sizing: border-box;
     align-content: start;
+    overflow-y: auto;
   }
 
   .hidden-input {
@@ -409,6 +410,8 @@
   .metadata-panel {
     display: grid;
     gap: 0.5rem;
+    overflow-y: auto;
+    max-height: 100%;
   }
 
   .metadata-header {

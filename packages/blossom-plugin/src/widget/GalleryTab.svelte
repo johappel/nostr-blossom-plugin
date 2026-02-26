@@ -48,15 +48,34 @@
   /**
    * NIP-94 + local history merge.
    * NIP-94 events are the primary source; local-only items appended.
+   * Thumbnail / preview URLs referenced via `thumb` or `image` tags are
+   * excluded so that each file appears only once (not 3×).
    */
   let mergedItems = $derived.by(() => {
     const result: UploadHistoryItem[] = [];
     const seenUrls = new Set<string>();
     const seenHashes = new Set<string>();
 
+    // Collect all known thumb / image / preview URLs so we can skip them
+    const derivativeUrls = new Set<string>();
+    if (nip94Data) {
+      for (const ev of nip94Data.events) {
+        if (ev.thumbUrl) derivativeUrls.add(ev.thumbUrl);
+        if (ev.imageUrl) derivativeUrls.add(ev.imageUrl);
+      }
+    }
+    for (const item of items) {
+      for (const tag of item.uploadTags ?? []) {
+        if ((tag[0] === 'thumb' || tag[0] === 'image') && tag[1]) {
+          derivativeUrls.add(tag[1]);
+        }
+      }
+    }
+
     if (nip94Data) {
       for (const ev of nip94Data.events) {
         if (seenUrls.has(ev.url)) continue;
+        if (derivativeUrls.has(ev.url)) continue;
         seenUrls.add(ev.url);
         if (ev.sha256) seenHashes.add(ev.sha256.toLowerCase());
 
@@ -81,6 +100,7 @@
 
     for (const item of items) {
       if (seenUrls.has(item.url)) continue;
+      if (derivativeUrls.has(item.url)) continue;
       if (item.sha256 && seenHashes.has(item.sha256.toLowerCase())) continue;
       seenUrls.add(item.url);
       if (item.sha256) seenHashes.add(item.sha256.toLowerCase());
@@ -349,42 +369,53 @@
                 {/if}
               </dl>
             {:else}
+              <!-- Basic info for items without full metadata -->
+              <dl class="meta-list">
+                <dt>Datum</dt>
+                <dd>{formatDate(selectedItem.createdAt)}</dd>
+                {#if selectedItem.mime}
+                  <dt>Typ</dt>
+                  <dd>{selectedItem.mime}</dd>
+                {/if}
+                {#if selectedItem.sha256}
+                  <dt>SHA-256</dt>
+                  <dd class="mono">{selectedItem.sha256.slice(0, 16)}…</dd>
+                {/if}
+              </dl>
               <!-- Vision sidebar for items without metadata -->
-              {#if visionOptions && features.aiDescription}
+              {#if visionOptions && features.aiDescription !== false}
                 <MetadataSidebar
                   fileUrl={selectedItem.url}
                   mime={selectedItem.mime ?? 'application/octet-stream'}
                   thumbnailUrl={getPreviewUrl(selectedItem)}
                   mode="create"
                   {visionOptions}
-                  showDelete={features.deleteFiles && !isRemoteOnly}
+                  showDelete={features.deleteFiles !== false && !isRemoteOnly}
                   showMetadata={true}
                   onSubmit={(meta) => {
                     if (selectedItem) {
                       onInserted({ ...buildInsertResult(selectedItem), ...meta, keywords: meta.keywords });
                     }
                   }}
-                  onDelete={features.deleteFiles && !isRemoteOnly ? handleDeleteClick : undefined}
+                  onDelete={features.deleteFiles !== false && !isRemoteOnly ? handleDeleteClick : undefined}
                 />
               {/if}
             {/if}
 
-            <!-- Action buttons -->
-            {#if selectedItem.metadata}
-              <div class="sidebar-actions">
-                {#if onEditMetadata}
-                  <button
-                    type="button"
-                    class="btn-secondary"
-                    onclick={() => onEditMetadata?.(selectedItem!)}
-                  >Metadaten bearbeiten ✏️</button>
-                {/if}
-                {#if features.deleteFiles && !isRemoteOnly}
-                  <button type="button" class="btn-delete" onclick={handleDeleteClick}>🗑 Löschen</button>
-                {/if}
-                <button type="button" class="btn-primary" onclick={handleApply}>Übernehmen</button>
-              </div>
-            {/if}
+            <!-- Action buttons (always visible when an item is selected) -->
+            <div class="sidebar-actions">
+              {#if onEditMetadata}
+                <button
+                  type="button"
+                  class="btn-secondary"
+                  onclick={() => onEditMetadata?.(selectedItem!)}
+                >Metadaten bearbeiten ✏️</button>
+              {/if}
+              {#if features.deleteFiles !== false && !isRemoteOnly}
+                <button type="button" class="btn-delete" onclick={handleDeleteClick}>🗑 Löschen</button>
+              {/if}
+              <button type="button" class="btn-primary" onclick={handleApply}>Übernehmen</button>
+            </div>
           {/if}
         </div>
       {/if}
@@ -576,6 +607,11 @@
     flex-wrap: wrap;
     gap: 0.2rem;
     align-items: center;
+  }
+
+  .meta-list dd.mono {
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+    font-size: 0.75rem;
   }
 
   .sidebar-actions {
