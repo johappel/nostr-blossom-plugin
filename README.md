@@ -35,6 +35,7 @@ pnpm --filter demo dev
 ## Image Describer als Docker-Service
 
 Die Vision-Logik läuft als separater Service.
+Sie unterstützt Upload-Beschreibungen für Bilder und PDFs (PDFs werden serverseitig als Mehrseiten-Vorschau gerendert und mit Textauszug analysiert).
 
 1. Service-Env anlegen:
 
@@ -44,6 +45,7 @@ Copy-Item apps/image-describer/.env.example apps/image-describer/.env
 
 2. In `apps/image-describer/.env` mindestens `OPENROUTER_API_KEY` setzen.
   Optional: `OPENROUTER_RESPONSE_LANGUAGE` (Default: `German`) für die Sprache von `description`, `alt` und `genre`.
+  Optional: `OPENROUTER_PDF_MAX_PAGES` (Default: `4`) und `OPENROUTER_PDF_TEXT_MAX_CHARS` (Default: `4500`) für PDF-Tiefe und Textkontext.
 
 3. Service starten:
 
@@ -56,6 +58,7 @@ docker compose up -d image-describer
 - `VITE_IMAGE_DESCRIBER_URL=http://localhost:8787`
 
 Dann ruft die Demo `POST /describe` auf dem Container auf.
+Im Metadaten-Dialog kann dadurch auch für `application/pdf` eine Kurzbeschreibung per Vision vorgeschlagen werden.
 
 ## Fokus: Unknown Client Integration
 

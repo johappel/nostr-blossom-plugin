@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import sharp from 'sharp';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { createCanvas } from '@napi-rs/canvas';
 
 type DescribeRequestBody = {
   imageUrl?: string;
@@ -30,6 +32,8 @@ function readRuntimeConfig() {
     inlineImageQuality: Number(process.env.OPENROUTER_IMAGE_QUALITY ?? 78),
     inlineImageMinDim: Number(process.env.OPENROUTER_IMAGE_MIN_DIM ?? 512),
     inlineImageMinQuality: Number(process.env.OPENROUTER_IMAGE_MIN_QUALITY ?? 40),
+    pdfMaxPages: Number(process.env.OPENROUTER_PDF_MAX_PAGES ?? 4),
+    pdfTextMaxChars: Number(process.env.OPENROUTER_PDF_TEXT_MAX_CHARS ?? 4500),
     inlineOnly: process.env.OPENROUTER_VISION_INLINE_ONLY === 'true',
   };
 }
@@ -40,11 +44,90 @@ function fallbackDescriptionFromUrl(imageUrl: string) {
     const fileName = parsed.pathname.split('/').filter(Boolean).at(-1) ?? '';
     const normalizedName = fileName.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
     if (/^[a-f0-9]{24,}$/i.test(normalizedName)) {
-      return 'Uploaded image';
+      return 'Uploaded file';
     }
-    return normalizedName || 'Uploaded image';
+    return normalizedName || 'Uploaded file';
   } catch {
-    return 'Uploaded image';
+    return 'Uploaded file';
+  }
+}
+
+async function renderPdfToImages(
+  pdfBuffer: Buffer,
+  options: {
+    maxDimension: number;
+    maxPages: number;
+  },
+) {
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
+  const document = await loadingTask.promise;
+
+  try {
+    const pageCount = document.numPages;
+    const maxPages = Math.min(pageCount, Math.max(1, options.maxPages));
+    const normalizedMaxDimension = Math.max(512, options.maxDimension);
+    const pages: Buffer[] = [];
+
+    for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1 });
+      const longestSide = Math.max(viewport.width, viewport.height);
+      const scale = longestSide > normalizedMaxDimension ? normalizedMaxDimension / longestSide : 1;
+      const renderViewport = page.getViewport({ scale });
+      const canvas = createCanvas(
+        Math.max(1, Math.ceil(renderViewport.width)),
+        Math.max(1, Math.ceil(renderViewport.height)),
+      );
+      const context = canvas.getContext('2d');
+
+      await page.render({
+        canvas: canvas as unknown as HTMLCanvasElement,
+        canvasContext: context as never,
+        viewport: renderViewport,
+      }).promise;
+
+      pages.push(canvas.toBuffer('image/png'));
+    }
+
+    return {
+      pageCount,
+      renderedPageCount: pages.length,
+      pages,
+    };
+  } finally {
+    await document.destroy();
+  }
+}
+
+async function extractPdfTextExcerpt(pdfBuffer: Buffer, maxChars: number) {
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
+  const document = await loadingTask.promise;
+
+  try {
+    const safeMaxChars = Math.max(600, maxChars);
+    const parts: string[] = [];
+
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      if (parts.join(' ').length >= safeMaxChars) {
+        break;
+      }
+
+      const page = await document.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const text = content.items
+        .map((item) => ('str' in item ? String(item.str) : ''))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (text) {
+        parts.push(`Seite ${pageNumber}: ${text}`);
+      }
+    }
+
+    return parts.join('\n').slice(0, safeMaxChars);
+  } finally {
+    await document.destroy();
   }
 }
 
@@ -211,6 +294,8 @@ async function toInlineImageDataUrl(
     inlineImageQuality: number;
     inlineImageMinDim: number;
     inlineImageMinQuality: number;
+    pdfMaxPages: number;
+    pdfTextMaxChars: number;
   },
 ) {
   const controller = new AbortController();
@@ -226,8 +311,11 @@ async function toInlineImageDataUrl(
       throw new Error(`Image download failed with status ${response.status}`);
     }
 
-    const contentType = response.headers.get('content-type')?.split(';')[0]?.trim() || '';
-    if (!contentType.startsWith('image/')) {
+    const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() || '';
+    const looksLikePdf = contentType === 'application/pdf' || /\.pdf(?:$|[?#])/i.test(imageUrl);
+    const isImage = contentType.startsWith('image/');
+
+    if (!isImage && !looksLikePdf) {
       throw new Error(`Unsupported content-type: ${contentType || 'unknown'}`);
     }
 
@@ -238,21 +326,55 @@ async function toInlineImageDataUrl(
 
     const arrayBuffer = await response.arrayBuffer();
     const sourceBuffer = Buffer.from(arrayBuffer);
-    const optimized = await optimizeImageForInlineUpload(sourceBuffer, {
-      inlineImageMaxBytes: options.inlineImageMaxBytes,
-      inlineImageMaxDim: options.inlineImageMaxDim,
-      inlineImageQuality: options.inlineImageQuality,
-      inlineImageMinDim: options.inlineImageMinDim,
-      inlineImageMinQuality: options.inlineImageMinQuality,
-    });
-    const base64 = optimized.buffer.toString('base64');
+    const sourceKind = looksLikePdf ? ('pdf' as const) : ('image' as const);
+    const imageBuffers: Buffer[] = [];
+    let pdfTextExcerpt = '';
+    let pdfPageCount: number | undefined;
+    let renderedPageCount: number | undefined;
+
+    if (looksLikePdf) {
+      const rendered = await renderPdfToImages(sourceBuffer, {
+        maxDimension: options.inlineImageMaxDim,
+        maxPages: options.pdfMaxPages,
+      });
+      imageBuffers.push(...rendered.pages);
+      pdfPageCount = rendered.pageCount;
+      renderedPageCount = rendered.renderedPageCount;
+      pdfTextExcerpt = await extractPdfTextExcerpt(sourceBuffer, options.pdfTextMaxChars);
+    } else {
+      imageBuffers.push(sourceBuffer);
+    }
+
+    const optimizedImages: Array<{ buffer: Buffer; contentType: string }> = [];
+    let optimizedBytesTotal = 0;
+
+    for (const imageBuffer of imageBuffers) {
+      const optimized = await optimizeImageForInlineUpload(imageBuffer, {
+        inlineImageMaxBytes: options.inlineImageMaxBytes,
+        inlineImageMaxDim: options.inlineImageMaxDim,
+        inlineImageQuality: options.inlineImageQuality,
+        inlineImageMinDim: options.inlineImageMinDim,
+        inlineImageMinQuality: options.inlineImageMinQuality,
+      });
+      optimizedImages.push(optimized);
+      optimizedBytesTotal += optimized.buffer.byteLength;
+    }
+
+    const dataUrls = optimizedImages.map(
+      (optimized) => `data:${optimized.contentType};base64,${optimized.buffer.toString('base64')}`,
+    );
+    const optimizedContentType = optimizedImages[0]?.contentType ?? 'image/jpeg';
 
     return {
-      dataUrl: `data:${optimized.contentType};base64,${base64}`,
-      optimizedBytes: optimized.buffer.byteLength,
+      dataUrls,
+      optimizedBytes: optimizedBytesTotal,
       sourceBytes: sourceBuffer.byteLength,
-      sourceContentType: contentType,
-      optimizedContentType: optimized.contentType,
+      sourceContentType: looksLikePdf ? 'application/pdf' : contentType,
+      optimizedContentType,
+      sourceKind,
+      ...(typeof pdfPageCount === 'number' ? { pdfPageCount } : {}),
+      ...(typeof renderedPageCount === 'number' ? { renderedPageCount } : {}),
+      ...(pdfTextExcerpt ? { pdfTextExcerpt } : {}),
     };
   } finally {
     clearTimeout(timeoutHandle);
@@ -320,14 +442,22 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
   }
 
   let imageSourceForModel = imageUrl;
+  let imageSourcesForModel = [imageUrl];
   let imageSourceWarning: string | undefined;
   let inputMode: 'inline' | 'remote-url' | 'inline-then-remote-url' = 'remote-url';
+  let sourceKind: 'image' | 'pdf' = 'image';
+  let pdfTextExcerpt = '';
+  let pdfPageCount: number | undefined;
+  let renderedPageCount: number | undefined;
   let imageProcessing:
     | {
         sourceBytes: number;
         optimizedBytes: number;
         sourceContentType: string;
         optimizedContentType: string;
+        sourceKind: 'image' | 'pdf';
+        pdfPageCount?: number;
+        renderedPageCount?: number;
       }
     | undefined;
   const visionModel = config.visionModel;
@@ -340,13 +470,25 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
       inlineImageQuality: config.inlineImageQuality,
       inlineImageMinDim: config.inlineImageMinDim,
       inlineImageMinQuality: config.inlineImageMinQuality,
+      pdfMaxPages: config.pdfMaxPages,
+      pdfTextMaxChars: config.pdfTextMaxChars,
     });
-    imageSourceForModel = inline.dataUrl;
+    imageSourceForModel = inline.dataUrls[0] ?? imageUrl;
+    imageSourcesForModel = inline.dataUrls;
+    sourceKind = inline.sourceKind;
+    pdfTextExcerpt = inline.pdfTextExcerpt ?? '';
+    pdfPageCount = inline.pdfPageCount;
+    renderedPageCount = inline.renderedPageCount;
     imageProcessing = {
       sourceBytes: inline.sourceBytes,
       optimizedBytes: inline.optimizedBytes,
       sourceContentType: inline.sourceContentType,
       optimizedContentType: inline.optimizedContentType,
+      sourceKind: inline.sourceKind,
+      ...(typeof inline.pdfPageCount === 'number' ? { pdfPageCount: inline.pdfPageCount } : {}),
+      ...(typeof inline.renderedPageCount === 'number'
+        ? { renderedPageCount: inline.renderedPageCount }
+        : {}),
     };
     inputMode = 'inline';
   } catch (error) {
@@ -375,6 +517,33 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
   let upstream: Response;
 
   const requestVision = async (imageSource: string) => {
+    const contentParts: Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> = [
+      {
+        type: 'text',
+        text:
+          sourceKind === 'pdf'
+            ? `Analyze this document input (multi-page PDF rendered as page previews) and return JSON only with keys description (max 140 chars), alt (max 140 chars, suitable for an HTML img alt attribute), genre (one short style/category label), and tags (array of up to 6 short lowercase keywords). Describe the document as a whole, not just the cover page. The values for description, alt and genre must be written in ${config.visionResponseLanguage}.`
+            : `Analyze this visual input (image or PDF first-page render) and return JSON only with keys description (max 140 chars), alt (max 140 chars, suitable for an HTML img alt attribute), genre (one short style/category label like comic, photorealistic, watercolor), and tags (array of up to 6 short lowercase keywords). The values for description, alt and genre must be written in ${config.visionResponseLanguage}.`,
+      },
+    ];
+
+    if (sourceKind === 'pdf' && pdfTextExcerpt) {
+      contentParts.push({
+        type: 'text',
+        text: `Extracted document text excerpt:\n${pdfTextExcerpt}`,
+      });
+    }
+
+    const sources = sourceKind === 'pdf' ? imageSourcesForModel : [imageSource];
+    for (const source of sources) {
+      contentParts.push({
+        type: 'image_url',
+        image_url: {
+          url: source,
+        },
+      });
+    }
+
     const fetchPromise = fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -386,18 +555,7 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
         messages: [
           {
             role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `Analyze this image and return JSON only with keys description (max 140 chars), alt (max 140 chars, suitable for an HTML img alt attribute), genre (one short style/category label like comic, photorealistic, watercolor), and tags (array of up to 6 short lowercase keywords). The values for description, alt and genre must be written in ${config.visionResponseLanguage}.`,
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageSource,
-                },
-              },
-            ],
+            content: contentParts,
           },
         ],
       }),
@@ -418,6 +576,40 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
     upstream = await requestVision(imageSourceForModel);
 
     if (upstream.status === 413 && imageSourceForModel.startsWith('data:image/')) {
+      if (sourceKind === 'pdf') {
+        if (imageSourcesForModel.length > 1) {
+          imageSourceWarning = [
+            imageSourceWarning,
+            'Inline PDF payload too large. Retrying with reduced page set.',
+          ]
+            .filter(Boolean)
+            .join(' ');
+
+          imageSourcesForModel = [imageSourcesForModel[0]];
+          renderedPageCount = 1;
+          if (imageProcessing) {
+            imageProcessing = {
+              ...imageProcessing,
+              renderedPageCount: 1,
+            };
+          }
+
+          upstream = await requestVision(imageSourcesForModel[0]);
+        } else {
+          const fallback = fallbackDescriptionFromUrl(imageUrl);
+          return reply.send({
+            description: fallback,
+            alt: normalizeAltText(fallback),
+            genre: '',
+            tags: [],
+            inputMode: 'inline',
+            ...(imageProcessing ? { imageProcessing } : {}),
+            warning:
+              'Vision provider rejected rendered PDF preview with 413. Remote URL fallback is disabled for PDFs.',
+          });
+        }
+      }
+
       if (config.inlineOnly) {
         const fallback = fallbackDescriptionFromUrl(imageUrl);
         return reply.send({
@@ -501,6 +693,8 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
     ...parsed,
     inputMode,
     ...(imageProcessing ? { imageProcessing } : {}),
+    ...(typeof pdfPageCount === 'number' ? { pdfPageCount } : {}),
+    ...(typeof renderedPageCount === 'number' ? { renderedPageCount } : {}),
     ...(imageSourceWarning ? { warning: imageSourceWarning } : {}),
   });
 });

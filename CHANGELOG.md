@@ -8,6 +8,9 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- Upload-Bereich der Demo zeigt jetzt auch für PDFs einen Metadaten-Vorschau-Block mit direktem Link zur Datei.
+- Demo-Metadaten-Dialog öffnet jetzt auch für PDF-Uploads (`application/pdf`) und erlaubt Vision-gestützte Kurzbeschreibungen.
+- `image-describer` unterstützt jetzt PDF-Beschreibung über mehrere gerenderte Seiten plus Textauszug, damit Dokumentinhalt statt nur Cover analysiert wird.
 - `image-describer` unterstützt jetzt `OPENROUTER_RESPONSE_LANGUAGE` zur Steuerung der Modell-Antwortsprache für `description`, `alt` und `genre` (Default: `German`).
 - Bild-Metadaten unterstützen jetzt ein zusätzliches Feld `Genre` (z. B. comic, photorealistic, aquarell) im Dialog, in der Vorschau und in der Upload-History.
 - Metadaten-Dialog unterstützt jetzt KI-Attribution für Bilder: Auswahl zwischen „KI generiert“ und „Mit Hilfe von KI generiert“ inkl. automatischer Autor-Setzung.
@@ -41,6 +44,8 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- Vision- und Upload-Fallback-Texte wurden auf dateitypunabhängige Formulierungen umgestellt (`Uploaded file` statt nur `Uploaded image`).
+- PDF-Analyse im Vision-Service berücksichtigt nun standardmäßig mehrere Seiten (konfigurierbar) und einen extrahierten Textauszug.
 - Lizenz-Dropdowns enthalten jetzt die vollständige CC-4.0-Auswahl (`BY`, `BY-SA`, `BY-ND`, `BY-NC`, `BY-NC-SA`, `BY-NC-ND`) zusätzlich zu `CC0`/`PDM`.
 - Vision-Service `image-describer` liefert jetzt zusätzlich `genre` in der `/describe`-Antwort (inkl. Fallback-Pfaden) und fragt das Modell explizit danach.
 - Lizenz-Tags werden im Publish-Helper jetzt als `['license', canonical, label?]` aufgebaut; bekannte Presets liefern automatisch URL + Kurzlabel.
@@ -68,6 +73,7 @@ The format is based on Keep a Changelog.
 
 ### Fixed
 
+- PDF-Uploads übersprangen im Demo-Flow bisher den Metadaten-Dialog; der Dialog wird nun korrekt geöffnet.
 - Publisher validiert jetzt Lizenz-Attribution strikt: ein Label ohne kanonischen Lizenzwert wird mit klarer Fehlermeldung abgewiesen.
 - Im Demo-Metadaten-Dialog überschreibt ein Vision-Vorschlag die Alt-Attribution jetzt konsistent mit dem gelieferten `alt`-Wert.
 - Lokale Demo-Route `/api/vision/describe` gibt jetzt bewusst `410` zurück, damit versehentliche lokale Vision-Nutzung früh und eindeutig auffällt.
@@ -88,6 +94,7 @@ The format is based on Keep a Changelog.
 
 ### Docs
 
+- README ergänzt um Hinweis auf PDF-Unterstützung im `image-describer` und im Metadaten-Dialog.
 - README um Compose-Setup für den separaten `image-describer`-Service erweitert.
 - Anleitung für Demo-Umgebungsvariablen via `apps/demo/.env` ergänzt (inkl. `apps/demo/.env.example`).
 - Dokumentation um Hinweise zum Metadaten-Publish nach Bild-Upload (kind `1063` + kind `1`) ergänzt.

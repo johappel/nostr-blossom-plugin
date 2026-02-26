@@ -125,6 +125,7 @@
   let metadataDialogTitle = $state('Bild-Metadaten');
   let metadataDialogSubmitLabel = $state('Metadaten speichern');
   let metadataDialogImageUrl = $state('');
+  let metadataDialogMime = $state('');
   let metadataSuggestLoading = $state(false);
   let metadataSuggestError = $state('');
   let metadataVisionChangedDescription = $state(false);
@@ -335,10 +336,12 @@
       mode?: 'create' | 'edit';
       initialMetadata?: ImageMetadataInput;
       imageUrl?: string;
+      mime?: string;
     },
   ): Promise<ImageMetadataInput | null> {
     metadataDialogFileName = fileName;
     metadataDialogImageUrl = options?.imageUrl ?? '';
+    metadataDialogMime = options?.mime?.trim() ?? '';
     metadataDescription = options?.initialMetadata?.description ?? '';
     metadataAltAttribution = options?.initialMetadata?.altAttribution ?? '';
     metadataGenre = options?.initialMetadata?.genre ?? '';
@@ -358,6 +361,11 @@
     metadataVisionChangedKeywords = false;
     metadataDialogTitle = options?.mode === 'edit' ? 'Metadaten bearbeiten' : 'Bild-Metadaten';
     metadataDialogSubmitLabel = options?.mode === 'edit' ? 'Metadaten aktualisieren' : 'Metadaten speichern';
+
+    if (metadataDialogMime === 'application/pdf') {
+      metadataDialogTitle = options?.mode === 'edit' ? 'PDF-Metadaten bearbeiten' : 'PDF-Metadaten';
+    }
+
     metadataDialogOpen = true;
 
     return new Promise((resolve) => {
@@ -371,7 +379,7 @@
 
   async function suggestDescriptionFromVision() {
     if (!metadataDialogImageUrl) {
-      metadataSuggestError = 'Kein Bild für Vision-Beschreibung verfügbar.';
+      metadataSuggestError = 'Keine Datei für Vision-Beschreibung verfügbar.';
       return;
     }
 
@@ -667,7 +675,9 @@
 
       uploadUrl = result.url;
 
-      if (!mime?.startsWith('image/')) {
+      const supportsMetadataDialog = mime?.startsWith('image/') || mime === 'application/pdf';
+
+      if (!supportsMetadataDialog) {
         addUploadHistory({ url: result.url, mime, createdAt: new Date().toISOString() });
         status = 'Upload success';
         return result.url;
@@ -677,6 +687,7 @@
         mode: 'create',
         initialMetadata: collectInitialMetadata(file),
         imageUrl: result.url,
+        mime,
       });
       if (!metadata) {
         status = 'Upload completed, but metadata entry was canceled';
@@ -819,18 +830,29 @@
 
     {#if uploadUrl}
       {@const currentUploadItem = getCurrentUploadItem()}
-      {#if currentUploadItem?.mime?.startsWith('image/')}
+      {#if currentUploadItem?.mime?.startsWith('image/') || currentUploadItem?.mime === 'application/pdf'}
         <div class="metadata-target">
-          <h3>Bildvorschau & Metadaten</h3>
-          <img
-            class="upload-preview"
-            src={uploadUrl}
-            alt={
-              currentUploadItem.metadata?.altAttribution ||
-              currentUploadItem.metadata?.description ||
-              'Uploaded image preview'
-            }
-          />
+          <h3>
+            {currentUploadItem.mime === 'application/pdf'
+              ? 'PDF-Vorschau & Metadaten'
+              : 'Bildvorschau & Metadaten'}
+          </h3>
+          {#if currentUploadItem.mime?.startsWith('image/')}
+            <img
+              class="upload-preview"
+              src={uploadUrl}
+              alt={
+                currentUploadItem.metadata?.altAttribution ||
+                currentUploadItem.metadata?.description ||
+                'Uploaded image preview'
+              }
+            />
+          {:else}
+            <p>
+              <strong>Datei:</strong>
+              <a href={uploadUrl} target="_blank" rel="noreferrer">PDF öffnen</a>
+            </p>
+          {/if}
           <p>
             <strong>Beschreibung:</strong>
             {currentUploadItem.metadata?.description ?? 'Noch nicht erfasst'}
@@ -931,7 +953,9 @@
             disabled={metadataSuggestLoading}
           >
             {metadataSuggestLoading
-              ? 'Vision analysiert Bild...'
+              ? metadataDialogMime === 'application/pdf'
+                ? 'Vision analysiert PDF...'
+                : 'Vision analysiert Bild...'
               : 'Kurzbeschreibung per Vision vorschlagen'}
           </button>
           {#if metadataSuggestError}
