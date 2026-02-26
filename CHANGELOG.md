@@ -14,9 +14,9 @@ The format is based on Keep a Changelog.
 - **`GalleryTab.svelte`**: Mediathek-Tab mit NIP-94 + lokaler History Merge-Logik (aus `BlossomGallery.svelte` extrahiert), Thumbnail-Grid, Keyword-Filter-Chips, Volltext-Suche, Metadaten-Sidebar und Löschen-mit-Bestätigung.
 - **`MetadataSidebar.svelte`**: Wiederverwendbare Metadaten-Seitenleiste (Beschreibung, Alt-Text, Autor, Genre, Lizenz-Picker, KI-Modus, Keywords). Enthält KI-Vorschlag-Button (via `fetchVisionSuggestion`) und unterscheidet `create`-/`edit`-Modus.
 - **`Injector.ts`**: DOM-Scanner + `MutationObserver`: Findet `[data-blossom]`-Elemente (oder konfigurierten CSS-Selektor) und injiziert einen "🌸 Mediathek"-Button inline neben jedem Feld. Schreibt nach Auswahl die URL per synthetischen Events zurück (React/Vue/native kompatibel).
-- **`widget/index.ts`**: `init(config)` erzeugt Shadow-DOM-Host, mountet `MediaWidget` per Svelte 5 `mount()`, startet optional den Injector und gibt `BlossomMediaInstance` (`open/close/destroy`) zurück. Auto-Init via `data-blossom-config`-Attribut am Script-Tag.
+- **`widget/index.svelte.ts`**: `init(config)` erzeugt Shadow-DOM-Host, mountet `MediaWidget` per Svelte 5 `mount()`, startet optional den Injector und gibt `BlossomMediaInstance` (`open/close/destroy`) zurück. Auto-Init via `data-blossom-config`-Attribut am Script-Tag.
 - **`widget/types.ts`**: Öffentliche Widget-Typen: `BlossomMediaConfig`, `BlossomMediaInstance`, `InsertResult`, `InsertMode`, `BlossomMediaFeatures`, `CustomTab`.
-- **`vite.config.widget.ts`**: Vite-Build für das Widget: IIFE (`window.BlossomMedia`) + ESM-Output mit injiziertem CSS (kein separates Stylesheet).
+- **`vite.config.widget.ts`**: Vite-Build für das Widget: IIFE (`window.BlossomMedia`) + ESM-Output. CSS aller Svelte-Komponenten wird via eigenem Rollup-Plugin (`injectCssIntoBundle`) als `__BLOSSOM_CSS__`-Variable in das JS-Bundle eingebettet und zur Laufzeit in den Shadow DOM injiziert — kein separates Stylesheet nötig.
 - **`build:widget` Script**: `pnpm --filter @blossom/plugin build:widget` erzeugt `dist/widget/blossom-media.iife.js` und `dist/widget/blossom-media.esm.js`.
 - **`examples/simple-input.html`**: Erstes selbständiges HTML-Beispiel für die Widget-Einbettung — zeigt Auto-Init via `data-blossom-config`, manuellen Init via `window.BlossomMedia.init()` und `data-blossom`-Feldmarkierung.
 
@@ -25,6 +25,12 @@ The format is based on Keep a Changelog.
 - **`apps/demo` entfernt**: Die SvelteKit-Demo-App wurde entfernt. Ihre Inhalte sind vollständig im Plugin (`@blossom/plugin/core` + `@blossom/plugin/widget`) aufgegangen. Anstelle der Demo gibt es jetzt eigenständige HTML-Beispiele unter `examples/`.
 - Root-`package.json`: `dev`- und `start`-Skripte (Demo-spezifisch) entfernt; `build:widget`-Shortcut ergänzt.
 - **`docs/`-Ordner entfernt**: Veraltete Einzeldokumente ersetzt durch [`integration.md`](../integration.md) im Repo-Root.
+
+### Fixed
+
+- **`widget/index.svelte.ts`** (Umbenennung von `index.ts`): `$state()`-Runes konnten in einer plain `.ts`-Datei nicht genutzt werden; die Umbenennung auf `.svelte.ts` aktiviert den Svelte-5-Rune-Compiler für diese Datei.
+- **Svelte-Warnungen `state_referenced_locally`** in `MetadataSidebar.svelte` und `MediaWidget.svelte`: Form-State-Initialisierungen aus Props werden jetzt mit `untrack(() => ...)` gekapselt.
+- **Svelte-Warnung `a11y_no_noninteractive_element_to_interactive_role`** in `MediaWidget.svelte`: `<nav role="tablist">` durch semantisch korrektes `<div role="tablist">` ersetzt.
 
 ### Docs
 

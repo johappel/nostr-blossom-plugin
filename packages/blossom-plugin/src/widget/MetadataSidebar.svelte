@@ -9,6 +9,7 @@
   import type { ImageMetadataInput } from '../core/metadata';
   import type { VisionClientOptions } from '../core/vision';
   import { fetchVisionSuggestion } from '../core/vision';
+  import { untrack } from 'svelte';
 
   interface MetadataSidebarProps {
     /** File URL (shown in preview and used for Vision API) */
@@ -52,20 +53,20 @@
   const AI_AUTHOR_GENERATED = 'KI generiert';
   const AI_AUTHOR_ASSISTED = 'Mit Hilfe von KI generiert';
 
-  // Form state
-  let description = $state(initialMetadata?.description ?? '');
-  let altAttribution = $state(initialMetadata?.altAttribution ?? '');
-  let genre = $state(initialMetadata?.genre ?? '');
-  let author = $state(initialMetadata?.author ?? '');
-  let keywords = $state(initialMetadata?.keywords?.join(', ') ?? '');
+  // Form state — untrack() suppresses the "only captures initial value" warning
+  // intentionally: this is an edit form that takes a snapshot of initialMetadata.
+  let description = $state(untrack(() => initialMetadata?.description ?? ''));
+  let altAttribution = $state(untrack(() => initialMetadata?.altAttribution ?? ''));
+  let genre = $state(untrack(() => initialMetadata?.genre ?? ''));
+  let author = $state(untrack(() => initialMetadata?.author ?? ''));
+  let keywords = $state(untrack(() => initialMetadata?.keywords?.join(', ') ?? ''));
   let aiImageMode = $state<'none' | 'generated' | 'assisted'>(
-    (initialMetadata?.aiImageMode as 'none' | 'generated' | 'assisted') ?? 'none',
+    untrack(() => (initialMetadata?.aiImageMode as 'none' | 'generated' | 'assisted') ?? 'none'),
   );
-  let aiMetadataGenerated = $state(Boolean(initialMetadata?.aiMetadataGenerated));
+  let aiMetadataGenerated = $state(untrack(() => Boolean(initialMetadata?.aiMetadataGenerated)));
 
-  const initialLicense = resolveLicenseChoice(
-    initialMetadata?.license,
-    initialMetadata?.licenseLabel,
+  const initialLicense = untrack(() =>
+    resolveLicenseChoice(initialMetadata?.license, initialMetadata?.licenseLabel),
   );
   let licenseChoice = $state(initialLicense.choice);
   let customLicenseSpec = $state(initialLicense.customSpec);

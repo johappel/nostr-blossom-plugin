@@ -9,6 +9,7 @@
   import { updateHistoryItemByUrl, removeHistoryItemByUrl } from '../core/history';
   import { deleteBlossomBlob, publishDeletionEvent } from '../core/delete';
   import { resolveVisionEndpoint } from '../core/vision';
+  import { untrack } from 'svelte';
   import UploadTab from './UploadTab.svelte';
   import GalleryTab from './GalleryTab.svelte';
   import MetadataSidebar from './MetadataSidebar.svelte';
@@ -54,7 +55,7 @@
     return result;
   });
 
-  let activeTab = $state<TabId>(tabs[0]?.id ?? 'upload');
+  let activeTab = $state<TabId>(untrack(() => tabs[0]?.id ?? 'upload'));
 
   // ── Signer ────────────────────────────────────────────────────────────────
   let signer = $derived<BlossomSigner | null>(() => {
@@ -243,7 +244,7 @@
 
     <!-- Tab bar -->
     {#if tabs.length > 1}
-      <nav class="bm-tabs" role="tablist">
+      <div class="bm-tabs" role="tablist">
         {#each tabs as tab}
           <button
             type="button"
@@ -254,7 +255,7 @@
             onclick={() => { activeTab = tab.id; editItem = null; }}
           >{tab.label}</button>
         {/each}
-      </nav>
+      </div>
     {/if}
 
     <!-- Content area -->

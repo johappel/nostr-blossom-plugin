@@ -27,6 +27,11 @@ import type { BlossomMediaConfig, BlossomMediaInstance, InsertResult } from './t
 import MediaWidget from './MediaWidget.svelte';
 import { Injector } from './Injector';
 
+// Injected by the vite build plugin — contains all Svelte component CSS.
+// Declared as ambient so TypeScript doesn't complain; the variable is prepended
+// to the bundle by the injectCssIntoBundle Rollup plugin.
+declare const __BLOSSOM_CSS__: string | undefined;
+
 export type { BlossomMediaConfig, BlossomMediaInstance, InsertResult };
 export type { CustomTab, BlossomMediaFeatures, InsertMode } from './types';
 
@@ -58,9 +63,11 @@ export function init(config: BlossomMediaConfig): BlossomMediaInstance {
 
   const shadowRoot = host.attachShadow({ mode: 'open' });
 
-  // Inject reset styles
+  // Inject reset CSS + Svelte component styles
   const styleEl = document.createElement('style');
-  styleEl.textContent = SHADOW_RESET_CSS;
+  styleEl.textContent =
+    SHADOW_RESET_CSS +
+    (typeof __BLOSSOM_CSS__ !== 'undefined' ? __BLOSSOM_CSS__ : '');
   shadowRoot.appendChild(styleEl);
 
   // Mount container inside shadow root
