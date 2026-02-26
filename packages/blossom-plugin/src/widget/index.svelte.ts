@@ -97,8 +97,8 @@ export function init(config: BlossomMediaConfig): BlossomMediaInstance {
   // ── Injector ────────────────────────────────────────────────────────────
   let injector: Injector | null = null;
 
-  if (config.targets !== undefined || config.targets === undefined) {
-    // Auto-start injector unless explicitly disabled via targets: []
+  if (config.targets !== '') {
+    // Auto-start injector unless explicitly disabled via targets: ''
     injector = new Injector({
       targetSelector: config.targets ?? '[data-blossom]',
       buttonLabel: '🌸 Mediathek',

@@ -341,6 +341,9 @@
     height: min(90vh, 700px);
     background: #fff;
     overflow: hidden;
+  }
+
+  .bm-dialog[open] {
     display: flex;
     flex-direction: column;
   }
