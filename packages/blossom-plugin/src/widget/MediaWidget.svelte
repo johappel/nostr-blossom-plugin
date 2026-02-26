@@ -430,17 +430,19 @@
   .bm-content {
     overflow: hidden;
     display: grid;
+    min-height: 0;
   }
 
   .bm-tab-panel {
     overflow: hidden;
     display: none;
+    min-height: 0;
   }
 
   .bm-tab-panel.active,
   .bm-tab-panel:not([hidden]) {
     display: grid;
-    overflow-y: auto;
+    overflow: hidden;
   }
 
   .bm-custom-tab {

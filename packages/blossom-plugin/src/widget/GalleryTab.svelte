@@ -56,26 +56,22 @@
     const seenUrls = new Set<string>();
     const seenHashes = new Set<string>();
 
-    // Collect all known thumb / image / preview URLs so we can skip them
-    const derivativeUrls = new Set<string>();
+    // Collect all URLs already covered by NIP-94 events (original + derivatives)
+    // so bloblist items that duplicate them are excluded.
+    const nip94CoveredUrls = new Set<string>();
     if (nip94Data) {
       for (const ev of nip94Data.events) {
-        if (ev.thumbUrl) derivativeUrls.add(ev.thumbUrl);
-        if (ev.imageUrl) derivativeUrls.add(ev.imageUrl);
-      }
-    }
-    for (const item of items) {
-      for (const tag of item.uploadTags ?? []) {
-        if ((tag[0] === 'thumb' || tag[0] === 'image') && tag[1]) {
-          derivativeUrls.add(tag[1]);
-        }
+        // The original URL
+        nip94CoveredUrls.add(ev.url);
+        // Thumbnail and preview URLs (derivatives)
+        if (ev.thumbUrl) nip94CoveredUrls.add(ev.thumbUrl);
+        if (ev.imageUrl) nip94CoveredUrls.add(ev.imageUrl);
       }
     }
 
     if (nip94Data) {
       for (const ev of nip94Data.events) {
         if (seenUrls.has(ev.url)) continue;
-        if (derivativeUrls.has(ev.url)) continue;
         seenUrls.add(ev.url);
         if (ev.sha256) seenHashes.add(ev.sha256.toLowerCase());
 
@@ -100,7 +96,7 @@
 
     for (const item of items) {
       if (seenUrls.has(item.url)) continue;
-      if (derivativeUrls.has(item.url)) continue;
+      if (nip94CoveredUrls.has(item.url)) continue;
       if (item.sha256 && seenHashes.has(item.sha256.toLowerCase())) continue;
       seenUrls.add(item.url);
       if (item.sha256) seenHashes.add(item.sha256.toLowerCase());

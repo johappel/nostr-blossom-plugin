@@ -158,7 +158,7 @@
   async function handleMetadataSubmit(metadata: ImageMetadataInput) {
     if (phase.type !== 'metadata') return;
 
-    const { uploadResult, uploadTags } = phase;
+    const { uploadResult, uploadTags, mime: savedMime } = phase;
 
     if (!signer) {
       phase = { type: 'error', message: 'Signer verloren.' };
@@ -191,7 +191,7 @@
         url: uploadResult.url,
         thumbnailUrl: thumbUrl,
         previewUrl: previewUrl,
-        mimeType: phase.mime,
+        mimeType: savedMime,
         sha256,
         size: sizeStr ? Number(sizeStr) : undefined,
         description: metadata.description,
