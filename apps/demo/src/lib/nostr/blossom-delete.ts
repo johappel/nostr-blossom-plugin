@@ -1,4 +1,5 @@
 import type { SignerAdapter } from './signers';
+import { Relay } from 'nostr-tools/relay';
 
 /**
  * Build and sign a Blossom auth event (kind 24242) for deletion.
@@ -114,15 +115,31 @@ export async function publishDeletionEvent(
     return null;
   }
 
-  const tags = eventIds.map((id) => ['e', id]);
+  const tags = [
+    ...eventIds.map((id) => ['e', id]),
+    ['k', '1063'],  // NIP-09: specify kind being deleted
+  ];
 
-  const unsignedEvent = {
+  const unsignedEvent = JSON.parse(JSON.stringify({
     kind: 5,
     created_at: Math.floor(Date.now() / 1000),
     tags,
     content: reason,
-  };
+  }));
 
   const signedEvent = await signer.signEvent(unsignedEvent);
+
+  // Actually publish to the relay
+  let relay: InstanceType<typeof Relay> | null = null;
+  try {
+    relay = await Relay.connect(relayUrl);
+    await relay.publish(signedEvent as never);
+    console.log(`[delete] kind 5 deletion event published to ${relayUrl}`, (signedEvent as Record<string, unknown>).id);
+  } catch (err) {
+    console.warn(`[delete] Failed to send kind 5 to ${relayUrl}:`, err);
+  } finally {
+    relay?.close();
+  }
+
   return { relayUrl, event: signedEvent };
 }

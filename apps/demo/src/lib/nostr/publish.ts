@@ -137,12 +137,14 @@ export async function publishEvent(
     throw new Error('Relay URL is required.');
   }
 
-  const unsignedEvent = {
+  // Deep-clone to strip Svelte 5 reactivity proxies — NIP-07 extensions
+  // use structuredClone across the extension boundary which fails on proxies.
+  const unsignedEvent = JSON.parse(JSON.stringify({
     kind,
     created_at: Math.floor(Date.now() / 1000),
     tags,
     content,
-  };
+  }));
 
   const signedEvent = await signer.signEvent(unsignedEvent);
 

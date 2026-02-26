@@ -30,6 +30,9 @@ The format is based on Keep a Changelog.
 
 ### Fixed
 
+- **`publishDeletionEvent()` sendet Kind-5 jetzt tatsächlich an den Relay**: Das NIP-09 Deletion-Event wurde nur signiert, aber nie per WebSocket an den Relay gesendet — daher blieben NIP-94 Events nach dem Löschen in der Gallery bestehen. Jetzt wird `Relay.connect()` + `relay.publish()` verwendet.
+- **NIP-09 Kind-5 enthält jetzt `k`-Tag**: Deletion-Events enthalten nun `['k', '1063']` per NIP-09 Spec, damit Relays wissen, welche Event-Kinds gelöscht werden sollen.
+- **Svelte-5-Proxy-Fehler bei `publishEvent()`**: Events werden jetzt vor der Übergabe an NIP-07 Extensions deep-gecloned (`JSON.parse/stringify`), um `structuredClone`-Fehler bei Svelte-5-Reactivity-Proxies zu vermeiden.
 - **`publishEvent()` sendet jetzt tatsächlich an Relays**: Events wurden bisher nur signiert und zurückgegeben, aber nie per WebSocket an den konfigurierten Relay gesendet. Daher waren NIP-94 Abfragen immer leer. Jetzt wird `Relay.connect()` + `relay.publish()` aus `nostr-tools/relay` verwendet.
 - **SHA-256 Case-Mismatch**: Die NIP-94 `bySha256`-Map normalisiert Hashes jetzt auf Lowercase, damit Blossom-Server-Hashes (ggf. anderer Case) zuverlässig matchen.
 
