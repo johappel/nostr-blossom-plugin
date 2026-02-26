@@ -46,63 +46,30 @@
   let activeKeyword = $state<string | null>(null);
 
   /**
-   * NIP-94 + local history merge.
-   * NIP-94 events are the primary source; local-only items appended.
-   * Thumbnail / preview URLs referenced via `thumb` or `image` tags are
-   * excluded so that each file appears only once (not 3×).
+   * NIP-94 is the single source of truth for the gallery.
+   * Only items with a published NIP-94 event (kind 1063) are shown.
+   * The bloblist (`items`) is only used for isLocal detection, not for display.
    */
   let mergedItems = $derived.by(() => {
+    if (!nip94Data) return [];
+
     const result: UploadHistoryItem[] = [];
     const seenUrls = new Set<string>();
-    const seenHashes = new Set<string>();
 
-    // Collect all URLs already covered by NIP-94 events (original + derivatives)
-    // so bloblist items that duplicate them are excluded.
-    const nip94CoveredUrls = new Set<string>();
-    if (nip94Data) {
-      for (const ev of nip94Data.events) {
-        // The original URL
-        nip94CoveredUrls.add(ev.url);
-        // Thumbnail and preview URLs (derivatives)
-        if (ev.thumbUrl) nip94CoveredUrls.add(ev.thumbUrl);
-        if (ev.imageUrl) nip94CoveredUrls.add(ev.imageUrl);
-      }
-    }
+    for (const ev of nip94Data.events) {
+      if (seenUrls.has(ev.url)) continue;
+      seenUrls.add(ev.url);
 
-    if (nip94Data) {
-      for (const ev of nip94Data.events) {
-        if (seenUrls.has(ev.url)) continue;
-        seenUrls.add(ev.url);
-        if (ev.sha256) seenHashes.add(ev.sha256.toLowerCase());
-
-        const localItem = items.find(
-          (i) =>
-            i.url === ev.url ||
-            (i.sha256 && ev.sha256 && i.sha256.toLowerCase() === ev.sha256.toLowerCase()),
-        );
-
-        result.push({
-          url: ev.url,
-          mime: ev.mime || localItem?.mime || undefined,
-          sha256: ev.sha256 || localItem?.sha256 || undefined,
-          createdAt: localItem?.createdAt ?? new Date(ev.createdAt * 1000).toISOString(),
-          metadata: ev.metadata,
-          // NIP-94 tags are richer (contain thumb, image, etc.) — prefer them,
-          // only fall back to bloblist tags if NIP-94 tags are absent.
-          uploadTags: ev.tags,
-          publishedEventIds: localItem?.publishedEventIds ?? [ev.eventId],
-          publishedKinds: localItem?.publishedKinds ?? [1063],
-        });
-      }
-    }
-
-    for (const item of items) {
-      if (seenUrls.has(item.url)) continue;
-      if (nip94CoveredUrls.has(item.url)) continue;
-      if (item.sha256 && seenHashes.has(item.sha256.toLowerCase())) continue;
-      seenUrls.add(item.url);
-      if (item.sha256) seenHashes.add(item.sha256.toLowerCase());
-      result.push(item);
+      result.push({
+        url: ev.url,
+        mime: ev.mime || undefined,
+        sha256: ev.sha256 || undefined,
+        createdAt: new Date(ev.createdAt * 1000).toISOString(),
+        metadata: ev.metadata,
+        uploadTags: ev.tags,
+        publishedEventIds: [ev.eventId],
+        publishedKinds: [1063],
+      });
     }
 
     return result;
@@ -394,14 +361,14 @@
                     thumbnailUrl={getPreviewUrl(selectedItem)}
                     mode="create"
                     {visionOptions}
-                    showDelete={features.deleteFiles !== false && !isRemoteOnly}
+                    showDelete={features.deleteFiles !== false}
                     showMetadata={true}
                     onSubmit={(meta) => {
                       if (selectedItem) {
                         onInserted({ ...buildInsertResult(selectedItem), ...meta, keywords: meta.keywords });
                       }
                     }}
-                    onDelete={features.deleteFiles !== false && !isRemoteOnly ? handleDeleteClick : undefined}
+                    onDelete={features.deleteFiles !== false ? handleDeleteClick : undefined}
                   />
                 {/if}
               {/if}
@@ -417,7 +384,7 @@
                   title="Metadaten bearbeiten"
                 >✏️ Bearbeiten</button>
               {/if}
-              {#if features.deleteFiles !== false && !isRemoteOnly}
+              {#if features.deleteFiles !== false}
                 <button type="button" class="btn-delete" onclick={handleDeleteClick} title="Datei löschen">🗑</button>
               {/if}
               <button type="button" class="btn-primary" onclick={handleApply}>Übernehmen</button>

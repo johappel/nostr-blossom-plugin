@@ -166,23 +166,113 @@
   }
 
   // ── Handle delete ─────────────────────────────────────────────────────────
+  // Deletes ALL blossom blobs linked in the NIP-94 event (original, thumb, image),
+  // then publishes a NIP-09 deletion event for the NIP-94 event itself.
   async function handleDelete(item: UploadHistoryItem) {
     const resolvedSigner = signer;
     if (!resolvedSigner) return;
 
     try {
-      if (item.sha256) {
-        await deleteBlossomBlob(resolvedSigner, config.servers, item.sha256);
+      // Find the NIP-94 event so we know all linked blossom URLs
+      const nip94Event = nip94Data?.events.find(
+        (ev) =>
+          ev.url === item.url ||
+          (item.sha256 && ev.sha256 && item.sha256.toLowerCase() === ev.sha256.toLowerCase()),
+      );
+
+      // Collect all SHA-256 hashes to delete from blossom servers
+      const hashesToDelete = new Set<string>();
+
+      if (item.sha256) hashesToDelete.add(item.sha256.toLowerCase());
+      if (nip94Event?.sha256) hashesToDelete.add(nip94Event.sha256.toLowerCase());
+
+      // Extract SHA-256 from derivative URLs (thumb, image)
+      if (nip94Event) {
+        for (const derivUrl of [nip94Event.thumbUrl, nip94Event.imageUrl]) {
+          if (!derivUrl) continue;
+          // Look up in bloblist first
+          const blobItem = items.find((i) => i.url === derivUrl);
+          if (blobItem?.sha256) {
+            hashesToDelete.add(blobItem.sha256.toLowerCase());
+          } else {
+            // Extract SHA-256 from blossom URL (pattern: /server/<sha256> or /server/<sha256>.ext)
+            const extracted = extractSha256FromUrl(derivUrl);
+            if (extracted) hashesToDelete.add(extracted);
+          }
+        }
       }
 
-      if (config.relayUrl && item.publishedEventIds?.length) {
-        await publishDeletionEvent(resolvedSigner, config.relayUrl, item.publishedEventIds, 'Deleted via Blossom Media Widget');
+      // 1) Delete all blobs from blossom servers
+      if (config.servers.length > 0) {
+        for (const hash of hashesToDelete) {
+          try {
+            await deleteBlossomBlob(resolvedSigner, config.servers, hash);
+          } catch {
+            // Partial failure is acceptable – continue with remaining hashes
+          }
+        }
       }
 
+      // 2) Delete NIP-94 event via NIP-09
+      const eventIds = item.publishedEventIds?.length
+        ? item.publishedEventIds
+        : nip94Event
+          ? [nip94Event.eventId]
+          : [];
+
+      if (config.relayUrl && eventIds.length) {
+        await publishDeletionEvent(
+          resolvedSigner,
+          config.relayUrl,
+          eventIds,
+          'Deleted via Blossom Media Widget',
+        );
+      }
+
+      // 3) Remove from local state immediately
       items = removeHistoryItemByUrl(items, item.url);
+      // Also remove derivative blobs from items
+      if (nip94Event) {
+        for (const dUrl of [nip94Event.thumbUrl, nip94Event.imageUrl]) {
+          if (dUrl) items = removeHistoryItemByUrl(items, dUrl);
+        }
+      }
+
+      if (nip94Data) {
+        nip94Data = {
+          ...nip94Data,
+          events: nip94Data.events.filter((ev) => {
+            if (ev.url === item.url) return false;
+            if (
+              item.sha256 &&
+              ev.sha256 &&
+              item.sha256.toLowerCase() === ev.sha256.toLowerCase()
+            )
+              return false;
+            return true;
+          }),
+        };
+      }
+
       config.onDelete?.(item.url);
     } catch (err) {
       config.onError?.(err instanceof Error ? err : new Error(String(err)));
+    }
+  }
+
+  /**
+   * Extract SHA-256 hash from a blossom blob URL.
+   * Blossom URLs follow the pattern: https://server/<sha256> or https://server/<sha256>.ext
+   */
+  function extractSha256FromUrl(url: string): string | null {
+    try {
+      const pathname = new URL(url).pathname;
+      const lastSegment = pathname.split('/').pop() ?? '';
+      const withoutExt = lastSegment.replace(/\.[^.]+$/, '');
+      if (/^[0-9a-f]{64}$/i.test(withoutExt)) return withoutExt.toLowerCase();
+      return null;
+    } catch {
+      return null;
     }
   }
 
