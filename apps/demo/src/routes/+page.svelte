@@ -24,8 +24,22 @@
     buildImageMetadataTags,
     buildKind1FallbackTags,
     publishEvent,
-    type ImageMetadataInput,
-  } from '$lib/nostr/publish';
+    LICENSE_PRESETS,
+    NO_LICENSE_ID,
+    CUSTOM_LICENSE_ID,
+    CC0_LICENSE_ID,
+    getLicenseFromChoice,
+    parseLicenseSpec,
+    resolveLicenseChoice,
+    formatLicenseDisplay,
+    createImagePreviewFile,
+    createPdfPreviewFile,
+    previewFileBaseName,
+    normalizeMime,
+    formatAiImageMode,
+    formatAiHints,
+  } from '@blossom/plugin/core';
+  import type { ImageMetadataInput } from '@blossom/plugin/core';
   import { deleteBlossomBlob, publishDeletionEvent } from '$lib/nostr/blossom-delete';
   import { fetchNip94Events, type Nip94FetchResult } from '$lib/nostr/nip94-fetch';
   import BlossomGallery from '$lib/components/BlossomGallery.svelte';
@@ -36,76 +50,10 @@
     'https://blossom.band/'
   ];
 
-  type LicensePreset = {
-    id: string;
-    canonical: string;
-    label: string;
-    licenseLabel: string;
-  };
-
-  const NO_LICENSE_ID = 'none';
-  const CUSTOM_LICENSE_ID = 'custom';
-  const CC0_LICENSE_ID = 'cc0-1.0';
   const AI_IMAGE_AUTHOR_GENERATED = 'KI generiert';
   const AI_IMAGE_AUTHOR_ASSISTED = 'Mit Hilfe von KI generiert';
   const THUMB_PREVIEW_MAX_DIM = 200;
   const IMAGE_PREVIEW_MAX_DIM = 600;
-  const LICENSE_PRESETS: LicensePreset[] = [
-    {
-      id: 'cc-by-4.0',
-      canonical: 'https://creativecommons.org/licenses/by/4.0/',
-      label: 'CC BY 4.0',
-      licenseLabel: 'CC-BY-4.0',
-    },
-    {
-      id: 'cc-by-sa-4.0',
-      canonical: 'https://creativecommons.org/licenses/by-sa/4.0/',
-      label: 'CC BY-SA 4.0',
-      licenseLabel: 'CC-BY-SA-4.0',
-    },
-    {
-      id: 'cc-by-nd-4.0',
-      canonical: 'https://creativecommons.org/licenses/by-nd/4.0/',
-      label: 'CC BY-ND 4.0',
-      licenseLabel: 'CC-BY-ND-4.0',
-    },
-    {
-      id: 'cc-by-nc-4.0',
-      canonical: 'https://creativecommons.org/licenses/by-nc/4.0/',
-      label: 'CC BY-NC 4.0',
-      licenseLabel: 'CC-BY-NC-4.0',
-    },
-    {
-      id: 'cc-by-nc-sa-4.0',
-      canonical: 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
-      label: 'CC BY-NC-SA 4.0',
-      licenseLabel: 'CC-BY-NC-SA-4.0',
-    },
-    {
-      id: 'cc-by-nc-nd-4.0',
-      canonical: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
-      label: 'CC BY-NC-ND 4.0',
-      licenseLabel: 'CC-BY-NC-ND-4.0',
-    },
-    {
-      id: 'cc0-1.0',
-      canonical: 'https://creativecommons.org/publicdomain/zero/1.0/',
-      label: 'CC0 1.0 (Public Domain)',
-      licenseLabel: 'CC0-1.0',
-    },
-    {
-      id: 'pdm-1.0',
-      canonical: 'https://creativecommons.org/publicdomain/mark/1.0/',
-      label: 'Public Domain Mark 1.0',
-      licenseLabel: 'PDM-1.0',
-    },
-    {
-      id: 'mit',
-      canonical: 'https://opensource.org/licenses/MIT',
-      label: 'MIT License',
-      licenseLabel: 'MIT',
-    },
-  ];
 
   let signer: SignerAdapter | null = null;
   let bunkerUrl = $state('');
@@ -180,114 +128,6 @@
       .replace(/\.[^.]+$/, '')
       .replace(/[_-]+/g, ' ')
       .trim();
-  }
-
-  function previewFileBaseName(file: File) {
-    const normalized = file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]+/gi, '-').trim();
-    return normalized || 'upload';
-  }
-
-  function normalizeMime(value?: string) {
-    return value?.trim().toLowerCase() ?? '';
-  }
-
-  function scaleDimensions(width: number, height: number, maxDimension: number) {
-    const longestSide = Math.max(width, height);
-    if (longestSide <= maxDimension) {
-      return {
-        width,
-        height,
-      };
-    }
-
-    const scale = maxDimension / longestSide;
-    return {
-      width: Math.max(1, Math.round(width * scale)),
-      height: Math.max(1, Math.round(height * scale)),
-    };
-  }
-
-  async function canvasToImageFile(canvas: HTMLCanvasElement, filename: string) {
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (nextBlob) => {
-          if (nextBlob) {
-            resolve(nextBlob);
-            return;
-          }
-
-          reject(new Error('Canvas conversion failed'));
-        },
-        'image/webp',
-        0.82,
-      );
-    });
-
-    return new File([blob], filename, { type: blob.type || 'image/webp' });
-  }
-
-  async function createImagePreviewFile(file: File, maxDimension: number, filename: string) {
-    const bitmap = await createImageBitmap(file);
-
-    try {
-      const target = scaleDimensions(bitmap.width, bitmap.height, maxDimension);
-      const canvas = document.createElement('canvas');
-      canvas.width = target.width;
-      canvas.height = target.height;
-
-      const context = canvas.getContext('2d');
-      if (!context) {
-        throw new Error('Canvas context unavailable');
-      }
-
-      context.drawImage(bitmap, 0, 0, target.width, target.height);
-      return await canvasToImageFile(canvas, filename);
-    } finally {
-      bitmap.close();
-    }
-  }
-
-  async function createPdfPreviewFile(file: File, maxDimension: number, filename: string) {
-    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-
-    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-        'pdfjs-dist/legacy/build/pdf.worker.mjs',
-        import.meta.url,
-      ).href;
-    }
-
-    const pdfBytes = await file.arrayBuffer();
-    const loadingTask = pdfjs.getDocument({
-      data: new Uint8Array(pdfBytes),
-    });
-    const documentRef = await loadingTask.promise;
-
-    try {
-      const page = await documentRef.getPage(1);
-      const viewport = page.getViewport({ scale: 1 });
-      const target = scaleDimensions(viewport.width, viewport.height, maxDimension);
-      const scale = target.width / viewport.width;
-      const renderViewport = page.getViewport({ scale });
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.ceil(renderViewport.width));
-      canvas.height = Math.max(1, Math.ceil(renderViewport.height));
-
-      const context = canvas.getContext('2d');
-      if (!context) {
-        throw new Error('Canvas context unavailable');
-      }
-
-      await page.render({
-        canvas: canvas as unknown as HTMLCanvasElement,
-        canvasContext: context as never,
-        viewport: renderViewport,
-      }).promise;
-
-      return await canvasToImageFile(canvas, filename);
-    } finally {
-      await documentRef.destroy();
-    }
   }
 
   function getTagValue(tags: string[][], key: string) {
@@ -370,129 +210,6 @@
     return mode === 'generated' ? AI_IMAGE_AUTHOR_GENERATED : AI_IMAGE_AUTHOR_ASSISTED;
   }
 
-  function formatAiImageMode(mode?: 'generated' | 'assisted') {
-    if (mode === 'generated') {
-      return AI_IMAGE_AUTHOR_GENERATED;
-    }
-
-    if (mode === 'assisted') {
-      return AI_IMAGE_AUTHOR_ASSISTED;
-    }
-
-    return '—';
-  }
-
-  function getLicenseFromChoice(choice: string, customSpec: string) {
-    if (choice === NO_LICENSE_ID) {
-      return { canonical: '', label: '' };
-    }
-
-    if (choice === CUSTOM_LICENSE_ID) {
-      return parseLicenseSpec(customSpec);
-    }
-
-    const preset = LICENSE_PRESETS.find((item) => item.id === choice);
-    if (!preset) {
-      return { canonical: '', label: '' };
-    }
-
-    return {
-      canonical: preset.canonical,
-      label: preset.licenseLabel,
-    };
-  }
-
-  function parseLicenseSpec(value: string) {
-    const normalized = value.trim();
-    if (!normalized) {
-      return { canonical: '', label: '' };
-    }
-
-    const pipeIndex = normalized.indexOf('|');
-    if (pipeIndex < 0) {
-      return { canonical: normalized, label: '' };
-    }
-
-    const canonical = normalized.slice(0, pipeIndex).trim();
-    const label = normalized.slice(pipeIndex + 1).trim();
-    return { canonical, label };
-  }
-
-  function toLicenseSpec(canonical: string, label: string) {
-    if (!canonical) {
-      return '';
-    }
-
-    if (!label) {
-      return canonical;
-    }
-
-    return `${canonical}|${label}`;
-  }
-
-  function resolveLicenseChoice(metadata?: ImageMetadataInput) {
-    const canonical = metadata?.license?.trim() ?? '';
-    const label = metadata?.licenseLabel?.trim() ?? '';
-
-    if (!canonical) {
-      return {
-        choice: NO_LICENSE_ID,
-        customSpec: '',
-        canonical: '',
-        label: '',
-      };
-    }
-
-    const preset = LICENSE_PRESETS.find((item) => item.canonical === canonical);
-    if (preset) {
-      return {
-        choice: preset.id,
-        customSpec: '',
-        canonical: preset.canonical,
-        label: label || preset.licenseLabel,
-      };
-    }
-
-    return {
-      choice: CUSTOM_LICENSE_ID,
-      customSpec: toLicenseSpec(canonical, label),
-      canonical,
-      label,
-    };
-  }
-
-  function formatLicenseDisplay(metadata?: { license?: string; licenseLabel?: string }) {
-    const canonical = metadata?.license?.trim() || '';
-    const label = metadata?.licenseLabel?.trim() || '';
-
-    if (!canonical) {
-      return '—';
-    }
-
-    return label ? `${label} (${canonical})` : canonical;
-  }
-
-  function formatAiHints(metadata?: {
-    aiImageMode?: 'generated' | 'assisted';
-    aiMetadataGenerated?: boolean;
-  }) {
-    const hints: string[] = [];
-
-    if (metadata?.aiImageMode === 'generated') {
-      hints.push('hint: ai-image-generated');
-    }
-
-    if (metadata?.aiImageMode === 'assisted') {
-      hints.push('hint: ai-image-assisted');
-    }
-
-    if (metadata?.aiMetadataGenerated) {
-      hints.push('hint: ai-metadata-generated');
-    }
-
-    return hints.length > 0 ? hints.join(', ') : '—';
-  }
-
   function resolveMetadataDialog(value: ImageMetadataInput | null) {
     const resolver = metadataResolver;
     metadataResolver = null;
@@ -523,7 +240,10 @@
     metadataAiImageMode = options?.initialMetadata?.aiImageMode ?? 'none';
     metadataAiMetadataGenerated = Boolean(options?.initialMetadata?.aiMetadataGenerated);
     metadataKeywords = options?.initialMetadata?.keywords?.join(', ') ?? '';
-    const licenseChoice = resolveLicenseChoice(options?.initialMetadata);
+    const licenseChoice = resolveLicenseChoice(
+      options?.initialMetadata?.license,
+      options?.initialMetadata?.licenseLabel,
+    );
     metadataLicenseChoice = licenseChoice.choice;
     metadataCustomLicenseSpec = licenseChoice.customSpec;
     metadataValidationError = '';
@@ -1221,7 +941,7 @@
             {currentUploadItem.metadata?.aiMetadataGenerated ? 'Ja (Beschreibung/Keywords)' : 'Nein'}
           </p>
           <p><strong>KI-Hints:</strong> {formatAiHints(currentUploadItem.metadata)}</p>
-          <p><strong>Lizenz:</strong> {formatLicenseDisplay(currentUploadItem.metadata)}</p>
+          <p><strong>Lizenz:</strong> {formatLicenseDisplay(currentUploadItem.metadata?.license, currentUploadItem.metadata?.licenseLabel)}</p>
           <p>
             <strong>Keywords:</strong>
             {currentUploadItem.metadata?.keywords?.length
@@ -1264,7 +984,7 @@
             {#if item.metadata.aiImageMode} | ai-image: {formatAiImageMode(item.metadata.aiImageMode)}{/if}
             {#if item.metadata.aiMetadataGenerated} | ai-metadata: generated{/if}
             | ai-hints: {formatAiHints(item.metadata)}
-            {#if item.metadata.license} | license: {formatLicenseDisplay(item.metadata)}{/if}
+            {#if item.metadata.license} | license: {formatLicenseDisplay(item.metadata.license, item.metadata.licenseLabel)}{/if}
             {#if item.metadata.keywords.length > 0}
               | keywords: {item.metadata.keywords.join(', ')}
             {/if}

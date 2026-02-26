@@ -8,6 +8,19 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- **`@blossom/plugin/widget` — Embeddable Media Widget**: Neues Widget-Paket als einbettbares Script/ESM-Modul. Ein einziger `<script>`-Tag fügt der Hostseite eine vollständige Mediathek-Funktionalität hinzu (Upload + Gallery + Metadaten + KI-Vorschläge).
+- **`MediaWidget.svelte`**: Root-Komponente mit nativem `<dialog>` (Shadow DOM), Tab-Bar (Dateien hochladen / Mediathek / Custom Tabs), signer-Auflösung (config.signer → window.nostr) und Cross-Tab-Navigation für Metadaten-Bearbeitung.
+- **`UploadTab.svelte`**: Upload-Tab mit Drag-&-Drop-Zone, Fortschrittsanzeige, Preview-Generierung (Thumb 200px + Image 600px) und nahtlosem Übergang zu `MetadataSidebar` nach erfolgreichem Upload.
+- **`GalleryTab.svelte`**: Mediathek-Tab mit NIP-94 + lokaler History Merge-Logik (aus `BlossomGallery.svelte` extrahiert), Thumbnail-Grid, Keyword-Filter-Chips, Volltext-Suche, Metadaten-Sidebar und Löschen-mit-Bestätigung.
+- **`MetadataSidebar.svelte`**: Wiederverwendbare Metadaten-Seitenleiste (Beschreibung, Alt-Text, Autor, Genre, Lizenz-Picker, KI-Modus, Keywords). Enthält KI-Vorschlag-Button (via `fetchVisionSuggestion`) und unterscheidet `create`-/`edit`-Modus.
+- **`Injector.ts`**: DOM-Scanner + `MutationObserver`: Findet `[data-blossom]`-Elemente (oder konfigurierten CSS-Selektor) und injiziert einen "🌸 Mediathek"-Button inline neben jedem Feld. Schreibt nach Auswahl die URL per synthetischen Events zurück (React/Vue/native kompatibel).
+- **`widget/index.ts`**: `init(config)` erzeugt Shadow-DOM-Host, mountet `MediaWidget` per Svelte 5 `mount()`, startet optional den Injector und gibt `BlossomMediaInstance` (`open/close/destroy`) zurück. Auto-Init via `data-blossom-config`-Attribut am Script-Tag.
+- **`widget/types.ts`**: Öffentliche Widget-Typen: `BlossomMediaConfig`, `BlossomMediaInstance`, `InsertResult`, `InsertMode`, `BlossomMediaFeatures`, `CustomTab`.
+- **`vite.config.widget.ts`**: Vite-Build für das Widget: IIFE (`window.BlossomMedia`) + ESM-Output mit injiziertem CSS (kein separates Stylesheet).
+- **`build:widget` Script**: `pnpm --filter @blossom/plugin build:widget` erzeugt `dist/widget/blossom-media.iife.js` und `dist/widget/blossom-media.esm.js`.
+
+
+
 - **Blossom Gallery**: Neuer „Blossom Gallery"-Button neben dem Upload-Input öffnet eine WordPress-ähnliche Mediathek-Dialog mit Thumbnail-Grid aller hochgeladenen Dateien.
 - **Blossom Gallery Server-Listing**: Gallery lädt beim Öffnen automatisch alle Blobs des eingeloggten Users von allen konfigurierten Blossom-Servern (`GET /list/{pubkey}`, BUD-02/BUD-04) und merged sie mit lokaler Upload-History. Remote-only Dateien werden mit ☁-Badge gekennzeichnet.
 - **Blossom Gallery NIP-94 Integration**: Gallery fetcht parallel zu den Blossom-Server-Blobs auch NIP-94 Kind-1063 Events vom Relay und reichert Galerie-Items automatisch mit Metadaten (Beschreibung, Autor, Lizenz, Genre, Keywords, KI-Hints, Thumbnails) an, soweit vorhanden.

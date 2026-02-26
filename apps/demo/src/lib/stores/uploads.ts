@@ -1,60 +1,38 @@
+/**
+ * Svelte-reactive upload history store for the demo app.
+ *
+ * The UploadHistoryItem type and pure CRUD helpers live in
+ * @blossom/plugin/core; this module wraps them in a Svelte writable store.
+ */
 import { writable } from 'svelte/store';
+import {
+  addHistoryItem,
+  updateHistoryItemByUrl,
+  removeHistoryItemByUrl,
+} from '@blossom/plugin/core';
 
-export interface UploadHistoryItem {
-  url: string;
-  mime?: string;
-  createdAt: string;
-  /** SHA-256 hash of the original file (from the `x` tag) */
-  sha256?: string;
-  /** Tags returned from the upload (includes thumb/image refs) */
-  uploadTags?: string[][];
-  metadata?: {
-    description: string;
-    author: string;
-    license: string;
-    licenseLabel?: string;
-    genre?: string;
-    keywords: string[];
-    altAttribution: string;
-    aiImageMode?: 'generated' | 'assisted';
-    aiMetadataGenerated?: boolean;
-  };
-  publishedKinds?: number[];
-  /** Event IDs of published Nostr events (kind 1063, kind 1 etc.) */
-  publishedEventIds?: string[];
-}
+export type { UploadHistoryItem } from '@blossom/plugin/core';
+
+import type { UploadHistoryItem } from '@blossom/plugin/core';
 
 export const uploadHistoryStore = writable<UploadHistoryItem[]>([]);
 
 export function addUploadHistory(item: UploadHistoryItem) {
-  uploadHistoryStore.update((items) => [item, ...items]);
+  uploadHistoryStore.update((items) => addHistoryItem(items, item));
 }
 
 export function updateLatestUploadHistoryByUrl(
   url: string,
-  updates: Partial<Pick<UploadHistoryItem, 'mime' | 'metadata' | 'publishedKinds' | 'publishedEventIds' | 'sha256' | 'uploadTags'>>,
+  updates: Partial<
+    Pick<
+      UploadHistoryItem,
+      'mime' | 'metadata' | 'publishedKinds' | 'publishedEventIds' | 'sha256' | 'uploadTags'
+    >
+  >,
 ) {
-  uploadHistoryStore.update((items) => {
-    const index = items.findIndex((item) => item.url === url);
-    if (index < 0) {
-      return items;
-    }
-
-    const nextItems = [...items];
-    const existing = nextItems[index];
-    nextItems[index] = {
-      ...existing,
-      ...updates,
-      publishedEventIds: [
-        ...(existing.publishedEventIds ?? []),
-        ...(updates.publishedEventIds ?? []),
-      ],
-    };
-
-    return nextItems;
-  });
+  uploadHistoryStore.update((items) => updateHistoryItemByUrl(items, url, updates));
 }
 
 export function removeUploadHistoryByUrl(url: string) {
-  uploadHistoryStore.update((items) => items.filter((item) => item.url !== url));
+  uploadHistoryStore.update((items) => removeHistoryItemByUrl(items, url));
 }

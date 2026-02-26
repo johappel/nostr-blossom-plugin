@@ -24,6 +24,11 @@
       "types": "./dist/tiptap/index.d.ts",
       "import": "./dist/tiptap/index.js",
       "default": "./dist/tiptap/index.js"
+    },
+    "./widget": {
+      "types": "./dist/widget/index.d.ts",
+      "import": "./dist/widget/index.d.ts",
+      "default": "./dist/widget/blossom-media.esm.js"
     }
   },
   "files": [
@@ -35,20 +40,31 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:widget": "vite build --config vite.config.widget.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@nostrify/nostrify": "^0.50.2",
-    "@tiptap/core": "^2.11.5"
+    "@tiptap/core": "^2.11.5",
+    "nostr-tools": "^2.17.0"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "jsdom": "^25.0.1",
+    "svelte": "^5.0.0",
     "typescript": "^5.7.3",
+    "vite": "^6.0.0",
     "vitest": "^2.1.8"
   },
   "peerDependencies": {
     "svelte": "^5.0.0",
-    "@tiptap/core": "^2.11.5"
+    "@tiptap/core": "^2.11.5",
+    "pdfjs-dist": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "pdfjs-dist": {
+      "optional": true
+    }
   }
 }
