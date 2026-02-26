@@ -519,6 +519,60 @@
 <style>
   /* Note: these styles are scoped to the component.
      The widget host injects a full reset + this compiled CSS into the Shadow DOM. */
+
+  /* ── Design tokens ── */
+  .bm-dialog {
+    --bm-bg: #ffffff;
+    --bm-bg-subtle: #f8f8f8;
+    --bm-bg-muted: #f0f0f0;
+    --bm-bg-hover: #f5f5f5;
+    --bm-text: #222222;
+    --bm-text-muted: #777777;
+    --bm-text-subtle: #888888;
+    --bm-border: #e8e8e8;
+    --bm-border-muted: #eee;
+    --bm-accent: #6c63ff;
+    --bm-accent-hover: #5a52d5;
+    --bm-accent-bg: #c5c2ff;
+    --bm-accent-bg-subtle: #f0eeff;
+    --bm-danger: #c0392b;
+    --bm-danger-bg: #fdf0ee;
+    --bm-danger-border: #f0c8c2;
+    --bm-input-bg: #ffffff;
+    --bm-input-border: #ccc;
+    --bm-shadow: 0 8px 40px rgba(0, 0, 0, 0.22);
+    --bm-backdrop: rgba(0, 0, 0, 0.45);
+    --bm-dropzone-bg: #faf9ff;
+    --bm-dropzone-border: #c0bfff;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .bm-dialog {
+      --bm-bg: #1e1e2e;
+      --bm-bg-subtle: #2a2a3c;
+      --bm-bg-muted: #333348;
+      --bm-bg-hover: #3a3a50;
+      --bm-text: #e0e0e6;
+      --bm-text-muted: #9999aa;
+      --bm-text-subtle: #888899;
+      --bm-border: #3a3a50;
+      --bm-border-muted: #333348;
+      --bm-accent: #8b83ff;
+      --bm-accent-hover: #7a72ee;
+      --bm-accent-bg: rgba(139, 131, 255, 0.3);
+      --bm-accent-bg-subtle: rgba(139, 131, 255, 0.1);
+      --bm-danger: #e74c3c;
+      --bm-danger-bg: rgba(231, 76, 60, 0.15);
+      --bm-danger-border: rgba(231, 76, 60, 0.3);
+      --bm-input-bg: #2a2a3c;
+      --bm-input-border: #4a4a5e;
+      --bm-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+      --bm-backdrop: rgba(0, 0, 0, 0.65);
+      --bm-dropzone-bg: rgba(139, 131, 255, 0.06);
+      --bm-dropzone-border: rgba(139, 131, 255, 0.35);
+    }
+  }
+
   .bm-dialog {
     position: fixed;
     inset: 0;
@@ -526,10 +580,11 @@
     padding: 0;
     border: none;
     border-radius: 12px;
-    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.22);
+    box-shadow: var(--bm-shadow);
     width: min(95vw, 1200px);
     height: min(95vh, 900px);
-    background: #fff;
+    background: var(--bm-bg);
+    color: var(--bm-text);
     overflow: hidden;
   }
 
@@ -539,7 +594,7 @@
   }
 
   .bm-dialog::backdrop {
-    background: rgba(0, 0, 0, 0.45);
+    background: var(--bm-backdrop);
     backdrop-filter: blur(2px);
   }
 
@@ -550,7 +605,7 @@
     overflow: hidden;
     font-family: system-ui, -apple-system, sans-serif;
     font-size: 14px;
-    color: #222;
+    color: var(--bm-text);
   }
 
   /* ── Header ── */
@@ -559,7 +614,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--bm-border);
   }
 
   .bm-title {
@@ -573,22 +628,22 @@
     border: none;
     font-size: 1.2rem;
     cursor: pointer;
-    color: #888;
+    color: var(--bm-text-subtle);
     padding: 0.25rem 0.4rem;
     border-radius: 4px;
     line-height: 1;
   }
 
   .bm-close:hover {
-    background: #f5f5f5;
-    color: #333;
+    background: var(--bm-bg-hover);
+    color: var(--bm-text);
   }
 
   /* ── Tabs ── */
   .bm-tabs {
     display: flex;
     gap: 0;
-    border-bottom: 1px solid #e8e8e8;
+    border-bottom: 1px solid var(--bm-border);
     padding: 0 0.75rem;
   }
 
@@ -600,20 +655,20 @@
     border: none;
     border-bottom: 3px solid transparent;
     cursor: pointer;
-    color: #777;
+    color: var(--bm-text-muted);
     position: relative;
     top: 1px;
     transition: color 0.15s, border-color 0.15s;
   }
 
   .bm-tab.active {
-    color: #6c63ff;
-    border-bottom-color: #6c63ff;
+    color: var(--bm-accent);
+    border-bottom-color: var(--bm-accent);
     font-weight: 600;
   }
 
   .bm-tab:hover:not(.active) {
-    color: #444;
+    color: var(--bm-text);
   }
 
   /* ── Content ── */
@@ -663,22 +718,23 @@
     align-items: center;
     gap: 1rem;
     font-size: 0.875rem;
-    color: #555;
+    color: var(--bm-text-muted);
     padding-bottom: 0.25rem;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--bm-border-muted);
   }
 
   .btn-back {
     font: inherit;
     font-size: 0.85rem;
     padding: 0.3rem 0.6rem;
-    background: #f0f0f0;
-    border: 1px solid #ccc;
+    background: var(--bm-bg-muted);
+    border: 1px solid var(--bm-input-border);
     border-radius: 4px;
     cursor: pointer;
+    color: var(--bm-text);
   }
 
   .btn-back:hover {
-    background: #e8e8e8;
+    background: var(--bm-bg-hover);
   }
 </style>

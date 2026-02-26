@@ -190,7 +190,8 @@
   }
 
   function handleSelect(url: string) {
-    selectedUrl = url;
+    // Toggle: clicking the same item again deselects (closes sidebar on mobile)
+    selectedUrl = selectedUrl === url ? null : url;
     deleteConfirmUrl = null;
   }
 
@@ -428,18 +429,25 @@
     font: inherit;
     font-size: 0.875rem;
     padding: 0.4rem 0.6rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--bm-input-border, #ccc);
     border-radius: 4px;
+    background: var(--bm-input-bg, #fff);
+    color: var(--bm-text, #222);
+  }
+
+  .search-input::placeholder {
+    color: var(--bm-text-subtle, #888);
   }
 
   .btn-refresh {
     font: inherit;
     padding: 0.4rem 0.7rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--bm-input-border, #ccc);
     border-radius: 4px;
-    background: #f5f5f5;
+    background: var(--bm-bg-subtle, #f5f5f5);
     cursor: pointer;
     font-size: 1rem;
+    color: var(--bm-text, #222);
   }
 
   .btn-refresh:disabled {
@@ -451,7 +459,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.3rem;
-    max-height: 5.4rem; /* ~3 rows of keyword tags */
+    max-height: 5.4rem;
     overflow-y: auto;
     padding-right: 0.25rem;
   }
@@ -460,28 +468,34 @@
     font: inherit;
     font-size: 0.75rem;
     padding: 0.2rem 0.5rem;
-    border: 1px solid #bbb;
+    border: 1px solid var(--bm-input-border, #bbb);
     border-radius: 99px;
-    background: #f5f5f5;
+    background: var(--bm-bg-subtle, #f5f5f5);
     cursor: pointer;
-    color: #555;
+    color: var(--bm-text-muted, #555);
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+
+  .keyword-tag:hover {
+    background: var(--bm-bg-muted, #eee);
+    color: var(--bm-text, #333);
   }
 
   .keyword-tag.active {
-    background: #6c63ff;
-    border-color: #6c63ff;
+    background: var(--bm-accent, #6c63ff);
+    border-color: var(--bm-accent, #6c63ff);
     color: #fff;
   }
 
   .hint {
-    color: #888;
+    color: var(--bm-text-subtle, #888);
     font-size: 0.875rem;
     text-align: center;
     padding: 2rem;
   }
 
   .error {
-    color: #c0392b;
+    color: var(--bm-danger, #c0392b);
     font-size: 0.875rem;
   }
 
@@ -505,21 +519,25 @@
   .thumb-btn {
     position: relative;
     aspect-ratio: 1;
-    border: 2px solid #e0e0e0;
+    border: 2px solid var(--bm-border, #e0e0e0);
     border-radius: 6px;
     overflow: hidden;
-    background: #f8f8f8;
+    background: var(--bm-bg-subtle, #f8f8f8);
     cursor: pointer;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .thumb-btn:hover {
+    border-color: var(--bm-text-muted, #aaa);
   }
 
   .thumb-btn.selected {
-    border-color: #6c63ff;
-    box-shadow: 0 0 0 2px #c5c2ff;
+    border-color: var(--bm-accent, #6c63ff);
+    box-shadow: 0 0 0 2px var(--bm-accent-bg, #c5c2ff);
   }
 
   .thumb-btn img {
@@ -545,7 +563,7 @@
   }
 
   .sidebar-panel {
-    border-left: 1px solid #eee;
+    border-left: 1px solid var(--bm-border-muted, #eee);
     padding-left: 0.75rem;
     display: grid;
     grid-template-rows: 1fr auto;
@@ -568,16 +586,20 @@
     max-height: 280px;
     object-fit: contain;
     border-radius: 6px;
-    border: 1px solid #ddd;
-    background: #f8f8f8;
+    border: 1px solid var(--bm-border, #ddd);
+    background: var(--bm-bg-subtle, #f8f8f8);
   }
 
   .pdf-preview {
     padding: 0.75rem;
-    background: #f5f5f5;
+    background: var(--bm-bg-subtle, #f5f5f5);
     border-radius: 6px;
     text-align: center;
     font-size: 0.85rem;
+  }
+
+  .pdf-preview a {
+    color: var(--bm-accent, #6c63ff);
   }
 
   .meta-list {
@@ -590,7 +612,7 @@
 
   .meta-list dt {
     font-weight: 600;
-    color: #777;
+    color: var(--bm-text-muted, #777);
     white-space: nowrap;
     align-self: start;
     padding-top: 2px;
@@ -615,7 +637,7 @@
     gap: 0.4rem;
     align-items: center;
     padding: 0.5rem 0;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--bm-border-muted, #eee);
   }
 
   .sidebar-toolbar .btn-primary {
@@ -624,8 +646,8 @@
 
   .delete-confirm {
     padding: 0.75rem;
-    background: #fdf0ee;
-    border: 1px solid #f0c8c2;
+    background: var(--bm-danger-bg, #fdf0ee);
+    border: 1px solid var(--bm-danger-border, #f0c8c2);
     border-radius: 6px;
   }
 
@@ -643,53 +665,80 @@
   .btn-primary {
     font: inherit;
     padding: 0.45rem 0.9rem;
-    background: #6c63ff;
+    background: var(--bm-accent, #6c63ff);
     color: #fff;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     font-size: 0.875rem;
+    transition: background 0.12s;
   }
 
   .btn-primary:hover {
-    background: #5a52d5;
+    background: var(--bm-accent-hover, #5a52d5);
   }
 
   .btn-secondary {
     font: inherit;
     padding: 0.45rem 0.9rem;
-    background: #f0f0f0;
-    border: 1px solid #ccc;
+    background: var(--bm-bg-muted, #f0f0f0);
+    border: 1px solid var(--bm-input-border, #ccc);
     border-radius: 5px;
     cursor: pointer;
     font-size: 0.875rem;
     text-align: center;
     white-space: nowrap;
+    color: var(--bm-text, #222);
+    transition: background 0.12s;
+  }
+
+  .btn-secondary:hover {
+    background: var(--bm-bg-hover, #e8e8e8);
   }
 
   .btn-delete {
     font: inherit;
     padding: 0.45rem 0.6rem;
-    background: #fff;
-    color: #c0392b;
-    border: 1px solid #c0392b;
+    background: transparent;
+    color: var(--bm-danger, #c0392b);
+    border: 1px solid var(--bm-danger, #c0392b);
     border-radius: 5px;
     cursor: pointer;
     font-size: 0.875rem;
+    transition: background 0.12s;
   }
 
   .btn-delete:hover {
-    background: #fdf0ee;
+    background: var(--bm-danger-bg, #fdf0ee);
   }
 
   .btn-danger {
     font: inherit;
     padding: 0.35rem 0.7rem;
-    background: #c0392b;
+    background: var(--bm-danger, #c0392b);
     color: #fff;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.875rem;
+  }
+
+  /* ── Mobile: sidebar as overlay ── */
+  @media (max-width: 640px) {
+    .gallery-body {
+      grid-template-columns: 1fr;
+      position: relative;
+    }
+
+    .sidebar-panel {
+      position: absolute;
+      inset: 0;
+      border-left: none;
+      padding-left: 0;
+      padding: 0.5rem;
+      background: var(--bm-bg, #fff);
+      z-index: 10;
+      border-radius: 8px;
+    }
   }
 </style>

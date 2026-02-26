@@ -338,12 +338,12 @@
 
   /* ── Drop zone ── */
   .dropzone {
-    border: 2px dashed #c0bfff;
+    border: 2px dashed var(--bm-dropzone-border, #c0bfff);
     border-radius: 10px;
     padding: 2.5rem 1.5rem;
     text-align: center;
     cursor: pointer;
-    background: #faf9ff;
+    background: var(--bm-dropzone-bg, #faf9ff);
     transition: background 0.15s, border-color 0.15s;
     display: grid;
     gap: 0.35rem;
@@ -351,8 +351,8 @@
   }
 
   .dropzone.hovering {
-    background: #f0eeff;
-    border-color: #6c63ff;
+    background: var(--bm-accent-bg-subtle, #f0eeff);
+    border-color: var(--bm-accent, #6c63ff);
   }
 
   .dz-icon {
@@ -368,7 +368,7 @@
 
   .dz-sub {
     font-size: 0.8rem;
-    color: #888;
+    color: var(--bm-text-subtle, #888);
     margin: 0;
   }
 
@@ -394,14 +394,14 @@
     width: 100%;
     max-width: 320px;
     height: 8px;
-    background: #e8e8e8;
+    background: var(--bm-bg-muted, #e8e8e8);
     border-radius: 9999px;
     overflow: hidden;
   }
 
   .progress-fill {
     height: 100%;
-    background: #6c63ff;
+    background: var(--bm-accent, #6c63ff);
     border-radius: 9999px;
     transition: width 0.2s ease;
   }
@@ -427,14 +427,14 @@
     background: none;
     border: none;
     cursor: pointer;
-    color: #888;
+    color: var(--bm-text-subtle, #888);
     padding: 0.2rem 0.4rem;
     border-radius: 4px;
   }
 
   .btn-cancel:hover {
-    color: #c0392b;
-    background: #fdf0ee;
+    color: var(--bm-danger, #c0392b);
+    background: var(--bm-danger-bg, #fdf0ee);
   }
 
   /* ── Done panel ── */
@@ -459,7 +459,7 @@
   .done-url {
     font-size: 0.8rem;
     word-break: break-all;
-    color: #555;
+    color: var(--bm-text-muted, #555);
     margin: 0;
   }
 
@@ -477,7 +477,7 @@
   }
 
   .error-msg {
-    color: #c0392b;
+    color: var(--bm-danger, #c0392b);
     font-size: 0.9rem;
     margin: 0;
   }
@@ -486,25 +486,32 @@
   .btn-primary {
     font: inherit;
     padding: 0.5rem 1.2rem;
-    background: #6c63ff;
+    background: var(--bm-accent, #6c63ff);
     color: #fff;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     font-size: 0.875rem;
+    transition: background 0.12s;
   }
 
   .btn-primary:hover {
-    background: #5a52d5;
+    background: var(--bm-accent-hover, #5a52d5);
   }
 
   .btn-secondary {
     font: inherit;
     padding: 0.5rem 1.2rem;
-    background: #f0f0f0;
-    border: 1px solid #ccc;
+    background: var(--bm-bg-muted, #f0f0f0);
+    border: 1px solid var(--bm-input-border, #ccc);
     border-radius: 5px;
     cursor: pointer;
     font-size: 0.875rem;
+    color: var(--bm-text, #222);
+    transition: background 0.12s;
+  }
+
+  .btn-secondary:hover {
+    background: var(--bm-bg-hover, #e8e8e8);
   }
 </style>
