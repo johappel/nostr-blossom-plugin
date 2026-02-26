@@ -191,13 +191,29 @@
 
 <div class="metadata-sidebar">
   <!-- Preview -->
-  {#if thumbnailUrl}
-    <img class="sidebar-preview" src={thumbnailUrl} alt={altAttribution || description || 'Vorschau'} />
-  {:else if isImage && fileUrl}
-    <img class="sidebar-preview" src={fileUrl} alt={altAttribution || description || 'Vorschau'} />
-  {:else if isPdf}
-    <div class="sidebar-preview-placeholder">📄 PDF — <a href={fileUrl} target="_blank" rel="noreferrer">Öffnen</a></div>
-  {/if}
+  <div class="preview-wrap">
+    {#if thumbnailUrl}
+      <img class="sidebar-preview" src={thumbnailUrl} alt={altAttribution || description || 'Vorschau'} />
+    {:else if isImage && fileUrl}
+      <img class="sidebar-preview" src={fileUrl} alt={altAttribution || description || 'Vorschau'} />
+    {:else if isPdf}
+      <div class="sidebar-preview-placeholder">📄 PDF — <a href={fileUrl} target="_blank" rel="noreferrer">Öffnen</a></div>
+    {/if}
+    {#if visionOptions}
+      <button
+        type="button"
+        class="btn-vision"
+        onclick={suggestFromVision}
+        disabled={visionLoading || !fileUrl}
+        title={visionLoading ? (isPdf ? 'Analysiere PDF…' : 'Analysiere Bild…') : 'KI-Vorschlag'}
+      >
+        {visionLoading ? '⏳' : '✨'}
+      </button>
+      {#if visionError}
+        <p class="vision-error">{visionError}</p>
+      {/if}
+    {/if}
+  </div>
 
   {#if showMetadata}
     <form onsubmit={(e) => { e.preventDefault(); submit(); }}>
@@ -210,22 +226,6 @@
           class:vision-updated={visionChangedDescription}
         ></textarea>
       </label>
-
-      {#if visionOptions}
-        <button
-          type="button"
-          class="btn-vision"
-          onclick={suggestFromVision}
-          disabled={visionLoading || !fileUrl}
-        >
-          {visionLoading
-            ? (isPdf ? 'Analysiere PDF…' : 'Analysiere Bild…')
-            : 'KI-Vorschlag'}
-        </button>
-        {#if visionError}
-          <p class="error">{visionError}</p>
-        {/if}
-      {/if}
 
       <label class="field">
         <span>Alt-Text / Attribution *</span>
@@ -333,6 +333,11 @@
     overflow-y: auto;
   }
 
+  .preview-wrap {
+    position: relative;
+    display: inline-block;
+  }
+
   .sidebar-preview {
     max-width: 100%;
     max-height: 200px;
@@ -340,6 +345,7 @@
     border-radius: 6px;
     border: 1px solid var(--bm-border, #ddd);
     background: var(--bm-bg-subtle, #f8f8f8);
+    display: block;
   }
 
   .sidebar-preview-placeholder {
@@ -348,6 +354,12 @@
     border-radius: 6px;
     text-align: center;
     font-size: 0.9rem;
+  }
+
+  .vision-error {
+    color: var(--bm-danger, #c0392b);
+    font-size: 0.8rem;
+    margin: 0.25rem 0 0;
   }
 
   form {
@@ -402,24 +414,35 @@
   }
 
   .btn-vision {
-    font: inherit;
-    font-size: 0.8rem;
-    padding: 0.35rem 0.75rem;
-    background: var(--bm-bg-muted, #f0f0f0);
-    border: 1px solid var(--bm-input-border, #ccc);
-    border-radius: 4px;
+    position: absolute;
+    bottom: 0.4rem;
+    right: 0.4rem;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    line-height: 1;
+    background: rgba(0, 0, 0, 0.55);
+    border: 2px solid #d4a017;
+    border-radius: 6px;
     cursor: pointer;
-    color: var(--bm-text, #222);
-    transition: background 0.12s;
+    color: #f5c518;
+    transition: background 0.15s, transform 0.15s;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
   }
 
   .btn-vision:hover {
-    background: var(--bm-bg-hover, #e8e8e8);
+    background: rgba(0, 0, 0, 0.75);
+    transform: scale(1.1);
   }
 
   .btn-vision:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+    transform: none;
   }
 
   .note {

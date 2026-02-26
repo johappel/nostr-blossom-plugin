@@ -44,6 +44,17 @@
   let deleteConfirmUrl = $state<string | null>(null);
   let filterQuery = $state('');
   let activeKeyword = $state<string | null>(null);
+  let copiedUrl = $state(false);
+
+  async function copyUrl(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      copiedUrl = true;
+      setTimeout(() => (copiedUrl = false), 1500);
+    } catch {
+      /* clipboard not available */
+    }
+  }
 
   /**
    * NIP-94 is the single source of truth for the gallery.
@@ -350,6 +361,12 @@
                     <dt>Typ</dt>
                     <dd>{selectedItem.mime}</dd>
                   {/if}
+                  <dt>URL</dt>
+                  <dd>
+                    <button type="button" class="url-copy" onclick={() => copyUrl(selectedItem.url)} title="URL kopieren">
+                      {copiedUrl ? '✅ Kopiert!' : selectedItem.url}
+                    </button>
+                  </dd>
                 </dl>
               {:else}
                 <!-- Basic info for items without full metadata -->
@@ -364,6 +381,12 @@
                     <dt>SHA-256</dt>
                     <dd class="mono">{selectedItem.sha256.slice(0, 16)}…</dd>
                   {/if}
+                  <dt>URL</dt>
+                  <dd>
+                    <button type="button" class="url-copy" onclick={() => copyUrl(selectedItem.url)} title="URL kopieren">
+                      {copiedUrl ? '✅ Kopiert!' : selectedItem.url}
+                    </button>
+                  </dd>
                 </dl>
                 <!-- Vision sidebar for items without metadata -->
                 {#if visionOptions && features.aiDescription !== false}
@@ -632,6 +655,22 @@
   .meta-list dd.mono {
     font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
     font-size: 0.75rem;
+  }
+
+  .url-copy {
+    all: unset;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+    word-break: break-all;
+    color: var(--bm-accent, #6c63ff);
+    padding: 0.15rem 0.3rem;
+    border-radius: 3px;
+    transition: background 0.12s;
+  }
+
+  .url-copy:hover {
+    background: var(--bm-accent-bg-subtle, #f0eeff);
   }
 
   .sidebar-toolbar {
