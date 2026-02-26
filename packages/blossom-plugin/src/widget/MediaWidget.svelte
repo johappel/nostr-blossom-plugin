@@ -8,6 +8,8 @@
   import { fetchNip94Events } from '../core/nip94';
   import { updateHistoryItemByUrl, removeHistoryItemByUrl } from '../core/history';
   import { deleteBlossomBlob, publishDeletionEvent } from '../core/delete';
+  import { buildImageMetadataTags } from '../core/metadata';
+  import { publishEvent } from '../core/publish';
   import { resolveVisionEndpoint } from '../core/vision';
   import { untrack } from 'svelte';
   import UploadTab from './UploadTab.svelte';
@@ -276,17 +278,112 @@
     }
   }
 
-  // ── Handle edit metadata (cross-tab) ──────────────────────────────────────
+  // ── Handle edit metadata ──────────────────────────────────────────────────
+  let editPreviousTab = $state<TabId>('gallery');
+  let editSaving = $state(false);
+
   function handleEditMetadata(item: UploadHistoryItem) {
     editItem = item;
-    activeTab = 'upload'; // switch to upload tab context for the edit overlay
+    editPreviousTab = activeTab; // remember which tab we came from
   }
 
-  function handleEditMetadataSubmit(metadata: import('../core/metadata').ImageMetadataInput) {
+  async function handleEditMetadataSubmit(metadata: import('../core/metadata').ImageMetadataInput) {
     if (!editItem) return;
-    const updated = updateHistoryItemByUrl(items, editItem.url, { metadata });
-    items = updated;
-    editItem = null;
+    const resolvedSigner = signer;
+    if (!resolvedSigner) return;
+
+    editSaving = true;
+    try {
+      // Build updated NIP-94 tags from the existing upload tags + new metadata
+      const uploadTags = editItem.uploadTags ?? [];
+      const newTags = buildImageMetadataTags(uploadTags, metadata);
+
+      // 1) Publish new NIP-94 kind 1063 event
+      if (config.relayUrl) {
+        const result = await publishEvent(
+          resolvedSigner,
+          config.relayUrl,
+          metadata.description || '',
+          newTags,
+          1063,
+        );
+
+        const newEventId = (result.event as Record<string, unknown>).id as string;
+
+        // 2) Delete old NIP-94 event(s) via NIP-09
+        const oldEventIds = editItem.publishedEventIds?.filter((id) => id !== newEventId) ?? [];
+        if (oldEventIds.length > 0) {
+          try {
+            await publishDeletionEvent(
+              resolvedSigner,
+              config.relayUrl,
+              oldEventIds,
+              'Replaced by updated NIP-94 event',
+            );
+          } catch {
+            // Non-fatal: old event stays but new one supersedes it
+          }
+        }
+
+        // 3) Update nip94Data locally so gallery shows changes immediately
+        if (nip94Data) {
+          // Remove old event(s)
+          const updatedEvents = nip94Data.events.filter(
+            (ev) => ev.url !== editItem!.url &&
+              !(editItem!.sha256 && ev.sha256 && editItem!.sha256.toLowerCase() === ev.sha256.toLowerCase()),
+          );
+
+          // Parse the new event into a Nip94FileEvent-like structure
+          const createdAt = (result.event as Record<string, unknown>).created_at as number;
+
+          // Re-fetch NIP-94 data from relay to get properly parsed event
+          // For immediate feedback, manually construct the parsed event
+          const getTag = (tags: string[][], key: string) =>
+            tags.find((t) => t[0] === key)?.[1]?.trim() ?? '';
+          const getAllTags = (tags: string[][], key: string) =>
+            tags.filter((t) => t[0] === key).map((t) => t[1]?.trim()).filter(Boolean) as string[];
+
+          const parseAiMode = (tags: string[][]): 'generated' | 'assisted' | undefined => {
+            const hints = getAllTags(tags, 'hint');
+            if (hints.includes('ai-image-generated')) return 'generated';
+            if (hints.includes('ai-image-assisted')) return 'assisted';
+            return undefined;
+          };
+
+          updatedEvents.unshift({
+            eventId: newEventId,
+            createdAt: createdAt ?? Math.floor(Date.now() / 1000),
+            content: metadata.description || '',
+            url: getTag(newTags, 'url') || editItem.url,
+            sha256: getTag(newTags, 'x') || editItem.sha256 || '',
+            mime: getTag(newTags, 'm') || editItem.mime || '',
+            tags: newTags,
+            thumbUrl: getTag(newTags, 'thumb') || undefined,
+            imageUrl: getTag(newTags, 'image') || undefined,
+            metadata,
+          });
+
+          nip94Data = {
+            events: updatedEvents,
+            byUrl: new Map(updatedEvents.map((e) => [e.url, e])),
+            bySha256: new Map(
+              updatedEvents
+                .filter((e) => e.sha256)
+                .map((e) => [e.sha256.toLowerCase(), e]),
+            ),
+          };
+        }
+      }
+
+      // Also update local items
+      items = updateHistoryItemByUrl(items, editItem.url, { metadata });
+    } catch (err) {
+      config.onError?.(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      editSaving = false;
+      editItem = null;
+      activeTab = editPreviousTab; // return to gallery (or wherever we came from)
+    }
   }
 
   // ── Custom tab container ──────────────────────────────────────────────────
@@ -351,10 +448,10 @@
     <!-- Content area -->
     <div class="bm-content">
       {#if editItem}
-        <!-- Edit-metadata overlay (cross-tab navigation) -->
+        <!-- Edit-metadata overlay (shown on top, tabs stay mounted underneath) -->
         <div class="bm-edit-overlay">
           <div class="edit-overlay-header">
-            <button type="button" class="btn-back" onclick={() => (editItem = null)}>← Zurück</button>
+            <button type="button" class="btn-back" onclick={() => { editItem = null; activeTab = editPreviousTab; }}>← Zurück</button>
             <span>Metadaten bearbeiten: {editItem.metadata?.description ?? editItem.url}</span>
           </div>
           <MetadataSidebar
@@ -367,10 +464,13 @@
             showDelete={false}
             showMetadata={true}
             onSubmit={handleEditMetadataSubmit}
-            onCancel={() => (editItem = null)}
+            onCancel={() => { editItem = null; activeTab = editPreviousTab; }}
           />
         </div>
-      {:else}
+      {/if}
+
+      <!-- Tabs always stay mounted so selection state is preserved -->
+      <div class="bm-tabs-content" hidden={!!editItem}>
         {#each tabs as tab}
           <div
             class="bm-tab-panel"
@@ -411,7 +511,7 @@
             {/if}
           </div>
         {/each}
-      {/if}
+      </div>
     </div>
   </div>
 </dialog>
@@ -521,6 +621,16 @@
     overflow: hidden;
     display: grid;
     min-height: 0;
+  }
+
+  .bm-tabs-content {
+    display: grid;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .bm-tabs-content[hidden] {
+    display: none;
   }
 
   .bm-tab-panel {
