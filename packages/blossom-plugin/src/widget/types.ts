@@ -18,8 +18,9 @@ import type { BlossomSigner } from '../core/types';
  * - `markdown`  – `![alt](url)` for images, `[filename](url)` for other files.
  * - `html`      – `<img src="url" alt="alt">` for images, `<a href>` otherwise.
  * - `nostr-tag` – NIP-94 imeta tag string for use in Nostr clients.
+ * - `json`      – Full metadata as JSON object.
  */
-export type InsertMode = 'url' | 'markdown' | 'html' | 'nostr-tag';
+export type InsertMode = 'url' | 'markdown' | 'html' | 'nostr-tag' | 'json';
 
 // ─── Result / callback payload ────────────────────────────────────────────────
 
@@ -56,6 +57,10 @@ export interface InsertResult {
   keywords?: string[];
   /** All raw NIP-94 tags from the upload response */
   tags: string[][];
+  /** Selected output format */
+  insertMode?: InsertMode;
+  /** Pre-formatted text based on insertMode */
+  formattedText?: string;
 }
 
 // ─── Feature toggles ─────────────────────────────────────────────────────────

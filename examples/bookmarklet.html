@@ -233,9 +233,10 @@
       relayUrl:'wss://relay.damus.io',
       targets:'',
       onInsert:function(result){
-        navigator.clipboard.writeText(result.url).then(function(){
+        var text=result.formattedText||result.url;
+        navigator.clipboard.writeText(text).then(function(){
           var d=document.createElement('div');
-          d.textContent='✅ URL kopiert: '+result.url;
+          d.textContent='\u2705 Kopiert! ('+result.insertMode+')';
           d.style.cssText='position:fixed;bottom:1rem;right:1rem;'+
             'background:#6c63ff;color:#fff;padding:0.75rem 1.25rem;'+
             'border-radius:8px;font:600 0.9rem system-ui;z-index:2147483647;'+
@@ -280,7 +281,7 @@ function generateBookmarklet() {
   // The toast notification shown after copying
   const toast = [
     "var d=document.createElement('div');",
-    "d.textContent='\\u2705 URL kopiert: '+result.url;",
+    "d.textContent='\\u2705 Kopiert! ('+result.insertMode+')';\n",
     "d.style.cssText='position:fixed;bottom:1rem;right:1rem;",
     "background:#6c63ff;color:#fff;padding:0.75rem 1.25rem;",
     "border-radius:8px;font:600 0.9rem system-ui;z-index:2147483647;",
@@ -292,7 +293,8 @@ function generateBookmarklet() {
 
   const onInsert = [
     "onInsert:function(result){",
-      "navigator.clipboard.writeText(result.url).then(function(){",
+      "var text=result.formattedText||result.url;",
+      "navigator.clipboard.writeText(text).then(function(){",
         toast,
       "});",
     "}"

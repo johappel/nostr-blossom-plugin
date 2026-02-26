@@ -1,10 +1,11 @@
 <script lang="ts">
   import type { UploadHistoryItem } from '../core/history';
   import type { Nip94FetchResult } from '../core/nip94';
-  import type { InsertResult, BlossomMediaFeatures } from './types';
+  import type { InsertResult, BlossomMediaFeatures, InsertMode } from './types';
   import type { BlossomSigner } from '../core/types';
   import type { VisionClientOptions } from '../core/vision';
   import { formatLicenseDisplay } from '../core/licenses';
+  import { formatInsertResult, INSERT_MODE_LABELS } from '../core/format';
   import MetadataSidebar from './MetadataSidebar.svelte';
 
   interface GalleryTabProps {
@@ -45,6 +46,7 @@
   let filterQuery = $state('');
   let activeKeyword = $state<string | null>(null);
   let copiedUrl = $state(false);
+  let insertMode = $state<InsertMode>('url');
 
   async function copyUrl(url: string) {
     try {
@@ -208,7 +210,10 @@
 
   function handleApply() {
     if (!selectedItem) return;
-    onInserted(buildInsertResult(selectedItem));
+    const result = buildInsertResult(selectedItem);
+    result.insertMode = insertMode;
+    result.formattedText = formatInsertResult(result, insertMode);
+    onInserted(result);
     selectedUrl = null;
     deleteConfirmUrl = null;
   }
@@ -364,7 +369,7 @@
                   <dt>URL</dt>
                   <dd>
                     <button type="button" class="url-copy" onclick={() => copyUrl(selectedItem.url)} title="URL kopieren">
-                      {copiedUrl ? '✅ Kopiert!' : selectedItem.url}
+                      {#if copiedUrl}<svg class="icon-inline" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Kopiert!{:else}{selectedItem.url}{/if}
                     </button>
                   </dd>
                 </dl>
@@ -384,7 +389,7 @@
                   <dt>URL</dt>
                   <dd>
                     <button type="button" class="url-copy" onclick={() => copyUrl(selectedItem.url)} title="URL kopieren">
-                      {copiedUrl ? '✅ Kopiert!' : selectedItem.url}
+                      {#if copiedUrl}<svg class="icon-inline" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Kopiert!{:else}{selectedItem.url}{/if}
                     </button>
                   </dd>
                 </dl>
@@ -414,14 +419,19 @@
               {#if onEditMetadata}
                 <button
                   type="button"
-                  class="btn-secondary"
+                  class="btn-icon"
                   onclick={() => onEditMetadata?.(selectedItem!)}
                   title="Metadaten bearbeiten"
-                >✏️ Bearbeiten</button>
+                ><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
               {/if}
               {#if features.deleteFiles !== false}
-                <button type="button" class="btn-delete" onclick={handleDeleteClick} title="Datei löschen">🗑</button>
+                <button type="button" class="btn-icon btn-icon--danger" onclick={handleDeleteClick} title="Datei löschen"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
               {/if}
+              <select class="format-select" bind:value={insertMode} title="Ausgabeformat">
+                {#each Object.entries(INSERT_MODE_LABELS) as [value, label]}
+                  <option {value}>{label}</option>
+                {/each}
+              </select>
               <button type="button" class="btn-primary" onclick={handleApply}>Übernehmen</button>
             </div>
           {/if}
@@ -681,8 +691,52 @@
     border-top: 1px solid var(--bm-border-muted, #eee);
   }
 
+  .sidebar-toolbar .btn-icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--bm-input-border, #ccc);
+    border-radius: 6px;
+    background: var(--bm-input-bg, #fff);
+    color: var(--bm-text-muted, #666);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+
+  .sidebar-toolbar .btn-icon:hover {
+    background: var(--bm-accent-bg-subtle, #f0eeff);
+    color: var(--bm-accent, #6c63ff);
+  }
+
+  .sidebar-toolbar .btn-icon--danger:hover {
+    background: var(--bm-danger-bg, #fdf0ee);
+    color: var(--bm-danger, #d63031);
+  }
+
+  .icon-inline {
+    display: inline-block;
+    vertical-align: -2px;
+    margin-right: 2px;
+  }
+
   .sidebar-toolbar .btn-primary {
     flex: 1;
+  }
+
+  .format-select {
+    font: inherit;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.4rem;
+    border: 1px solid var(--bm-input-border, #ccc);
+    border-radius: 4px;
+    background: var(--bm-input-bg, #fff);
+    color: var(--bm-text, #222);
+    cursor: pointer;
+    min-width: 0;
   }
 
   .delete-confirm {
@@ -735,22 +789,6 @@
 
   .btn-secondary:hover {
     background: var(--bm-bg-hover, #e8e8e8);
-  }
-
-  .btn-delete {
-    font: inherit;
-    padding: 0.45rem 0.6rem;
-    background: transparent;
-    color: var(--bm-danger, #c0392b);
-    border: 1px solid var(--bm-danger, #c0392b);
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 0.875rem;
-    transition: background 0.12s;
-  }
-
-  .btn-delete:hover {
-    background: var(--bm-danger-bg, #fdf0ee);
   }
 
   .btn-danger {

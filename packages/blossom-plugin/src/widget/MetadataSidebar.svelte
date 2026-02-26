@@ -207,7 +207,11 @@
         disabled={visionLoading || !fileUrl}
         title={visionLoading ? (isPdf ? 'Analysiere PDF…' : 'Analysiere Bild…') : 'KI-Vorschlag'}
       >
-        {visionLoading ? '⏳' : '✨'}
+        {#if visionLoading}
+          <svg class="vision-spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-dasharray="50 20" stroke-linecap="round"/></svg>
+        {:else}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/></svg>
+        {/if}
       </button>
       {#if visionError}
         <p class="vision-error">{visionError}</p>
@@ -423,8 +427,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
-    line-height: 1;
     background: rgba(0, 0, 0, 0.55);
     border: 2px solid #d4a017;
     border-radius: 6px;
@@ -432,6 +434,14 @@
     color: #f5c518;
     transition: background 0.15s, transform 0.15s;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .vision-spinner {
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   .btn-vision:hover {

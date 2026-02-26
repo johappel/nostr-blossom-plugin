@@ -135,11 +135,11 @@ export function init(config: BlossomMediaConfig): BlossomMediaInstance {
     },
   };
 
-  // Patch onInsert to auto-write URL back to target
+  // Patch onInsert to auto-write formatted text or URL back to target
   const originalOnInsert = config.onInsert;
   config.onInsert = (result: InsertResult) => {
     if (activeTarget) {
-      Injector.writeUrlToTarget(activeTarget, result.url);
+      Injector.writeUrlToTarget(activeTarget, result.formattedText ?? result.url);
     }
     originalOnInsert?.(result, activeTarget ?? null);
     instance.close();
