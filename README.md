@@ -1,18 +1,139 @@
 # Blossom Plugin Monorepo
 
-Monorepo für ein Blossom-Upload-Plugin und einen Svelte-Demo-Client für Nostr.
+Monorepo für ein einbettbares Blossom-Media-Widget und Nostr-Upload-Plugin.
 
-## Pakete
+## Pakete / Apps
 
-- `packages/blossom-plugin`: Headless Upload-Client, Svelte Input-Action, TipTap Helper.
-- `apps/demo`: Demo-App mit NIP-07/NIP-46 Login, Upload, URL-Übernahme und Event-Publish.
+| Pfad | Beschreibung |
+|---|---|
+| `packages/blossom-plugin` | Plugin-Kern: Upload-Client, Svelte Action, TipTap Helper, **Media Widget** |
+| `apps/image-describer` | KI-Vision-Service (Fastify) für AI-gestützte Metadaten-Vorschläge |
+| `examples/` | Eigenständige HTML-Beispiele für die Widget-Einbettung |
 
 ## Quickstart
 
 ```bash
 pnpm install
-pnpm dev
+pnpm build:widget   # baut dist/widget/blossom-media.{iife,esm}.js
 ```
+
+Dann direkt `examples/simple-input.html` im Browser öffnen.
+
+## Widget einbetten
+
+### Variante A — Auto-Init (kein JS nötig)
+
+```html
+<input type="text" data-blossom name="imageUrl" />
+
+<script
+  src="blossom-media.iife.js"
+  data-blossom-config='{
+    "servers": ["https://blossom.primal.net"],
+    "relayUrl": "wss://relay.damus.io"
+  }'
+></script>
+```
+
+Felder mit `data-blossom` erhalten automatisch einen **🌸 Mediathek**-Button.  
+Nach Auswahl wird die URL direkt ins Feld geschrieben.
+
+### Variante B — Manuelles Init
+
+```js
+const media = window.BlossomMedia.init({
+  servers: ['https://blossom.primal.net'],
+  relayUrl: 'wss://relay.damus.io',
+  visionEndpoint: 'http://localhost:8787',  // optional: KI-Beschreibung
+  onInsert: (result, targetElement) => {
+    console.log('Eingefügt:', result.url);
+  },
+});
+
+// Programmatisch öffnen:
+media.open(document.querySelector('#upload-input'));
+```
+
+### ESM-Import
+
+```js
+import { init } from '@blossom/plugin/widget';
+
+const media = init({ servers: ['https://blossom.primal.net'] });
+```
+
+## KI-Vision-Service (image-describer)
+
+Für den KI-Vorschlag-Button im Metadaten-Dialog wird der `image-describer`-Service benötigt.
+
+1. Env anlegen:
+
+```powershell
+Copy-Item apps/image-describer/.env.example apps/image-describer/.env
+```
+
+2. In `.env` mindestens `OPENROUTER_API_KEY` setzen.
+
+3. Starten:
+
+```bash
+docker compose up -d image-describer
+```
+
+4. Widget-Konfiguration: `visionEndpoint: 'http://localhost:8787'`
+
+## Build-Skripte
+
+| Skript | Beschreibung |
+|---|---|
+| `pnpm build` | Alle Pakete bauen (tsc) |
+| `pnpm build:widget` | Widget-Bundle bauen (IIFE + ESM) |
+| `pnpm typecheck` | TypeScript-Check aller Pakete |
+| `pnpm test` | Tests aller Pakete |
+
+## Plugin-API (direkte Nutzung ohne Widget)
+
+### Upload-Client
+
+```ts
+import { createBlossomBridge } from '@blossom/plugin';
+
+const bridge = createBlossomBridge({
+  servers: ['https://blossom.primal.net/'],
+  signer, // { getPublicKey, signEvent }
+});
+
+const result = await bridge.selectAndUpload({ accept: 'image/*,application/pdf' });
+if (result) console.log(result.url, result.tags);
+```
+
+### Svelte Input Action
+
+```svelte
+<input use:useBlossomInput={{ onSelectUrl, iconLabel: 'Upload' }} />
+```
+
+### TipTap Extension
+
+```ts
+import { BlossomExtension, uploadAndInsertBlossomMedia } from '@blossom/plugin';
+
+const editor = new Editor({
+  extensions: [StarterKit, Image, BlossomExtension],
+});
+
+await uploadAndInsertBlossomMedia(editor, async () => ({
+  url: 'https://example.com/image.png',
+  mimeType: 'image/png',
+}));
+```
+
+## Dokumentation
+
+- Widget-Konfiguration: [`docs/simple-integration.md`](docs/simple-integration.md)
+- Beispiele: [`examples/`](examples/)
+- Docs-Beispiele: [`docs/examples/`](docs/examples/)
+
 
 ## Demo `.env` konfigurieren
 

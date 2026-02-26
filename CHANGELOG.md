@@ -18,7 +18,12 @@ The format is based on Keep a Changelog.
 - **`widget/types.ts`**: Öffentliche Widget-Typen: `BlossomMediaConfig`, `BlossomMediaInstance`, `InsertResult`, `InsertMode`, `BlossomMediaFeatures`, `CustomTab`.
 - **`vite.config.widget.ts`**: Vite-Build für das Widget: IIFE (`window.BlossomMedia`) + ESM-Output mit injiziertem CSS (kein separates Stylesheet).
 - **`build:widget` Script**: `pnpm --filter @blossom/plugin build:widget` erzeugt `dist/widget/blossom-media.iife.js` und `dist/widget/blossom-media.esm.js`.
+- **`examples/simple-input.html`**: Erstes selbständiges HTML-Beispiel für die Widget-Einbettung — zeigt Auto-Init via `data-blossom-config`, manuellen Init via `window.BlossomMedia.init()` und `data-blossom`-Feldmarkierung.
 
+### Changed
+
+- **`apps/demo` entfernt**: Die SvelteKit-Demo-App wurde entfernt. Ihre Inhalte sind vollständig im Plugin (`@blossom/plugin/core` + `@blossom/plugin/widget`) aufgegangen. Anstelle der Demo gibt es jetzt eigenständige HTML-Beispiele unter `examples/`.
+- Root-`package.json`: `dev`- und `start`-Skripte (Demo-spezifisch) entfernt; `build:widget`-Shortcut ergänzt.
 
 
 - **Blossom Gallery**: Neuer „Blossom Gallery"-Button neben dem Upload-Input öffnet eine WordPress-ähnliche Mediathek-Dialog mit Thumbnail-Grid aller hochgeladenen Dateien.
