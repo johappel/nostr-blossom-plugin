@@ -60,12 +60,52 @@
   let activeTab = $state<TabId>(untrack(() => tabs[0]?.id ?? 'upload'));
 
   // ── Signer ────────────────────────────────────────────────────────────────
-  let signer = $derived.by<BlossomSigner | null>(() => {
+  // NIP-07 extensions inject `window.nostr` asynchronously, often after our
+  // component has already mounted.  A plain `$derived` over `window.nostr`
+  // won't re-evaluate because the global is not reactive.  We therefore use
+  // a reactive state that is kept in sync via a short polling $effect.
+  //
+  // IMPORTANT: We MUST use `$state.raw` instead of `$state` here.  Svelte 5's
+  // `$state()` wraps values in a deep reactive Proxy.  NIP-07 extension
+  // objects (nos2x, Alby, …) rely on internal browser message channels that
+  // break when proxied — `signEvent()` never resolves.  `$state.raw()` stores
+  // the reference as-is without deep proxying.
+  type WindowWithNostr = Window & { nostr?: BlossomSigner };
+
+  function detectSigner(): BlossomSigner | null {
     if (config.signer) return config.signer;
-    if (typeof window !== 'undefined' && (window as Window & { nostr?: BlossomSigner }).nostr) {
-      return (window as Window & { nostr?: BlossomSigner }).nostr ?? null;
+    if (typeof window !== 'undefined' && (window as WindowWithNostr).nostr) {
+      return (window as WindowWithNostr).nostr ?? null;
     }
     return null;
+  }
+
+  let signer = $state.raw<BlossomSigner | null>(detectSigner());
+
+  // Poll for window.nostr up to ~5 s after mount (10 × 500 ms)
+  $effect(() => {
+    // Already have a signer from config — no need to poll
+    if (config.signer) {
+      signer = config.signer;
+      return;
+    }
+
+    // Already detected
+    if (signer) return;
+
+    let attempts = 0;
+    const MAX_ATTEMPTS = 10;
+    const iv = setInterval(() => {
+      const detected = detectSigner();
+      if (detected) {
+        signer = detected;
+        clearInterval(iv);
+      } else if (++attempts >= MAX_ATTEMPTS) {
+        clearInterval(iv);
+      }
+    }, 500);
+
+    return () => clearInterval(iv);
   });
 
   // ── Gallery state ─────────────────────────────────────────────────────────

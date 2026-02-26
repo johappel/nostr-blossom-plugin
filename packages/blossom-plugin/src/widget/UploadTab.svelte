@@ -273,6 +273,10 @@
       <div class="progress-bar" role="progressbar">
         <div class="progress-fill" style="width: {phase.progress}%"></div>
       </div>
+      <p class="signer-hint">
+        Falls sich nichts tut: Deine Signer-Extension (nos2x, Alby …) wartet
+        möglicherweise auf Bestätigung — prüfe andere Browserfenster oder Popups.
+      </p>
     </div>
 
   {:else if phase.type === 'metadata'}
@@ -404,6 +408,14 @@
     background: var(--bm-accent, #6c63ff);
     border-radius: 9999px;
     transition: width 0.2s ease;
+  }
+
+  .signer-hint {
+    font-size: 0.75rem;
+    color: var(--bm-text-subtle, #888);
+    margin: 0.5rem 0 0;
+    max-width: 320px;
+    line-height: 1.4;
   }
 
   /* ── Metadata panel ── */

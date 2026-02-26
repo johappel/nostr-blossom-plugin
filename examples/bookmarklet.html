@@ -221,6 +221,23 @@
   es auf jeder Seite — ohne dass ein Input-Feld vorhanden sein muss.
 </p>
 
+<h2>⚠️ CSP-geschützte Seiten (z.&nbsp;B. Coracle, Primal …)</h2>
+<p>
+  Viele Nostr-Clients setzen eine strikte <strong>Content Security Policy (CSP)</strong>,
+  die das Laden externer Skripte blockiert. Das klassische Bookmarklet oben funktioniert
+  dort <strong>nicht</strong>.
+</p>
+<p>
+  <strong>Lösung:</strong> Nutze stattdessen das Popup-Bookmarklet. Es öffnet die Mediathek
+  in einem eigenen Fenster — dort gibt es keine CSP-Einschränkungen —, kopiert die URL in die
+  Zwischenablage, und du fügst sie mit <kbd>Strg+V</kbd> auf der Zielseite ein.
+</p>
+<p>
+  → <a href="bookmarklet-popup.html"><strong>Popup-Bookmarklet aufsetzen</strong></a>
+</p>
+
+<hr />
+
 <h2>Manueller Einbau (fortgeschritten)</h2>
 <p>Falls du den Bookmarklet-Code lieber selbst einbaust:</p>
 

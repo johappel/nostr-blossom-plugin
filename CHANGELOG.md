@@ -19,6 +19,7 @@ The format is based on Keep a Changelog.
 - **`vite.config.widget.ts`**: Vite-Build für das Widget: IIFE (`window.BlossomMedia`) + ESM-Output. CSS aller Svelte-Komponenten wird via eigenem Rollup-Plugin (`injectCssIntoBundle`) als `__BLOSSOM_CSS__`-Variable in das JS-Bundle eingebettet und zur Laufzeit in den Shadow DOM injiziert — kein separates Stylesheet nötig.
 - **`build:widget` Script**: `pnpm --filter @blossom/plugin build:widget` erzeugt `dist/widget/blossom-media.iife.js` und `dist/widget/blossom-media.esm.js`.
 - **`examples/simple-input.html`**: Erstes selbständiges HTML-Beispiel für die Widget-Einbettung — zeigt Auto-Init via `data-blossom-config`, manuellen Init via `window.BlossomMedia.init()` und `data-blossom`-Feldmarkierung.
+- **`examples/bookmarklet-popup.html`**: Popup-Variante des Bookmarklets für CSP-geschützte Seiten (z. B. Coracle, Primal). Öffnet die Mediathek in einem eigenen Fenster, kopiert die URL in die Zwischenablage. Konfiguration per URL-Parameter (`?servers=…&relay=…&vision=…`).
 
 ### Changed
 
@@ -28,6 +29,7 @@ The format is based on Keep a Changelog.
 
 ### Fixed
 
+- **`MediaWidget.svelte` — Signer-Erkennung**: `window.nostr` (NIP-07) wurde nur einmal beim Mount geprüft. Da `$derived` globale Variablen nicht reaktiv trackt und NIP-07-Extensions `window.nostr` asynchron injizieren, blieb der Signer auf `null`. Ersetzt durch reaktiven `$state` mit Polling (bis 5 s), sodass spät injizierte NIP-07-Signer zuverlässig erkannt werden.
 - **`widget/index.svelte.ts`** (Umbenennung von `index.ts`): `$state()`-Runes konnten in einer plain `.ts`-Datei nicht genutzt werden; die Umbenennung auf `.svelte.ts` aktiviert den Svelte-5-Rune-Compiler für diese Datei.
 - **Svelte-Warnungen `state_referenced_locally`** in `MetadataSidebar.svelte` und `MediaWidget.svelte`: Form-State-Initialisierungen aus Props werden jetzt mit `untrack(() => ...)` gekapselt.
 - **Svelte-Warnung `a11y_no_noninteractive_element_to_interactive_role`** in `MediaWidget.svelte`: `<nav role="tablist">` durch semantisch korrektes `<div role="tablist">` ersetzt.

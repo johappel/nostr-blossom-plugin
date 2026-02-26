@@ -79,15 +79,31 @@ export function init(config: BlossomMediaConfig): BlossomMediaInstance {
   let activeTarget: HTMLElement | undefined = undefined;
 
   // ── Mount Svelte component ─────────────────────────────────────────────
-  const widgetProps = $state({
-    config,
+  // We need `open` and `targetElement` to be reactive so the MediaWidget
+  // component reacts to programmatic open()/close() calls.  However, we
+  // must NOT let Svelte 5's deep `$state()` proxy wrap `config` — NIP-07
+  // extension objects (nos2x, Alby, …) on `config.signer` break when
+  // proxied because their internal browser-extension message channels stop
+  // working and `signEvent()` hangs forever.
+  //
+  // Solution: keep only the mutable parts in a reactive `$state` bucket and
+  // expose `config` via a plain getter so it's never proxied.
+  const _reactive = $state({
     open: false,
     targetElement: undefined as HTMLElement | undefined,
+  });
+
+  const widgetProps: Record<string, unknown> = {
+    get config() { return config; },
+    get open() { return _reactive.open; },
+    set open(v: boolean) { _reactive.open = v; },
+    get targetElement() { return _reactive.targetElement; },
+    set targetElement(v: HTMLElement | undefined) { _reactive.targetElement = v; },
     onClose: () => {
       isOpen = false;
       activeTarget = undefined;
     },
-  });
+  };
 
   const component = mount(MediaWidget, {
     target: mountPoint,
