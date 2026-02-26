@@ -85,6 +85,16 @@
     return [...kws].sort();
   });
 
+  /** Keywords filtered by search query — shows all when search is empty */
+  let filteredKeywords = $derived.by(() => {
+    const query = filterQuery.trim().toLowerCase();
+    if (!query) return allKeywords;
+    const terms = query.split(/[,\s]+/).filter(Boolean);
+    return allKeywords.filter((kw) =>
+      terms.some((term) => kw.includes(term)),
+    );
+  });
+
   let filteredItems = $derived.by(() => {
     const query = filterQuery.trim().toLowerCase();
     const keyword = activeKeyword?.toLowerCase();
@@ -217,7 +227,7 @@
   <div class="toolbar">
     <input
       class="search-input"
-      placeholder="Suchen: keyword, mime, autor…"
+      placeholder="Suchen: Schlagwort, Beschreibung, Autor, Typ…"
       bind:value={filterQuery}
     />
     <button
@@ -231,9 +241,9 @@
     </button>
   </div>
 
-  {#if allKeywords.length > 0}
+  {#if filteredKeywords.length > 0}
     <div class="keyword-bar">
-      {#each allKeywords as kw}
+      {#each filteredKeywords as kw}
         <button
           type="button"
           class="keyword-tag"
@@ -441,6 +451,9 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.3rem;
+    max-height: 5.4rem; /* ~3 rows of keyword tags */
+    overflow-y: auto;
+    padding-right: 0.25rem;
   }
 
   .keyword-tag {
