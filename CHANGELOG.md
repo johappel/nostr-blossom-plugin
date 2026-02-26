@@ -22,9 +22,10 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- **Gallery nur noch NIP-94-basiert**: Blossom-Server `/list/`-Abfragen komplett aus der Gallery entfernt. Gallery-Einträge kommen jetzt ausschließlich aus NIP-94 Kind-1063 Events + lokaler Upload-History. Eliminiert Duplikate durch Thumb/Image-Blobs, die zuvor als separate Einträge erschienen.
 - **NIP-94-first Gallery-Architektur**: Gallery nutzt jetzt NIP-94 Kind-1063 Events als primäre Datenquelle (reichste Metadaten). Blossom-Server-Blobs dienen nur noch zur Erkennung von Orphan-Dateien (auf Server vorhanden, aber kein NIP-94 Event publiziert).
 - **Thumb/Image-Duplikat-Filter**: URLs, die als `thumb` oder `image` Preview in einem NIP-94 Event oder der lokalen Upload-History vorkommen, werden aus der Gallery-Übersicht gefiltert — keine doppelten Einträge mehr für Preview-Bilder.
-- Sidebar zeigt jetzt klar differenzierte Quell-Badges: 📡 NIP-94, ☁ Orphan, Fehlerstatus.
+- Sidebar zeigt jetzt klar differenzierte Quell-Badges: 📡 NIP-94 vom Relay, oder „nur lokal".
 - Metadaten-Felder (Beschreibung, Autor, Genre, Lizenz) werden immer angezeigt (mit „—" als Fallback), nicht mehr nur wenn `metadata` vorhanden ist.
 
 ### Fixed

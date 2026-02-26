@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { UploadHistoryItem } from '$lib/stores/uploads';
-  import type { BlossomBlobDescriptor } from '$lib/nostr/blossom-list';
   import type { Nip94FetchResult } from '$lib/nostr/nip94-fetch';
 
   interface GalleryProps {
@@ -8,7 +7,6 @@
     open: boolean;
     loading: boolean;
     loadError: string;
-    remoteBlobs: BlossomBlobDescriptor[];
     nip94Data: Nip94FetchResult | null;
     onSelect: (url: string) => void;
     onDelete: (item: UploadHistoryItem) => void;
@@ -21,7 +19,6 @@
     open,
     loading,
     loadError,
-    remoteBlobs,
     nip94Data,
     onSelect,
     onDelete,
@@ -34,48 +31,23 @@
   let filterQuery = $state('');
 
   /**
-   * NIP-94-first merge strategy:
-   * 1. Start with NIP-94 events as primary items (richest metadata).
-   * 2. Add local upload history items not covered by NIP-94.
-   * 3. Add remote Blossom blobs that are neither in NIP-94 nor local history (orphans).
-   * 4. Filter out any URL that is a known thumb/image preview of another item.
+   * NIP-94 + local history merge.
+   * NIP-94 events are the primary source (richest metadata, thumb included).
+   * Local upload history items not yet on the relay are added as secondary.
    */
   let mergedItems = $derived.by(() => {
     const result: UploadHistoryItem[] = [];
     const seenUrls = new Set<string>();
     const seenHashes = new Set<string>();
 
-    // Collect all known thumb/image preview URLs so we can exclude them
-    const previewUrls = new Set<string>();
-
-    // From NIP-94 events
+    // ── Step 1: NIP-94 events (primary source) ──
     if (nip94Data) {
       for (const ev of nip94Data.events) {
-        if (ev.thumbUrl) previewUrls.add(ev.thumbUrl);
-        if (ev.imageUrl) previewUrls.add(ev.imageUrl);
-      }
-    }
-
-    // From local upload history
-    for (const item of items) {
-      if (item.uploadTags) {
-        for (const tag of item.uploadTags) {
-          if ((tag[0] === 'thumb' || tag[0] === 'image') && tag[1]) {
-            previewUrls.add(tag[1]);
-          }
-        }
-      }
-    }
-
-    // ── Step 1: NIP-94 events (primary source, richest metadata) ──
-    if (nip94Data) {
-      for (const ev of nip94Data.events) {
-        if (previewUrls.has(ev.url)) continue; // skip preview blobs
         if (seenUrls.has(ev.url)) continue;
         seenUrls.add(ev.url);
         if (ev.sha256) seenHashes.add(ev.sha256.toLowerCase());
 
-        // Check if we have a matching local item for createdAt/uploadTags
+        // Merge with matching local item for richer local data
         const localItem = items.find(
           (i) => i.url === ev.url || (i.sha256 && ev.sha256 && i.sha256.toLowerCase() === ev.sha256.toLowerCase()),
         );
@@ -93,41 +65,13 @@
       }
     }
 
-    // ── Step 2: Local upload history not yet covered ──
+    // ── Step 2: Local upload history not yet covered by NIP-94 ──
     for (const item of items) {
-      if (previewUrls.has(item.url)) continue;
       if (seenUrls.has(item.url)) continue;
       if (item.sha256 && seenHashes.has(item.sha256.toLowerCase())) continue;
       seenUrls.add(item.url);
       if (item.sha256) seenHashes.add(item.sha256.toLowerCase());
       result.push(item);
-    }
-
-    // ── Step 3: Remote Blossom orphans (on server, no NIP-94, no local) ──
-    for (const blob of remoteBlobs) {
-      if (previewUrls.has(blob.url)) continue;
-      if (seenUrls.has(blob.url)) continue;
-      if (seenHashes.has(blob.sha256?.toLowerCase())) continue;
-      seenUrls.add(blob.url);
-      if (blob.sha256) seenHashes.add(blob.sha256.toLowerCase());
-
-      const createdMs =
-        typeof blob.created === 'number' && blob.created > 0
-          ? blob.created * 1000
-          : Date.now();
-
-      result.push({
-        url: blob.url,
-        mime: blob.type || undefined,
-        sha256: blob.sha256,
-        createdAt: new Date(createdMs).toISOString(),
-        uploadTags: [
-          ['url', blob.url],
-          ['x', blob.sha256],
-          ...(blob.type ? [['m', blob.type]] : []),
-          ...(blob.size ? [['size', String(blob.size)]] : []),
-        ],
-      });
     }
 
     return result;
@@ -188,9 +132,6 @@
           (selectedItem.sha256 && nip94Data?.bySha256.get(selectedItem.sha256.toLowerCase())))
       : false,
   );
-
-  /** Whether NIP-94 data was fetched (even if no match for current item) */
-  let nip94Available = $derived(nip94Data != null && nip94Data.events.length > 0);
 
   function getThumbnailUrl(item: UploadHistoryItem): string {
     const thumbTag = item.uploadTags?.find((t) => t[0] === 'thumb');
@@ -442,14 +383,8 @@
               {#if hasNip94Data}
                 <p class="nip94-badge">📡 NIP-94 Metadaten vom Relay</p>
               {/if}
-              {#if isRemoteOnly && !hasNip94Data}
-                {#if nip94Available}
-                  <p class="nip94-badge nip94-miss">☁ Orphan — auf dem Server, aber kein NIP-94 Event vorhanden</p>
-                {:else if !nip94Data}
-                  <p class="remote-note">☁ Nur auf dem Server — NIP-94 Abfrage fehlgeschlagen.</p>
-                {:else}
-                  <p class="remote-note">☁ Nur auf dem Server — keine NIP-94 Events gefunden.</p>
-                {/if}
+              {#if !hasNip94Data}
+                <p class="remote-note">Noch nicht auf dem Relay veröffentlicht (nur lokal).</p>
               {/if}
 
               <dl class="meta-list">
@@ -1029,12 +964,6 @@
     border-radius: 6px;
     padding: 0.25rem 0.5rem;
     margin: 0 0 0.4rem;
-  }
-
-  .nip94-badge.nip94-miss {
-    color: #b45309;
-    background: #fffbeb;
-    border-color: #fde68a;
   }
 
   .keyword-tags {

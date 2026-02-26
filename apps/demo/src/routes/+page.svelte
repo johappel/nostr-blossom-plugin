@@ -27,7 +27,6 @@
     type ImageMetadataInput,
   } from '$lib/nostr/publish';
   import { deleteBlossomBlob, publishDeletionEvent } from '$lib/nostr/blossom-delete';
-  import { listBlossomBlobs, type BlossomBlobDescriptor } from '$lib/nostr/blossom-list';
   import { fetchNip94Events, type Nip94FetchResult } from '$lib/nostr/nip94-fetch';
   import BlossomGallery from '$lib/components/BlossomGallery.svelte';
 
@@ -149,7 +148,6 @@
   let galleryDeleteStatus = $state('');
   let galleryLoading = $state(false);
   let galleryLoadError = $state('');
-  let galleryRemoteBlobs = $state<BlossomBlobDescriptor[]>([]);
   let galleryNip94Data = $state<Nip94FetchResult | null>(null);
   const imageDescriberUrl =
     (import.meta.env.VITE_IMAGE_DESCRIBER_URL as string | undefined) ??
@@ -983,9 +981,9 @@
     status = 'Disconnected';
   }
 
-  async function fetchGalleryBlobs() {
+  async function fetchGalleryData() {
     if (!signer) {
-      galleryLoadError = 'Login erforderlich, um Server-Dateien zu laden.';
+      galleryLoadError = 'Login erforderlich, um Galerie-Daten zu laden.';
       return;
     }
 
@@ -993,25 +991,10 @@
     galleryLoadError = '';
 
     try {
-      const [result, nip94Result] = await Promise.all([
-        listBlossomBlobs(signer, servers),
-        fetchNip94Events(signer, [relayUrl]).catch((err) => {
-          console.warn('NIP-94 fetch fehlgeschlagen:', err);
-          return null;
-        })
-      ]);
-
-      galleryRemoteBlobs = result.blobs;
-      galleryNip94Data = nip94Result;
-
-      const failedServers = result.serverResults.filter((s) => !s.ok);
-      if (failedServers.length > 0 && failedServers.length < result.serverResults.length) {
-        galleryLoadError = `Einige Server konnten nicht abgefragt werden: ${failedServers.map((s) => s.server).join(', ')}`;
-      } else if (failedServers.length === result.serverResults.length) {
-        galleryLoadError = 'Keiner der Blossom-Server konnte abgefragt werden.';
-      }
+      galleryNip94Data = await fetchNip94Events(signer, [relayUrl]);
     } catch (error) {
-      galleryLoadError = error instanceof Error ? error.message : 'Fehler beim Laden der Serverdaten';
+      console.warn('NIP-94 fetch fehlgeschlagen:', error);
+      galleryLoadError = error instanceof Error ? error.message : 'Fehler beim Laden der NIP-94 Daten';
     } finally {
       galleryLoading = false;
     }
@@ -1020,7 +1003,7 @@
   function openGallery() {
     galleryDeleteStatus = '';
     galleryOpen = true;
-    fetchGalleryBlobs();
+    fetchGalleryData();
   }
 
   function closeGallery() {
@@ -1076,6 +1059,20 @@
 
       // Remove from local store and UI
       removeUploadHistoryByUrl(item.url);
+
+      // Remove from NIP-94 data so it disappears immediately
+      if (galleryNip94Data) {
+        const removedUrls = new Set([item.url]);
+        const removedHashes = new Set(item.sha256 ? [item.sha256.toLowerCase()] : []);
+        const filteredEvents = galleryNip94Data.events.filter(
+          (ev) => !removedUrls.has(ev.url) && !(ev.sha256 && removedHashes.has(ev.sha256.toLowerCase())),
+        );
+        const newByUrl = new Map(galleryNip94Data.byUrl);
+        const newBySha256 = new Map(galleryNip94Data.bySha256);
+        removedUrls.forEach((u) => newByUrl.delete(u));
+        removedHashes.forEach((h) => newBySha256.delete(h));
+        galleryNip94Data = { events: filteredEvents, byUrl: newByUrl, bySha256: newBySha256 };
+      }
 
       // Clean up uploadTagsByUrl
       if (uploadTagsByUrl[item.url]) {
@@ -1282,12 +1279,11 @@
     open={galleryOpen}
     loading={galleryLoading}
     loadError={galleryLoadError}
-    remoteBlobs={galleryRemoteBlobs}
     nip94Data={galleryNip94Data}
     onSelect={onGallerySelect}
     onDelete={onGalleryDelete}
     onClose={closeGallery}
-    onRefresh={fetchGalleryBlobs}
+    onRefresh={fetchGalleryData}
   />
 
   {#if metadataDialogOpen}
