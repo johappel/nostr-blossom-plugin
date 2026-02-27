@@ -33,6 +33,8 @@
     targetElement?: HTMLElement;
     /** Whether the dialog is currently open */
     open?: boolean;
+    /** Tab to activate when opening (set by open(target, tab)) */
+    requestedTab?: string;
     onClose?: () => void;
   }
 
@@ -40,6 +42,7 @@
     config,
     targetElement: _targetElement,
     open = $bindable(false),
+    requestedTab = $bindable(undefined),
     onClose,
   }: MediaWidgetProps = $props();
 
@@ -69,6 +72,14 @@
   });
 
   let activeTab = $state<TabId>(untrack(() => tabs[0]?.id ?? 'upload'));
+
+  // ── Honour requestedTab from open(target, tab) ────────────────────────────
+  $effect(() => {
+    if (requestedTab && tabs.some((t) => t.id === requestedTab)) {
+      activeTab = requestedTab as TabId;
+      requestedTab = undefined; // consume — one-shot
+    }
+  });
 
   // ── Signer ────────────────────────────────────────────────────────────────
   // NIP-07 extensions inject `window.nostr` asynchronously, often after our

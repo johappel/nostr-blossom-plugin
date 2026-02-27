@@ -215,8 +215,9 @@ export interface BlossomMediaInstance {
    * Programmatically open the media dialog.
    * @param targetElement - Optional: the element to insert the result into.
    *                        Overrides the element that was clicked.
+   * @param tab - Optional: tab to activate when opening (e.g. 'upload' or 'gallery').
    */
-  open: (targetElement?: HTMLElement) => void;
+  open: (targetElement?: HTMLElement, tab?: string) => void;
 
   /** Programmatically close the media dialog. */
   close: () => void;
