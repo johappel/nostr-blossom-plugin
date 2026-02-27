@@ -640,7 +640,7 @@
   <div class="bm-dialog-inner" role="document">
     <!-- Header -->
     <header class="bm-header">
-      <h2 class="bm-title">Mediathek</h2>
+      <h2 class="bm-title">Serverless Nostr Media</h2>
       <div class="bm-header-actions">
         <button
           type="button"
