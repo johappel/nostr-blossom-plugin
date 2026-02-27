@@ -7,13 +7,13 @@ services:
     restart: unless-stopped
     env_file:
       - ./apps/image-describer/.env
-    environment:
-      # ── Image Generation (OpenAI-compatible API) ──
-      # IMAGE_GEN_API_URL: http://localhost:11434/v1   # Ollama default
-      # IMAGE_GEN_API_KEY:                              # optional (Ollama needs none)
-      # IMAGE_GEN_MODEL: black-forest-labs/FLUX.1-schnell
-      # IMAGE_GEN_TIMEOUT_MS: 60000
-      # IMAGE_GEN_DEFAULT_SIZE: 1024x1024
+    # Optional: override image-gen env vars here (loaded from .env by default)
+    # environment:
+    #   IMAGE_GEN_API_URL: http://localhost:11434/v1
+    #   IMAGE_GEN_API_KEY: ""
+    #   IMAGE_GEN_MODEL: black-forest-labs/FLUX.1-schnell
+    #   IMAGE_GEN_TIMEOUT_MS: "60000"
+    #   IMAGE_GEN_DEFAULT_SIZE: 1024x1024
     ports:
       - '8787:8787'
     healthcheck:
