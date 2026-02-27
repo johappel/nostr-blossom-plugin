@@ -8,6 +8,10 @@ type DescribeRequestBody = {
   imageUrl?: string;
 };
 
+type ImageGenRequestBody = {
+  prompt?: string;
+};
+
 const ALT_MAX_LENGTH = 140;
 
 function normalizeAltText(value: string) {
@@ -35,6 +39,12 @@ function readRuntimeConfig() {
     pdfMaxPages: Number(process.env.OPENROUTER_PDF_MAX_PAGES ?? 4),
     pdfTextMaxChars: Number(process.env.OPENROUTER_PDF_TEXT_MAX_CHARS ?? 4500),
     inlineOnly: process.env.OPENROUTER_VISION_INLINE_ONLY === 'true',
+    // Image generation settings
+    imageGenApiUrl: process.env.IMAGE_GEN_API_URL || 'http://localhost:11434/v1',
+    imageGenApiKey: process.env.IMAGE_GEN_API_KEY || '',
+    imageGenModel: process.env.IMAGE_GEN_MODEL || 'black-forest-labs/FLUX.1-schnell',
+    imageGenTimeoutMs: Number(process.env.IMAGE_GEN_TIMEOUT_MS ?? 60000),
+    imageGenDefaultSize: process.env.IMAGE_GEN_DEFAULT_SIZE || '1024x1024',
   };
 }
 
@@ -697,6 +707,105 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
     ...(typeof renderedPageCount === 'number' ? { renderedPageCount } : {}),
     ...(imageSourceWarning ? { warning: imageSourceWarning } : {}),
   });
+});
+
+// ─── Image Generation ─────────────────────────────────────────────────────────
+
+app.post<{ Body: ImageGenRequestBody }>('/image-gen', async (request, reply) => {
+  const config = readRuntimeConfig();
+  const prompt = request.body?.prompt?.trim();
+
+  if (!prompt) {
+    return reply.status(400).send({ error: 'prompt is required' });
+  }
+
+  if (prompt.length > 2000) {
+    return reply.status(400).send({ error: 'prompt must be 2000 characters or less' });
+  }
+
+  const apiUrl = config.imageGenApiUrl.replace(/\/$/, '');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (config.imageGenApiKey) {
+    headers['Authorization'] = `Bearer ${config.imageGenApiKey}`;
+  }
+
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), config.imageGenTimeoutMs);
+
+  try {
+    const upstream = await fetch(`${apiUrl}/images/generations`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: config.imageGenModel,
+        prompt,
+        n: 1,
+        size: config.imageGenDefaultSize,
+        response_format: 'b64_json',
+      }),
+      signal: controller.signal,
+    });
+
+    if (!upstream.ok) {
+      const errorBody = await upstream.text().catch(() => '');
+      let errorMessage = `Image generation failed (HTTP ${upstream.status})`;
+      try {
+        const parsed = JSON.parse(errorBody) as { error?: { message?: string } };
+        if (parsed.error?.message) {
+          errorMessage = parsed.error.message;
+        }
+      } catch {
+        if (errorBody) errorMessage += `: ${errorBody.slice(0, 200)}`;
+      }
+      return reply.status(upstream.status).send({ error: errorMessage });
+    }
+
+    const payload = (await upstream.json()) as {
+      data?: Array<{ b64_json?: string; url?: string }>;
+    };
+
+    const imageData = payload.data?.[0];
+
+    if (!imageData) {
+      return reply.status(502).send({ error: 'No image data in response' });
+    }
+
+    // Prefer b64_json, fall back to url
+    if (imageData.b64_json) {
+      return reply.send({
+        image: `data:image/png;base64,${imageData.b64_json}`,
+      });
+    }
+
+    if (imageData.url) {
+      // Download the image and convert to data URL
+      const imgResponse = await fetch(imageData.url);
+      if (!imgResponse.ok) {
+        return reply.status(502).send({ error: 'Failed to fetch generated image from URL' });
+      }
+      const buffer = Buffer.from(await imgResponse.arrayBuffer());
+      const contentType = imgResponse.headers.get('content-type') || 'image/png';
+      return reply.send({
+        image: `data:${contentType};base64,${buffer.toString('base64')}`,
+      });
+    }
+
+    return reply.status(502).send({ error: 'Response contained neither b64_json nor url' });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return reply.status(504).send({
+        error: `Image generation timed out after ${config.imageGenTimeoutMs}ms`,
+      });
+    }
+    return reply.status(500).send({
+      error: err instanceof Error ? err.message : 'Image generation failed',
+    });
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
 });
 
 const config = readRuntimeConfig();

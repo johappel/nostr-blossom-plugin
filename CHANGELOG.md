@@ -6,6 +6,17 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+### Added
+
+- **„Bild erstellen"-Tab im Media-Widget**: Neuer Builtin-Tab `imagegen` mit Prompt-Eingabe, KI-Bildgenerierung, Vorschau, Blossom-Upload und Inline-Metadaten/Publish. Wird automatisch angezeigt, wenn eine KI-Service-URL (`imageGenEndpoint` oder `visionEndpoint`) konfiguriert ist.
+- **`ImageGenTab.svelte`**: Vollständige State-Machine (idle → generating → preview → uploading → metadata → publishing → done/error) mit Cancel-Support und Retry.
+- **`POST /image-gen` Server-Route**: Neue Route in `apps/image-describer` für OpenAI-kompatible Bildgenerierungs-APIs (Ollama, ComfyUI, LocalAI, OpenRouter, DALL-E). Prompt-Validierung, Timeout, strukturierte Fehler.
+- **`core/imagegen.ts`**: Framework-agnostiges Client-Modul mit `fetchImageGeneration()` und `resolveImageGenEndpoint()`.
+- **`imageGenEndpoint` Config-Option**: Neues optionales Feld in `BlossomMediaConfig` und `BlossomUserSettings` für dedizierte Image-Gen-API-URL. Fällt auf `visionEndpoint` zurück.
+- **`imageGen` Feature-Flag**: Neues Feld in `BlossomMediaFeatures` zum expliziten Deaktivieren des Tabs.
+- **Image-Gen Env-Variablen**: `IMAGE_GEN_API_URL`, `IMAGE_GEN_API_KEY`, `IMAGE_GEN_MODEL`, `IMAGE_GEN_TIMEOUT_MS`, `IMAGE_GEN_DEFAULT_SIZE` für den Docker-Server.
+- **Ollama-Service-Block** in `docker-compose.yml` (auskommentiert, als Referenz).
+
 ### Changed
 
 - **Multi-Relay Publishing**: `publishEvent()` und `publishDeletionEvent()` akzeptieren jetzt `relayUrls: string | string[]` und publizieren parallel an alle konfigurierten Relays. Pro Relay wird ein individuelles Ergebnis zurückgegeben (`PublishRelayResult`). Einzelne Relay-Ausfälle blockieren nicht mehr den gesamten Publish-Vorgang.

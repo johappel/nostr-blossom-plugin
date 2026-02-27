@@ -7,6 +7,13 @@ services:
     restart: unless-stopped
     env_file:
       - ./apps/image-describer/.env
+    environment:
+      # ── Image Generation (OpenAI-compatible API) ──
+      # IMAGE_GEN_API_URL: http://localhost:11434/v1   # Ollama default
+      # IMAGE_GEN_API_KEY:                              # optional (Ollama needs none)
+      # IMAGE_GEN_MODEL: black-forest-labs/FLUX.1-schnell
+      # IMAGE_GEN_TIMEOUT_MS: 60000
+      # IMAGE_GEN_DEFAULT_SIZE: 1024x1024
     ports:
       - '8787:8787'
     healthcheck:
@@ -15,3 +22,24 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+
+  # ── Optional: Ollama for local image generation ──
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ollama
+  #   restart: unless-stopped
+  #   ports:
+  #     - '11434:11434'
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   # GPU support (NVIDIA):
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - driver: nvidia
+  #   #           count: all
+  #   #           capabilities: [gpu]
+
+# volumes:
+#   ollama_data:

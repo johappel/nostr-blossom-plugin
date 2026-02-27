@@ -30,6 +30,8 @@ export interface BlossomUserSettings {
   relays?: string[];
   /** Base URL of the image-describer / vision API (without `/describe`). */
   visionEndpoint?: string;
+  /** Base URL of the image generation API (without `/image-gen`). */
+  imageGenEndpoint?: string;
   /** Unix-ms timestamp of last modification (for NIP-78 merge). */
   updatedAt?: number;
 }
@@ -173,6 +175,7 @@ export interface MergedConfig {
   servers: string[];
   relayUrls: string[];
   visionEndpoint?: string;
+  imageGenEndpoint?: string;
 }
 
 /**
@@ -189,6 +192,7 @@ export function mergeWithSettings(
   configRelayUrl: string | undefined,
   configVisionEndpoint: string | undefined,
   settings: BlossomUserSettings,
+  configImageGenEndpoint?: string,
 ): MergedConfig {
   const servers =
     settings.servers && settings.servers.length > 0
@@ -207,7 +211,12 @@ export function mergeWithSettings(
       ? settings.visionEndpoint.trim()
       : configVisionEndpoint;
 
-  return { servers, relayUrls, visionEndpoint };
+  const imageGenEndpoint =
+    settings.imageGenEndpoint && settings.imageGenEndpoint.trim()
+      ? settings.imageGenEndpoint.trim()
+      : configImageGenEndpoint;
+
+  return { servers, relayUrls, visionEndpoint, imageGenEndpoint };
 }
 
 /**

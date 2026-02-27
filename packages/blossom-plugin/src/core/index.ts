@@ -9,6 +9,7 @@ export * from './delete';
 export * from './list';
 export * from './nip94';
 export * from './vision';
+export * from './imagegen';
 export * from './previews';
 export * from './format';
 export * from './settings';

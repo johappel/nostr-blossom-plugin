@@ -13,6 +13,7 @@
   import { buildImageMetadataTags } from '../core/metadata';
   import { publishEvent } from '../core/publish';
   import { resolveVisionEndpoint } from '../core/vision';
+  import { resolveImageGenEndpoint } from '../core/imagegen';
   import {
     loadSettingsFromLocalStorage,
     mergeWithSettings,
@@ -24,6 +25,7 @@
   import { untrack } from 'svelte';
   import UploadTab from './UploadTab.svelte';
   import GalleryTab from './GalleryTab.svelte';
+  import ImageGenTab from './ImageGenTab.svelte';
   import MetadataSidebar from './MetadataSidebar.svelte';
   import SettingsPanel from './SettingsPanel.svelte';
 
@@ -47,7 +49,7 @@
   }: MediaWidgetProps = $props();
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
-  type BuiltinTab = 'upload' | 'gallery';
+  type BuiltinTab = 'upload' | 'gallery' | 'imagegen';
   type TabId = BuiltinTab | string;
 
   interface TabDef {
@@ -65,13 +67,20 @@
     if (config.features?.gallery !== false) {
       result.push({ id: 'gallery', label: 'Mediathek', builtin: 'gallery' });
     }
+    // Show image gen tab when feature is not explicitly disabled AND an endpoint is available
+    if (config.features?.imageGen !== false && resolvedImageGenEndpoint) {
+      result.push({ id: 'imagegen', label: 'Bild erstellen', builtin: 'imagegen' });
+    }
     for (const ct of config.tabs ?? []) {
       result.push({ id: ct.id, label: ct.label, custom: ct });
     }
     return result;
   });
 
-  let activeTab = $state<TabId>(untrack(() => tabs[0]?.id ?? 'upload'));
+  // Default to 'upload' — avoid eagerly reading `tabs` here because
+  // resolvedImageGenEndpoint (referenced inside tabs) is declared later
+  // and would cause a TDZ in the bundled output.
+  let activeTab = $state<TabId>('upload');
 
   // ── Honour requestedTab from open(target, tab) ────────────────────────────
   $effect(() => {
@@ -146,6 +155,7 @@
       config.relayUrl,
       config.visionEndpoint,
       userSettings,
+      config.imageGenEndpoint,
     ),
   );
 
@@ -272,6 +282,21 @@
   let visionOptions = $derived.by<VisionClientOptions | undefined>(() => {
     const ep = effective.visionEndpoint ? resolveVisionEndpoint(effective.visionEndpoint) : null;
     return ep ? { endpoint: ep } : undefined;
+  });
+
+  // ── Image generation endpoint ────────────────────────────────────────────
+  let resolvedImageGenEndpoint = $derived.by<string | undefined>(() => {
+    // Explicit imageGenEndpoint takes priority
+    const explicit = effective.imageGenEndpoint;
+    if (explicit) {
+      try { return resolveImageGenEndpoint(explicit); } catch { return undefined; }
+    }
+    // Fall back: derive from visionEndpoint (same server, /image-gen route)
+    const vision = effective.visionEndpoint;
+    if (vision) {
+      try { return resolveImageGenEndpoint(vision); } catch { return undefined; }
+    }
+    return undefined;
   });
 
   // ── Edit-metadata overlay ─────────────────────────────────────────────────
@@ -728,6 +753,16 @@
                 onDelete={handleDelete}
                 onRefresh={loadGalleryIfNeeded}
                 onEditMetadata={config.features?.metadata !== false ? handleEditMetadata : undefined}
+              />
+            {:else if tab.builtin === 'imagegen' && resolvedImageGenEndpoint}
+              <ImageGenTab
+                {signer}
+                servers={effective.servers}
+                relayUrls={effective.relayUrls}
+                features={config.features ?? {}}
+                {visionOptions}
+                imageGenEndpoint={resolvedImageGenEndpoint}
+                onInserted={handleInserted}
               />
             {:else if tab.custom}
               <div

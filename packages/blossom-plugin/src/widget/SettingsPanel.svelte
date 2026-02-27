@@ -121,6 +121,7 @@
       servers: parseLines(serversText),
       relays: parseLines(relaysText),
       visionEndpoint: visionEndpoint.trim() || undefined,
+      imageGenEndpoint: untrack(() => settings).imageGenEndpoint,  // preserve if set externally
       updatedAt: Date.now(),
     };
 

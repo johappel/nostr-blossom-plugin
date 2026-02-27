@@ -73,6 +73,8 @@ export interface BlossomMediaFeatures {
   upload?: boolean;
   /** Show the "Mediathek" gallery tab */
   gallery?: boolean;
+  /** Show the "Bild erstellen" image generation tab */
+  imageGen?: boolean;
   /** Show the AI description suggestion button in the metadata form */
   aiDescription?: boolean;
   /** Show the full metadata form (description, alt, author, license, …) */
@@ -155,6 +157,14 @@ export interface BlossomMediaConfig {
    * @example 'https://my-host.example/api/vision'
    */
   visionEndpoint?: string;
+
+  /**
+   * Base URL of the image generation API.
+   * Required to enable the "Bild erstellen" tab.
+   * Falls back to `visionEndpoint` (same server, `/image-gen` route) if not set.
+   * @example 'https://my-host.example/image-gen'
+   */
+  imageGenEndpoint?: string;
 
   /**
    * How the selected URL is written back to target elements.
