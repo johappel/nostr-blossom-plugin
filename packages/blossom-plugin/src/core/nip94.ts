@@ -1,7 +1,19 @@
+/**
+ * NIP-94 file metadata event helpers.
+ *
+ * Fetches kind 1063 events from Nostr relays, parses them into typed
+ * `Nip94FileEvent` objects, and provides utilities for merging with local
+ * upload history.
+ *
+ * Depends on `nostr-tools` (SimplePool) for relay queries.
+ */
+
 import { SimplePool } from 'nostr-tools/pool';
-import type { SignerAdapter } from './signers';
-import type { ImageMetadataInput } from './publish';
-import type { UploadHistoryItem } from '$lib/stores/uploads';
+import type { BlossomSigner } from './types';
+import type { ImageMetadataInput } from './metadata';
+import type { UploadHistoryItem } from './history';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 /**
  * A parsed NIP-94 file metadata event (kind 1063).
@@ -11,11 +23,11 @@ export interface Nip94FileEvent {
   eventId: string;
   /** Unix timestamp of event creation */
   createdAt: number;
-  /** Event content (usually the description) */
+  /** Event content (usually the file description) */
   content: string;
-  /** URL of the file */
+  /** Primary URL of the file */
   url: string;
-  /** SHA-256 hash */
+  /** SHA-256 hash of the file */
   sha256: string;
   /** MIME type */
   mime: string;
@@ -23,18 +35,28 @@ export interface Nip94FileEvent {
   tags: string[][];
   /** Parsed metadata */
   metadata: ImageMetadataInput;
-  /** Thumbnail URL if present */
+  /** Thumbnail URL (from `thumb` tag), if present */
   thumbUrl?: string;
-  /** Preview image URL if present */
+  /** Preview image URL (from `image` tag), if present */
   imageUrl?: string;
 }
+
+export interface Nip94FetchResult {
+  events: Nip94FileEvent[];
+  /** Fast lookup by file URL */
+  byUrl: Map<string, Nip94FileEvent>;
+  /** Fast lookup by SHA-256 (lowercase) */
+  bySha256: Map<string, Nip94FileEvent>;
+}
+
+// ─── Internal helpers ─────────────────────────────────────────────────────────
 
 function getTag(tags: string[][], key: string): string {
   return tags.find((t) => t[0] === key)?.[1]?.trim() ?? '';
 }
 
 function getAllTags(tags: string[][], key: string): string[] {
-  return tags.filter((t) => t[0] === key).map((t) => t[1]?.trim()).filter(Boolean);
+  return tags.filter((t) => t[0] === key).map((t) => t[1]?.trim()).filter(Boolean) as string[];
 }
 
 function parseAiMode(tags: string[][]): 'generated' | 'assisted' | undefined {
@@ -44,11 +66,7 @@ function parseAiMode(tags: string[][]): 'generated' | 'assisted' | undefined {
   return undefined;
 }
 
-function parseAiMetadataGenerated(tags: string[][]): boolean {
-  return getAllTags(tags, 'hint').includes('ai-metadata-generated');
-}
-
-function parseLicense(tags: string[][]): { license: string; licenseLabel?: string } {
+function parseLicenseFromTags(tags: string[][]): { license: string; licenseLabel?: string } {
   const licenseTag = tags.find((t) => t[0] === 'license');
   if (!licenseTag) return { license: '' };
   return {
@@ -63,20 +81,18 @@ function parseNip94Event(event: {
   content: string;
   tags: string[][];
 }): Nip94FileEvent | null {
-  const tags = event.tags;
+  const { tags } = event;
   const url = getTag(tags, 'url');
-  const sha256 = getTag(tags, 'x');
-
   if (!url) return null;
 
-  const { license, licenseLabel } = parseLicense(tags);
+  const { license, licenseLabel } = parseLicenseFromTags(tags);
 
   return {
     eventId: event.id,
     createdAt: event.created_at,
     content: event.content,
     url,
-    sha256,
+    sha256: getTag(tags, 'x'),
     mime: getTag(tags, 'm'),
     tags,
     thumbUrl: getTag(tags, 'thumb') || undefined,
@@ -90,25 +106,25 @@ function parseNip94Event(event: {
       licenseLabel,
       keywords: getAllTags(tags, 't'),
       aiImageMode: parseAiMode(tags),
-      aiMetadataGenerated: parseAiMetadataGenerated(tags),
+      aiMetadataGenerated: getAllTags(tags, 'hint').includes('ai-metadata-generated'),
     },
   };
 }
 
-export interface Nip94FetchResult {
-  events: Nip94FileEvent[];
-  /** Lookup by URL for fast merge */
-  byUrl: Map<string, Nip94FileEvent>;
-  /** Lookup by SHA-256 for fast merge */
-  bySha256: Map<string, Nip94FileEvent>;
-}
+// ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Fetch NIP-94 file metadata events (kind 1063) for the current user
- * from the given relays. Returns parsed events with metadata.
+ * Fetch NIP-94 kind 1063 file metadata events authored by the current user
+ * from one or more relays.
+ *
+ * Returns parsed events with fast lookup maps for URL and SHA-256 matching.
+ * The newest event per URL / hash wins in the lookup maps.
+ *
+ * @param signer    - BlossomSigner (used to get the author pubkey)
+ * @param relayUrls - List of relay WebSocket URLs to query
  */
 export async function fetchNip94Events(
-  signer: SignerAdapter,
+  signer: BlossomSigner,
   relayUrls: string[],
 ): Promise<Nip94FetchResult> {
   if (relayUrls.length === 0) {
@@ -129,7 +145,7 @@ export async function fetchNip94Events(
     const byUrl = new Map<string, Nip94FileEvent>();
     const bySha256 = new Map<string, Nip94FileEvent>();
 
-    // Sort by created_at desc, so newest event wins in the maps
+    // Sort newest first so the latest event wins in the lookup maps
     rawEvents.sort((a, b) => b.created_at - a.created_at);
 
     for (const raw of rawEvents) {
@@ -138,11 +154,10 @@ export async function fetchNip94Events(
 
       events.push(parsed);
 
-      // Only keep the newest event per URL / hash
       if (parsed.url && !byUrl.has(parsed.url)) {
         byUrl.set(parsed.url, parsed);
       }
-      // Normalize sha256 to lowercase for reliable matching
+
       const sha256Key = parsed.sha256?.toLowerCase();
       if (sha256Key && !bySha256.has(sha256Key)) {
         bySha256.set(sha256Key, parsed);
@@ -156,28 +171,31 @@ export async function fetchNip94Events(
 }
 
 /**
- * Enrich an UploadHistoryItem with NIP-94 metadata from relay events.
- * Matches by URL first, then by SHA-256 hash.
+ * Enrich a local `UploadHistoryItem` with data from NIP-94 relay events.
+ *
+ * Matches by URL first, then by SHA-256. Existing local metadata is never
+ * overwritten; only fields that are missing locally are filled in.
+ *
+ * @param item  - Local upload history entry to enrich
+ * @param nip94 - Fetch result from `fetchNip94Events`
  */
 export function enrichWithNip94(
   item: UploadHistoryItem,
   nip94: Nip94FetchResult,
 ): UploadHistoryItem {
-  // Normalize sha256 to lowercase for reliable matching with the map
-  const event = nip94.byUrl.get(item.url)
-    ?? (item.sha256 ? nip94.bySha256.get(item.sha256.toLowerCase()) : undefined);
+  const event =
+    nip94.byUrl.get(item.url) ??
+    (item.sha256 ? nip94.bySha256.get(item.sha256.toLowerCase()) : undefined);
 
   if (!event) return item;
 
-  // Don't overwrite local metadata if it already exists
-  const hasLocalMetadata = item.metadata && item.metadata.description;
-
-  const enrichedTags = item.uploadTags ?? [];
-  const needsThumb = !enrichedTags.some((t) => t[0] === 'thumb') && event.thumbUrl;
-  const needsImage = !enrichedTags.some((t) => t[0] === 'image') && event.imageUrl;
+  const hasLocalMetadata = Boolean(item.metadata?.description);
+  const existingTags = item.uploadTags ?? [];
+  const needsThumb = !existingTags.some((t) => t[0] === 'thumb') && event.thumbUrl;
+  const needsImage = !existingTags.some((t) => t[0] === 'image') && event.imageUrl;
 
   const mergedTags = [
-    ...enrichedTags,
+    ...existingTags,
     ...(needsThumb ? [['thumb', event.thumbUrl!]] : []),
     ...(needsImage ? [['image', event.imageUrl!]] : []),
   ];
@@ -191,14 +209,16 @@ export function enrichWithNip94(
     publishedEventIds: item.publishedEventIds?.length
       ? item.publishedEventIds
       : [event.eventId],
-    publishedKinds: item.publishedKinds?.length
-      ? item.publishedKinds
-      : [1063],
+    publishedKinds: item.publishedKinds?.length ? item.publishedKinds : [1063],
   };
 }
 
 /**
- * Collect all unique keywords from a Nip94FetchResult for filter suggestions.
+ * Collect all unique keywords from a `Nip94FetchResult` for building keyword
+ * filter suggestion lists.
+ *
+ * @param nip94 - Fetch result from `fetchNip94Events`
+ * @returns Sorted array of unique lowercase keywords
  */
 export function collectNip94Keywords(nip94: Nip94FetchResult): string[] {
   const keywords = new Set<string>();

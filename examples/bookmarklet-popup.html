@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🌸 Blossom Upload</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+    }
+
+    .status-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #16213e;
+      border-top: 1px solid #333;
+      padding: 0.5rem 1rem;
+      font-size: 0.8rem;
+      color: #888;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      z-index: 10;
+    }
+
+    .status-bar .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+      flex-shrink: 0;
+    }
+
+    .result-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+      text-align: center;
+      gap: 1rem;
+    }
+
+    .result-screen h2 {
+      font-size: 1.3rem;
+      margin: 0;
+    }
+
+    .result-screen .url {
+      word-break: break-all;
+      background: #16213e;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      max-width: 100%;
+      color: #a5b4fc;
+      border: 1px solid #333;
+    }
+
+    .result-screen .hint {
+      color: #888;
+      font-size: 0.85rem;
+    }
+
+    .result-screen .countdown {
+      color: #666;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+
+<!--
+  Bookmarklet-Popup für CSP-geschützte Seiten.
+
+  Dieses Fenster wird per Bookmarklet als Popup geöffnet.
+  Das Widget läuft hier auf dem eigenen Ursprung ohne CSP-Einschränkungen.
+  Nach der Auswahl wird die URL in die Zwischenablage kopiert.
+-->
+
+<div class="status-bar">
+  <span class="dot" id="status-dot"></span>
+  <span id="status-text">Warte auf NIP-07 Signer (window.nostr)…</span>
+</div>
+
+<!-- Widget-Script: relativer Pfad für lokale Entwicklung -->
+<script src="../packages/blossom-plugin/dist/widget/blossom-media.iife.js"></script>
+
+<script>
+(function () {
+  // ── Konfiguration aus URL-Parametern oder Defaults ──────────────────────
+  var params = new URLSearchParams(window.location.search);
+
+  var servers = params.get('servers')
+    ? params.get('servers').split(',').map(function(s) { return s.trim(); }).filter(Boolean)
+    : ['https://blossom.primal.net', 'https://cdn.satellite.earth'];
+
+  var relayUrl = params.get('relay') || 'wss://relay.damus.io';
+  var visionEndpoint = params.get('vision') || '';
+
+  // ── Auf window.nostr warten (NIP-07 Extensions injizieren asynchron) ──
+  var attempts = 0;
+  var maxAttempts = 20; // 20 × 250 ms = 5 s
+
+  function checkNostr() {
+    if (window.nostr) {
+      startWidget();
+      return;
+    }
+    attempts++;
+    if (attempts >= maxAttempts) {
+      document.getElementById('status-dot').style.background = '#f87171';
+      document.getElementById('status-text').textContent =
+        'Kein Signer gefunden. Hast du eine NIP-07 Extension (nos2x, Alby, \u2026) aktiv?';
+      // Trotzdem starten — Widget zeigt dann "Login erforderlich" beim Upload
+      startWidget();
+      return;
+    }
+    setTimeout(checkNostr, 250);
+  }
+
+  function startWidget() {
+    var hasSigner = !!window.nostr;
+    document.getElementById('status-dot').style.background = hasSigner ? '#4ade80' : '#fbbf24';
+    document.getElementById('status-text').innerHTML = hasSigner
+      ? 'Signer erkannt \u2014 Datei ausw\u00e4hlen oder hochladen, dann mit <kbd>Strg+V</kbd> einf\u00fcgen'
+      : 'Kein Signer \u2014 nur Zwischenablage-Modus (kein Upload m\u00f6glich)';
+
+    var config = {
+      servers: servers,
+      relayUrl: relayUrl,
+      targets: '',
+      onInsert: function (result) {
+        var text = result.formattedText || result.url;
+
+        navigator.clipboard.writeText(text).then(function () {
+          document.body.innerHTML =
+            '<div class="result-screen">' +
+              '<h2>\u2705 URL kopiert!</h2>' +
+              '<div class="url">' + escapeHtml(text) + '</div>' +
+              '<p class="hint">Geh zur\u00fcck zur Seite und f\u00fcge mit <kbd>Strg+V</kbd> ein.</p>' +
+              '<p class="countdown" id="cd"></p>' +
+            '</div>';
+
+          var remaining = 5;
+          var cd = document.getElementById('cd');
+          cd.textContent = 'Fenster schlie\u00dft in ' + remaining + 's\u2026';
+          var iv = setInterval(function () {
+            remaining--;
+            if (remaining <= 0) {
+              clearInterval(iv);
+              window.close();
+            } else {
+              cd.textContent = 'Fenster schlie\u00dft in ' + remaining + 's\u2026';
+            }
+          }, 1000);
+
+          if (window.opener) {
+            try {
+              window.opener.postMessage({
+                type: 'blossom-result',
+                url: result.url,
+                formattedText: result.formattedText || result.url,
+                tags: result.tags || [],
+              }, '*');
+            } catch (e) { /* cross-origin — Clipboard reicht */ }
+          }
+        }).catch(function () {
+          document.body.innerHTML =
+            '<div class="result-screen">' +
+              '<h2>URL bereit \u2014 bitte manuell kopieren:</h2>' +
+              '<input type="text" value="' + escapeAttr(text) + '" ' +
+                'style="width:100%;font:inherit;padding:0.5rem;background:#16213e;color:#eee;border:1px solid #555;border-radius:6px;" ' +
+                'onclick="this.select()" readonly />' +
+              '<p class="hint">Markiere die URL und kopiere mit <kbd>Strg+C</kbd>.</p>' +
+            '</div>';
+        });
+      },
+    };
+
+    if (visionEndpoint) {
+      config.visionEndpoint = visionEndpoint;
+    }
+
+    if (window.nostr) {
+      config.signer = window.nostr;
+    }
+
+    var media = window.BlossomMedia.init(config);
+    media.open();
+  }
+
+  // ── Hilfsfunktionen ──────────────────────────────────────────────────────
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
+  function escapeAttr(str) {
+    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // ── Start ───────────────────────────────────────────────────────────────
+  checkNostr();
+})();
+</script>
+
+</body>
+</html>

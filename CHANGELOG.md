@@ -8,6 +8,37 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- **`@blossom/plugin/widget` — Embeddable Media Widget**: Neues Widget-Paket als einbettbares Script/ESM-Modul. Ein einziger `<script>`-Tag fügt der Hostseite eine vollständige Mediathek-Funktionalität hinzu (Upload + Gallery + Metadaten + KI-Vorschläge).
+- **`MediaWidget.svelte`**: Root-Komponente mit nativem `<dialog>` (Shadow DOM), Tab-Bar (Dateien hochladen / Mediathek / Custom Tabs), signer-Auflösung (config.signer → window.nostr) und Cross-Tab-Navigation für Metadaten-Bearbeitung.
+- **`UploadTab.svelte`**: Upload-Tab mit Drag-&-Drop-Zone, Fortschrittsanzeige, Preview-Generierung (Thumb 200px + Image 600px) und nahtlosem Übergang zu `MetadataSidebar` nach erfolgreichem Upload.
+- **`GalleryTab.svelte`**: Mediathek-Tab mit NIP-94 + lokaler History Merge-Logik (aus `BlossomGallery.svelte` extrahiert), Thumbnail-Grid, Keyword-Filter-Chips, Volltext-Suche, Metadaten-Sidebar und Löschen-mit-Bestätigung.
+- **`MetadataSidebar.svelte`**: Wiederverwendbare Metadaten-Seitenleiste (Beschreibung, Alt-Text, Autor, Genre, Lizenz-Picker, KI-Modus, Keywords). Enthält KI-Vorschlag-Button (via `fetchVisionSuggestion`) und unterscheidet `create`-/`edit`-Modus.
+- **`Injector.ts`**: DOM-Scanner + `MutationObserver`: Findet `[data-blossom]`-Elemente (oder konfigurierten CSS-Selektor) und injiziert einen "🌸 Mediathek"-Button inline neben jedem Feld. Schreibt nach Auswahl die URL per synthetischen Events zurück (React/Vue/native kompatibel).
+- **`widget/index.svelte.ts`**: `init(config)` erzeugt Shadow-DOM-Host, mountet `MediaWidget` per Svelte 5 `mount()`, startet optional den Injector und gibt `BlossomMediaInstance` (`open/close/destroy`) zurück. Auto-Init via `data-blossom-config`-Attribut am Script-Tag.
+- **`widget/types.ts`**: Öffentliche Widget-Typen: `BlossomMediaConfig`, `BlossomMediaInstance`, `InsertResult`, `InsertMode`, `BlossomMediaFeatures`, `CustomTab`.
+- **`vite.config.widget.ts`**: Vite-Build für das Widget: IIFE (`window.BlossomMedia`) + ESM-Output. CSS aller Svelte-Komponenten wird via eigenem Rollup-Plugin (`injectCssIntoBundle`) als `__BLOSSOM_CSS__`-Variable in das JS-Bundle eingebettet und zur Laufzeit in den Shadow DOM injiziert — kein separates Stylesheet nötig.
+- **`build:widget` Script**: `pnpm --filter @blossom/plugin build:widget` erzeugt `dist/widget/blossom-media.iife.js` und `dist/widget/blossom-media.esm.js`.
+- **`examples/simple-input.html`**: Erstes selbständiges HTML-Beispiel für die Widget-Einbettung — zeigt Auto-Init via `data-blossom-config`, manuellen Init via `window.BlossomMedia.init()` und `data-blossom`-Feldmarkierung.
+- **`examples/bookmarklet-popup.html`**: Popup-Variante des Bookmarklets für CSP-geschützte Seiten (z. B. Coracle, Primal). Öffnet die Mediathek in einem eigenen Fenster, kopiert die URL in die Zwischenablage. Konfiguration per URL-Parameter (`?servers=…&relay=…&vision=…`).
+
+### Changed
+
+- **`apps/demo` entfernt**: Die SvelteKit-Demo-App wurde entfernt. Ihre Inhalte sind vollständig im Plugin (`@blossom/plugin/core` + `@blossom/plugin/widget`) aufgegangen. Anstelle der Demo gibt es jetzt eigenständige HTML-Beispiele unter `examples/`.
+- Root-`package.json`: `dev`- und `start`-Skripte (Demo-spezifisch) entfernt; `build:widget`-Shortcut ergänzt.
+- **`docs/`-Ordner entfernt**: Veraltete Einzeldokumente ersetzt durch [`integration.md`](../integration.md) im Repo-Root.
+
+### Fixed
+
+- **`MediaWidget.svelte` — Signer-Erkennung**: `window.nostr` (NIP-07) wurde nur einmal beim Mount geprüft. Da `$derived` globale Variablen nicht reaktiv trackt und NIP-07-Extensions `window.nostr` asynchron injizieren, blieb der Signer auf `null`. Ersetzt durch reaktiven `$state` mit Polling (bis 5 s), sodass spät injizierte NIP-07-Signer zuverlässig erkannt werden.
+- **`widget/index.svelte.ts`** (Umbenennung von `index.ts`): `$state()`-Runes konnten in einer plain `.ts`-Datei nicht genutzt werden; die Umbenennung auf `.svelte.ts` aktiviert den Svelte-5-Rune-Compiler für diese Datei.
+- **Svelte-Warnungen `state_referenced_locally`** in `MetadataSidebar.svelte` und `MediaWidget.svelte`: Form-State-Initialisierungen aus Props werden jetzt mit `untrack(() => ...)` gekapselt.
+- **Svelte-Warnung `a11y_no_noninteractive_element_to_interactive_role`** in `MediaWidget.svelte`: `<nav role="tablist">` durch semantisch korrektes `<div role="tablist">` ersetzt.
+
+### Docs
+
+- **`integration.md`** (neu): Vollständige Integrations-Referenz mit tabellarischen Config-Optionen (`BlossomMediaConfig`, `BlossomMediaFeatures`, `InsertMode`, `InsertResult`), Methoden-Beschreibungen (`init`, `open`, `close`, `destroy`), Signer-Interface, Vision-Service-Setup und Sicherheitshinweisen.
+
+
 - **Blossom Gallery**: Neuer „Blossom Gallery"-Button neben dem Upload-Input öffnet eine WordPress-ähnliche Mediathek-Dialog mit Thumbnail-Grid aller hochgeladenen Dateien.
 - **Blossom Gallery Server-Listing**: Gallery lädt beim Öffnen automatisch alle Blobs des eingeloggten Users von allen konfigurierten Blossom-Servern (`GET /list/{pubkey}`, BUD-02/BUD-04) und merged sie mit lokaler Upload-History. Remote-only Dateien werden mit ☁-Badge gekennzeichnet.
 - **Blossom Gallery NIP-94 Integration**: Gallery fetcht parallel zu den Blossom-Server-Blobs auch NIP-94 Kind-1063 Events vom Relay und reichert Galerie-Items automatisch mit Metadaten (Beschreibung, Autor, Lizenz, Genre, Keywords, KI-Hints, Thumbnails) an, soweit vorhanden.

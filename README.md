@@ -1,18 +1,165 @@
 # Blossom Plugin Monorepo
 
-Monorepo für ein Blossom-Upload-Plugin und einen Svelte-Demo-Client für Nostr.
+Monorepo für ein einbettbares Blossom-Media-Widget und Nostr-Upload-Plugin.
 
-## Pakete
+## Pakete / Apps
 
-- `packages/blossom-plugin`: Headless Upload-Client, Svelte Input-Action, TipTap Helper.
-- `apps/demo`: Demo-App mit NIP-07/NIP-46 Login, Upload, URL-Übernahme und Event-Publish.
+| Pfad | Beschreibung |
+|---|---|
+| `packages/blossom-plugin` | Plugin-Kern: Upload-Client, Svelte Action, TipTap Helper, **Media Widget** |
+| `apps/image-describer` | KI-Vision-Service (Fastify) für AI-gestützte Metadaten-Vorschläge |
+| `examples/` | Eigenständige HTML-Beispiele für die Widget-Einbettung |
 
 ## Quickstart
 
 ```bash
 pnpm install
-pnpm dev
+pnpm build:widget   # baut dist/widget/blossom-media.{iife,esm}.js
 ```
+
+Dann direkt `examples/simple-input.html` im Browser öffnen.
+
+## Widget einbetten
+
+### Variante A — Auto-Init (kein JS nötig)
+
+```html
+<input type="text" data-blossom name="imageUrl" />
+
+<script
+  src="blossom-media.iife.js"
+  data-blossom-config='{
+    "servers": ["https://blossom.primal.net"],
+    "relayUrl": "wss://relay.damus.io"
+  }'
+></script>
+```
+
+Felder mit `data-blossom` erhalten automatisch einen **🌸 Mediathek**-Button.  
+Nach Auswahl wird die URL direkt ins Feld geschrieben.
+
+### Ausgabeformat per `data-format`
+
+Das Ausgabeformat wird vom Ziel-Element bestimmt, nicht vom Benutzer.
+Per `data-format` Attribut legt das Host-Feld fest, in welchem Format der eingefügte Text formatiert wird:
+
+| Element | Attribut | Format | Beispiel-Ausgabe |
+|---|---|---|---|
+| `<input data-blossom>` | _(keines)_ | `url` (Default) | `https://blossom.example/abc.webp` |
+| `<textarea data-blossom data-format="markdown">` | `markdown` | Markdown | `![Beschreibung](url)` |
+| `<div contenteditable data-blossom data-format="html">` | `html` | HTML | `<figure><img …><figcaption>…</figcaption></figure>` |
+| `<pre data-blossom data-format="nostr-tag">` | `nostr-tag` | Nostr imeta | `["imeta", "url …", "m …", …]` |
+| `<pre data-blossom data-format="json">` | `json` | JSON | `{ "url": "…", "mimeType": "…" }` |
+
+```html
+<!-- URL (default) -->
+<input type="text" data-blossom name="imageUrl" />
+
+<!-- Markdown -->
+<textarea data-blossom data-format="markdown" name="content"></textarea>
+
+<!-- HTML -->
+<div contenteditable data-blossom data-format="html"></div>
+```
+
+> **Ohne Ziel-Element** (z. B. über das Bookmarklet) erscheint stattdessen ein
+> Format-Dropdown in der Toolbar und der Text wird in die Zwischenablage kopiert.
+
+### Variante B — Manuelles Init
+
+```js
+const media = window.BlossomMedia.init({
+  servers: ['https://blossom.primal.net'],
+  relayUrl: 'wss://relay.damus.io',
+  visionEndpoint: 'http://localhost:8787',  // optional: KI-Beschreibung
+  onInsert: (result, targetElement) => {
+    console.log('Eingefügt:', result.url);
+  },
+});
+
+// Programmatisch öffnen:
+media.open(document.querySelector('#upload-input'));
+```
+
+### ESM-Import
+
+```js
+import { init } from '@blossom/plugin/widget';
+
+const media = init({ servers: ['https://blossom.primal.net'] });
+```
+
+## KI-Vision-Service (image-describer)
+
+Für den KI-Vorschlag-Button im Metadaten-Dialog wird der `image-describer`-Service benötigt.
+
+1. Env anlegen:
+
+```powershell
+Copy-Item apps/image-describer/.env.example apps/image-describer/.env
+```
+
+2. In `.env` mindestens `OPENROUTER_API_KEY` setzen.
+
+3. Starten:
+
+```bash
+docker compose up -d image-describer
+```
+
+4. Widget-Konfiguration: `visionEndpoint: 'http://localhost:8787'`
+
+## Build-Skripte
+
+| Skript | Beschreibung |
+|---|---|
+| `pnpm build` | Alle Pakete bauen (tsc) |
+| `pnpm build:widget` | Widget-Bundle bauen (IIFE + ESM) |
+| `pnpm typecheck` | TypeScript-Check aller Pakete |
+| `pnpm test` | Tests aller Pakete |
+
+## Plugin-API (direkte Nutzung ohne Widget)
+
+### Upload-Client
+
+```ts
+import { createBlossomBridge } from '@blossom/plugin';
+
+const bridge = createBlossomBridge({
+  servers: ['https://blossom.primal.net/'],
+  signer, // { getPublicKey, signEvent }
+});
+
+const result = await bridge.selectAndUpload({ accept: 'image/*,application/pdf' });
+if (result) console.log(result.url, result.tags);
+```
+
+### Svelte Input Action
+
+```svelte
+<input use:useBlossomInput={{ onSelectUrl, iconLabel: 'Upload' }} />
+```
+
+### TipTap Extension
+
+```ts
+import { BlossomExtension, uploadAndInsertBlossomMedia } from '@blossom/plugin';
+
+const editor = new Editor({
+  extensions: [StarterKit, Image, BlossomExtension],
+});
+
+await uploadAndInsertBlossomMedia(editor, async () => ({
+  url: 'https://example.com/image.png',
+  mimeType: 'image/png',
+}));
+```
+
+## Dokumentation
+
+- Vollständige Integrations-Referenz: [`integration.md`](integration.md)
+- Einbettungsbeispiele: [`examples/`](examples/)
+
 
 ## Demo `.env` konfigurieren
 

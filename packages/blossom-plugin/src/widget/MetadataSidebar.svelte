@@ -1,0 +1,525 @@
+<script lang="ts">
+  import {
+    LICENSE_PRESETS,
+    NO_LICENSE_ID,
+    CUSTOM_LICENSE_ID,
+    CC0_LICENSE_ID,
+    resolveLicenseChoice,
+  } from '../core/licenses';
+  import type { ImageMetadataInput } from '../core/metadata';
+  import type { VisionClientOptions } from '../core/vision';
+  import { fetchVisionSuggestion } from '../core/vision';
+  import { untrack } from 'svelte';
+
+  interface MetadataSidebarProps {
+    /** File URL (shown in preview and used for Vision API) */
+    fileUrl: string;
+    /** MIME type of the file */
+    mime: string;
+    /** Thumbnail URL for preview */
+    thumbnailUrl?: string;
+    /** Initial metadata (for editing mode) */
+    initialMetadata?: Partial<ImageMetadataInput>;
+    /** Mode — 'create' shows "Speichern", 'edit' shows "Aktualisieren" */
+    mode: 'create' | 'edit';
+    /** Vision endpoint config (optional; hides AI button if not provided) */
+    visionOptions?: VisionClientOptions;
+    /** Whether the delete button should be shown */
+    showDelete?: boolean;
+    /** Whether the metadata form is shown at all */
+    showMetadata?: boolean;
+    /** Called with the filled metadata when user submits */
+    onSubmit: (metadata: ImageMetadataInput) => void;
+    /** Called when user clicks "Löschen" */
+    onDelete?: () => void;
+    /** Called when user cancels */
+    onCancel?: () => void;
+  }
+
+  let {
+    fileUrl,
+    mime,
+    thumbnailUrl,
+    initialMetadata,
+    mode = 'create',
+    visionOptions,
+    showDelete = false,
+    showMetadata = true,
+    onSubmit,
+    onDelete,
+    onCancel,
+  }: MetadataSidebarProps = $props();
+
+  const AI_AUTHOR_GENERATED = 'KI generiert';
+  const AI_AUTHOR_ASSISTED = 'Mit Hilfe von KI generiert';
+
+  // Form state — untrack() suppresses the "only captures initial value" warning
+  // intentionally: this is an edit form that takes a snapshot of initialMetadata.
+  let description = $state(untrack(() => initialMetadata?.description ?? ''));
+  let altAttribution = $state(untrack(() => initialMetadata?.altAttribution ?? ''));
+  let genre = $state(untrack(() => initialMetadata?.genre ?? ''));
+  let author = $state(untrack(() => initialMetadata?.author ?? ''));
+  let keywords = $state(untrack(() => initialMetadata?.keywords?.join(', ') ?? ''));
+  let aiImageMode = $state<'none' | 'generated' | 'assisted'>(
+    untrack(() => (initialMetadata?.aiImageMode as 'none' | 'generated' | 'assisted') ?? 'none'),
+  );
+  let aiMetadataGenerated = $state(untrack(() => Boolean(initialMetadata?.aiMetadataGenerated)));
+
+  const initialLicense = untrack(() =>
+    resolveLicenseChoice(initialMetadata?.license, initialMetadata?.licenseLabel),
+  );
+  let licenseChoice = $state(initialLicense.choice);
+  let customLicenseSpec = $state(initialLicense.customSpec);
+
+  let validationError = $state('');
+  let visionLoading = $state(false);
+  let visionError = $state('');
+  let visionChangedDescription = $state(false);
+  let visionChangedAlt = $state(false);
+  let visionChangedGenre = $state(false);
+  let visionChangedKeywords = $state(false);
+
+  let isPdf = $derived(mime.trim().toLowerCase() === 'application/pdf');
+  let isImage = $derived(mime.trim().toLowerCase().startsWith('image/'));
+
+  // Auto-set AI author + CC0 when AI mode is selected
+  $effect(() => {
+    if (aiImageMode === 'none') return;
+    author = aiImageMode === 'generated' ? AI_AUTHOR_GENERATED : AI_AUTHOR_ASSISTED;
+    licenseChoice = CC0_LICENSE_ID;
+    customLicenseSpec = '';
+  });
+
+  async function suggestFromVision() {
+    if (!visionOptions || !fileUrl) {
+      visionError = 'Kein Vision-Endpoint konfiguriert.';
+      return;
+    }
+
+    visionLoading = true;
+    visionError = '';
+
+    try {
+      const result = await fetchVisionSuggestion(fileUrl, visionOptions);
+
+      if (result.description) {
+        visionChangedDescription = result.description !== description;
+        description = result.description;
+        aiMetadataGenerated = true;
+      }
+      if (result.alt) {
+        visionChangedAlt = result.alt !== altAttribution;
+        altAttribution = result.alt;
+      }
+      if (result.genre) {
+        visionChangedGenre = result.genre !== genre;
+        genre = result.genre;
+        aiMetadataGenerated = true;
+      }
+      if (!keywords.trim() && result.tags?.length) {
+        const next = result.tags.join(', ');
+        visionChangedKeywords = next !== keywords;
+        keywords = next;
+        aiMetadataGenerated = true;
+      }
+    } catch (error) {
+      visionError = error instanceof Error ? error.message : 'Vision-Anfrage fehlgeschlagen';
+    } finally {
+      visionLoading = false;
+    }
+  }
+
+  function resolveCurrentLicense(): { canonical: string; label: string } {
+    if (aiImageMode !== 'none') {
+      const cc0 = LICENSE_PRESETS.find((p) => p.id === CC0_LICENSE_ID)!;
+      return { canonical: cc0.canonical, label: cc0.licenseLabel };
+    }
+    if (licenseChoice === NO_LICENSE_ID) return { canonical: '', label: '' };
+    if (licenseChoice === CUSTOM_LICENSE_ID) {
+      const idx = customLicenseSpec.indexOf('|');
+      if (idx < 0) return { canonical: customLicenseSpec.trim(), label: '' };
+      return {
+        canonical: customLicenseSpec.slice(0, idx).trim(),
+        label: customLicenseSpec.slice(idx + 1).trim(),
+      };
+    }
+    const preset = LICENSE_PRESETS.find((p) => p.id === licenseChoice);
+    return preset ? { canonical: preset.canonical, label: preset.licenseLabel } : { canonical: '', label: '' };
+  }
+
+  function submit() {
+    validationError = '';
+    const desc = description.trim();
+    const alt = altAttribution.trim();
+
+    if (!desc || !alt) {
+      validationError = 'Beschreibung und Alt-Attribution sind Pflichtfelder.';
+      return;
+    }
+
+    if (aiImageMode === 'none' && licenseChoice === CUSTOM_LICENSE_ID) {
+      if (!customLicenseSpec.includes('|')) {
+        validationError = 'Für "Andere Lizenz" bitte das Format uri|label verwenden.';
+        return;
+      }
+    }
+
+    const { canonical, label } = resolveCurrentLicense();
+    const resolvedAuthor =
+      aiImageMode !== 'none'
+        ? aiImageMode === 'generated'
+          ? AI_AUTHOR_GENERATED
+          : AI_AUTHOR_ASSISTED
+        : author.trim();
+
+    onSubmit({
+      description: desc,
+      altAttribution: alt,
+      genre: genre.trim(),
+      author: resolvedAuthor,
+      license: canonical,
+      licenseLabel: label || undefined,
+      aiImageMode: aiImageMode === 'none' ? undefined : aiImageMode,
+      aiMetadataGenerated,
+      keywords: keywords
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean),
+    });
+  }
+</script>
+
+<div class="metadata-sidebar">
+  <!-- Preview -->
+  <div class="preview-wrap">
+    {#if thumbnailUrl}
+      <img class="sidebar-preview" src={thumbnailUrl} alt={altAttribution || description || 'Vorschau'} />
+    {:else if isImage && fileUrl}
+      <img class="sidebar-preview" src={fileUrl} alt={altAttribution || description || 'Vorschau'} />
+    {:else if isPdf}
+      <div class="sidebar-preview-placeholder">📄 PDF — <a href={fileUrl} target="_blank" rel="noreferrer">Öffnen</a></div>
+    {/if}
+    {#if visionOptions}
+      <button
+        type="button"
+        class="btn-vision"
+        onclick={suggestFromVision}
+        disabled={visionLoading || !fileUrl}
+        title={visionLoading ? (isPdf ? 'Analysiere PDF…' : 'Analysiere Bild…') : 'KI-Vorschlag'}
+      >
+        {#if visionLoading}
+          <svg class="vision-spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-dasharray="50 20" stroke-linecap="round"/></svg>
+        {:else}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/></svg>
+        {/if}
+      </button>
+      {#if visionError}
+        <p class="vision-error">{visionError}</p>
+      {/if}
+    {/if}
+  </div>
+
+  {#if showMetadata}
+    <form onsubmit={(e) => { e.preventDefault(); submit(); }}>
+      <label class="field">
+        <span>Beschreibung *</span>
+        <textarea
+          rows="3"
+          bind:value={description}
+          required
+          class:vision-updated={visionChangedDescription}
+        ></textarea>
+      </label>
+
+      <label class="field">
+        <span>Alt-Text / Attribution *</span>
+        <input
+          bind:value={altAttribution}
+          required
+          class:vision-updated={visionChangedAlt}
+        />
+      </label>
+
+      <label class="field">
+        <span>Genre</span>
+        <input
+          bind:value={genre}
+          placeholder="z. B. photorealistic, aquarell"
+          class:vision-updated={visionChangedGenre}
+        />
+      </label>
+
+      <label class="field">
+        <span>Autor</span>
+        <input bind:value={author} disabled={aiImageMode !== 'none'} />
+      </label>
+
+      <label class="field">
+        <span>KI-Status</span>
+        <select bind:value={aiImageMode}>
+          <option value="none">Keine KI-Angabe</option>
+          <option value="generated">KI generiert</option>
+          <option value="assisted">Mit Hilfe von KI generiert</option>
+        </select>
+      </label>
+
+      {#if aiImageMode !== 'none'}
+        <p class="note">Bei KI-Bildern wird automatisch CC0 als Lizenz gesetzt.</p>
+      {/if}
+
+      <label class="field">
+        <span>Lizenz</span>
+        <select bind:value={licenseChoice} disabled={aiImageMode !== 'none'}>
+          <option value={NO_LICENSE_ID}>Keine Lizenz</option>
+          {#each LICENSE_PRESETS as preset}
+            <option value={preset.id}>{preset.label}</option>
+          {/each}
+          <option value={CUSTOM_LICENSE_ID}>Andere Lizenz</option>
+        </select>
+      </label>
+
+      {#if aiImageMode === 'none' && licenseChoice === CUSTOM_LICENSE_ID}
+        <label class="field">
+          <span>Andere Lizenz (uri|label)</span>
+          <input
+            bind:value={customLicenseSpec}
+            placeholder="https://example.com/license|Custom License"
+          />
+        </label>
+      {/if}
+
+      <label class="field field-checkbox">
+        <input type="checkbox" bind:checked={aiMetadataGenerated} />
+        <span>Beschreibung/Keywords wurden mit KI erstellt</span>
+      </label>
+
+      <label class="field">
+        <span>Keywords</span>
+        <input
+          bind:value={keywords}
+          placeholder="nostr, blossom, foto"
+          class:vision-updated={visionChangedKeywords}
+        />
+      </label>
+
+      {#if validationError}
+        <p class="error">{validationError}</p>
+      {/if}
+
+      <div class="actions">
+        {#if onCancel}
+          <button type="button" class="btn-secondary" onclick={onCancel}>Abbrechen</button>
+        {/if}
+        {#if showDelete && onDelete}
+          <button type="button" class="btn-delete" onclick={onDelete}>🗑 Löschen</button>
+        {/if}
+        <button type="submit" class="btn-primary">
+          {mode === 'edit' ? 'Aktualisieren' : 'Übernehmen'}
+        </button>
+      </div>
+    </form>
+  {:else}
+    <!-- Read-only mode: only apply/delete actions -->
+    <div class="actions">
+      {#if showDelete && onDelete}
+        <button type="button" class="btn-delete" onclick={onDelete}>🗑 Löschen</button>
+      {/if}
+      <button type="button" class="btn-primary" onclick={() => submit()}>Übernehmen</button>
+    </div>
+  {/if}
+</div>
+
+<style>
+  .metadata-sidebar {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    overflow-y: auto;
+  }
+
+  .preview-wrap {
+    position: relative;
+    display: inline-block;
+  }
+
+  .sidebar-preview {
+    max-width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+    border-radius: 6px;
+    border: 1px solid var(--bm-border, #ddd);
+    background: var(--bm-bg-subtle, #f8f8f8);
+    display: block;
+  }
+
+  .sidebar-preview-placeholder {
+    padding: 1rem;
+    background: var(--bm-bg-subtle, #f5f5f5);
+    border-radius: 6px;
+    text-align: center;
+    font-size: 0.9rem;
+  }
+
+  .vision-error {
+    color: var(--bm-danger, #c0392b);
+    font-size: 0.8rem;
+    margin: 0.25rem 0 0;
+  }
+
+  form {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .field {
+    display: grid;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  .field span {
+    font-weight: 500;
+    color: var(--bm-text-muted, #555);
+  }
+
+  .field input,
+  .field textarea,
+  .field select {
+    font: inherit;
+    font-size: 0.875rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--bm-input-border, #ccc);
+    border-radius: 4px;
+    background: var(--bm-input-bg, #fff);
+    color: var(--bm-text, #222);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .field textarea {
+    resize: vertical;
+  }
+
+  .field-checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    grid-template-columns: auto 1fr;
+  }
+
+  .field-checkbox input {
+    width: auto;
+  }
+
+  .vision-updated {
+    border-color: var(--bm-accent, #6c63ff) !important;
+    outline: 2px dashed var(--bm-accent, #6c63ff);
+    outline-offset: 1px;
+  }
+
+  .btn-vision {
+    position: absolute;
+    bottom: 0.4rem;
+    right: 0.4rem;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    border: 2px solid #d4a017;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #f5c518;
+    transition: background 0.15s, transform 0.15s;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .vision-spinner {
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .btn-vision:hover {
+    background: rgba(0, 0, 0, 0.75);
+    transform: scale(1.1);
+  }
+
+  .btn-vision:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .note {
+    font-size: 0.8rem;
+    color: var(--bm-text-muted, #666);
+    margin: 0;
+  }
+
+  .error {
+    color: var(--bm-danger, #c0392b);
+    font-size: 0.85rem;
+    margin: 0;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    margin-top: 0.25rem;
+  }
+
+  .btn-primary {
+    font: inherit;
+    padding: 0.5rem 1rem;
+    background: var(--bm-accent, #6c63ff);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background 0.12s;
+  }
+
+  .btn-primary:hover {
+    background: var(--bm-accent-hover, #5a52d5);
+  }
+
+  .btn-secondary {
+    font: inherit;
+    padding: 0.5rem 1rem;
+    background: var(--bm-bg-muted, #f0f0f0);
+    border: 1px solid var(--bm-input-border, #ccc);
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--bm-text, #222);
+    transition: background 0.12s;
+  }
+
+  .btn-secondary:hover {
+    background: var(--bm-bg-hover, #e8e8e8);
+  }
+
+  .btn-delete {
+    font: inherit;
+    padding: 0.5rem 1rem;
+    background: transparent;
+    color: var(--bm-danger, #c0392b);
+    border: 1px solid var(--bm-danger, #c0392b);
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background 0.12s;
+  }
+
+  .btn-delete:hover {
+    background: var(--bm-danger-bg, #fdf0ee);
+  }
+</style>
