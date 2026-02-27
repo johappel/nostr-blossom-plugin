@@ -15,9 +15,12 @@ The format is based on Keep a Changelog.
 
 - **NIP-07 Poll bei Bunker-Credentials übersprungen**: Wenn gespeicherte Bunker-Credentials (`bunkerUri` + `bunkerLocalKey`) vorhanden sind, wird das 5-Sekunden-Polling für `window.nostr` übersprungen. Der Bunker-Auto-Reconnect übernimmt direkt — schnellerer Widget-Start.
 - **Alle konfigurierten Relays werden versucht**: NIP-94-Events und Löschungen werden jetzt an alle Relays gesendet, nicht nur an den ersten. Behebt das Problem, dass Events nicht ankamen, wenn ein einzelner Relay (z.B. `relay.damus.io`) ausfiel.
+- **Gallery-Reload nach Bunker-Reconnect**: Die Mediathek wird jetzt explizit neu geladen, sobald der Bunker-Signer verfügbar wird. Vorher blieb die Gallery leer, weil der initiale Ladevorgang ohne Signer stattfand und NIP-94-Events übersprungen wurden.
+- **Bookmarklet-Popup Signer-Status**: Statusanzeige aktualisiert sich jetzt korrekt von „Bunker-Verbindung wird hergestellt…" auf „Signer verbunden" via `onSignerReady`-Callback.
 
 ### Added
 
+- **`onSignerReady` Callback**: Neues optionales Feld in `BlossomMediaConfig`. Wird aufgerufen, sobald ein Signer verfügbar wird (NIP-07, NIP-46 Bunker oder Host-Signer), mit dem Hex-Pubkey als Argument. Ermöglicht externen Status-Indikatoren (z.B. Bookmarklet-Statusleiste) die Signer-Verfügbarkeit zu erkennen.
 - **Settings-Panel im Widget**: Neuer User-Icon-Button im Header öffnet ein Einstellungs-Panel (Overlay-Pattern). Enthält Login-Hinweise (NIP-07 Extensions, NIP-46 Bunker), Profil-Anzeige (readonly), und Formulare für Blossom-Server, Nostr-Relays und KI-Service-URL.
 - **NIP-46 Remote Signer (Bunker)**: Bunker-URI-Eingabe im Settings-Panel ermöglicht Login über `bunker://`-URIs. Nutzt NDK (`@nostr-dev-kit/ndk`) intern per Dynamic Import. Bunker-Signer wird bevorzugt, wenn konfiguriert.
 - **NIP-46 Bunker-Persistenz**: Lokaler App-Schlüssel wird in `localStorage` gespeichert (`bunkerLocalKey`), damit die Bunker-Verbindung beim erneuten Öffnen des Widgets automatisch wiederhergestellt wird. Disconnect-Button zum manuellen Trennen.

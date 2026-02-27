@@ -162,6 +162,23 @@
   // ── NIP-46 Bunker session management ──────────────────────────────────────
   let bunkerSession = $state.raw<BunkerSession | null>(null);
 
+  // ── Notify host when signer becomes available ─────────────────────────────
+  // Fires config.onSignerReady(pubkey) once when signer transitions from
+  // null to non-null. Resets if signer becomes null again (disconnect).
+  let signerReadyFired = $state(false);
+  $effect(() => {
+    if (signer && !signerReadyFired) {
+      signerReadyFired = true;
+      if (config.onSignerReady) {
+        signer.getPublicKey()
+          .then((pk) => config.onSignerReady?.(pk))
+          .catch(() => { /* non-fatal */ });
+      }
+    } else if (!signer) {
+      signerReadyFired = false;
+    }
+  });
+
   function handleBunkerConnected(session: BunkerSession) {
     bunkerSession = session;
     signer = session.signer;
@@ -213,6 +230,10 @@
         if (!signer || signer === detectSigner()) {
           bunkerSession = session;
           signer = session.signer;
+
+          // Explicitly reload gallery now that signer is available.
+          // The $effect-based reload is a backup but this ensures immediate load.
+          if (open) loadGalleryIfNeeded();
         }
       })
       .catch(() => {
@@ -225,6 +246,16 @@
   let nip94Data = $state<Nip94FetchResult | null>(null);
   let galleryLoading = $state(false);
   let galleryError = $state('');
+  /** Tracks whether the last successful gallery load included a signer. */
+  let galleryLoadedWithSigner = $state(false);
+
+  // When signer becomes available (e.g. bunker auto-reconnect) and the dialog
+  // is open but gallery was previously loaded without a signer, reload.
+  $effect(() => {
+    if (signer && open && !galleryLoadedWithSigner && !galleryLoading) {
+      loadGalleryIfNeeded();
+    }
+  });
 
   // ── Vision config ─────────────────────────────────────────────────────────
   let visionOptions = $derived.by<VisionClientOptions | undefined>(() => {
@@ -308,6 +339,7 @@
       galleryError = err instanceof Error ? err.message : 'Mediathek konnte nicht geladen werden';
     } finally {
       galleryLoading = false;
+      if (signer) galleryLoadedWithSigner = true;
     }
   }
 

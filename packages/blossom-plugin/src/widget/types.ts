@@ -193,6 +193,15 @@ export interface BlossomMediaConfig {
    * Called when an unrecoverable error occurs (upload failure, etc.).
    */
   onError?: (error: Error) => void;
+
+  /**
+   * Called when a signer becomes available (NIP-07 detected, NIP-46 bunker
+   * connected, or host-provided signer loaded). Useful for updating external
+   * status indicators (e.g. bookmarklet status bar).
+   *
+   * @param pubkey - The hex public key of the active signer.
+   */
+  onSignerReady?: (pubkey: string) => void;
 }
 
 // ─── Instance API ─────────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🌸 Blossom Upload</title>
+  <title>🌸 Blossom Upload & Mediathek</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
 
@@ -108,6 +108,18 @@
   var relayUrl = params.get('relay') || 'wss://relay.damus.io';
   var visionEndpoint = params.get('vision') || '';
 
+  // ── Prüfe ob gespeicherte Bunker-Credentials vorhanden sind ──────────────
+  function hasSavedBunkerCredentials() {
+    try {
+      var raw = localStorage.getItem('blossom-settings:default');
+      if (!raw) return false;
+      var s = JSON.parse(raw);
+      return !!(s.bunkerUri && s.bunkerLocalKey);
+    } catch (e) { return false; }
+  }
+
+  var bunkerSaved = hasSavedBunkerCredentials();
+
   // ── Auf window.nostr warten (NIP-07 Extensions injizieren asynchron) ──
   var attempts = 0;
   var maxAttempts = 20; // 20 × 250 ms = 5 s
@@ -117,6 +129,16 @@
       startWidget();
       return;
     }
+
+    // Bunker-Credentials vorhanden → NIP-07-Suche überspringen
+    if (bunkerSaved) {
+      document.getElementById('status-dot').style.background = '#60a5fa';
+      document.getElementById('status-text').textContent =
+        'Bunker-Verbindung wird hergestellt\u2026';
+      startWidget();
+      return;
+    }
+
     attempts++;
     if (attempts >= maxAttempts) {
       document.getElementById('status-dot').style.background = '#f87171';
@@ -131,15 +153,26 @@
 
   function startWidget() {
     var hasSigner = !!window.nostr;
-    document.getElementById('status-dot').style.background = hasSigner ? '#4ade80' : '#fbbf24';
-    document.getElementById('status-text').innerHTML = hasSigner
-      ? 'Signer erkannt \u2014 Datei ausw\u00e4hlen oder hochladen, dann mit <kbd>Strg+V</kbd> einf\u00fcgen'
-      : 'Kein Signer \u2014 nur Zwischenablage-Modus (kein Upload m\u00f6glich)';
+
+    // Status nur aktualisieren, wenn nicht schon Bunker-Status gesetzt
+    if (!bunkerSaved) {
+      document.getElementById('status-dot').style.background = hasSigner ? '#4ade80' : '#fbbf24';
+      document.getElementById('status-text').innerHTML = hasSigner
+        ? 'Signer erkannt \u2014 Datei ausw\u00e4hlen oder hochladen, dann mit <kbd>Strg+V</kbd> einf\u00fcgen'
+        : 'Kein Signer \u2014 nur Zwischenablage-Modus (kein Upload m\u00f6glich)';
+    }
 
     var config = {
       servers: servers,
       relayUrl: relayUrl,
       targets: '',
+      onSignerReady: function (pubkey) {
+        var dot = document.getElementById('status-dot');
+        var text = document.getElementById('status-text');
+        if (dot) dot.style.background = '#4ade80';
+        if (text) text.innerHTML =
+          'Signer verbunden \u2014 Datei ausw\u00e4hlen oder hochladen, dann mit <kbd>Strg+V</kbd> einf\u00fcgen';
+      },
       onInsert: function (result) {
         var text = result.formattedText || result.url;
 
