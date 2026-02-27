@@ -23,7 +23,7 @@
   interface UploadTabProps {
     signer: BlossomSigner | null;
     servers: string[];
-    relayUrl?: string;
+    relayUrls: string[];
     features: BlossomMediaFeatures;
     visionOptions?: VisionClientOptions;
     onInserted: (result: InsertResult) => void;
@@ -32,7 +32,7 @@
   let {
     signer,
     servers,
-    relayUrl,
+    relayUrls,
     features,
     visionOptions,
     onInserted,
@@ -173,9 +173,9 @@
 
       const publishedEventIds: string[] = [];
 
-      if (relayUrl) {
-        const res1063 = await publishEvent(signer, relayUrl, metadata.description, kind1063Tags, 1063);
-        const res1 = await publishEvent(signer, relayUrl, metadata.description, kind1Tags, 1);
+      if (relayUrls.length > 0) {
+        const res1063 = await publishEvent(signer, relayUrls, metadata.description, kind1063Tags, 1063);
+        const res1 = await publishEvent(signer, relayUrls, metadata.description, kind1Tags, 1);
         const id1063 = (res1063.event as Record<string, unknown> | null)?.id;
         const id1 = (res1.event as Record<string, unknown> | null)?.id;
         if (typeof id1063 === 'string') publishedEventIds.push(id1063);

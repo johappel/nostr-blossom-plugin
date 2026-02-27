@@ -21,6 +21,8 @@ export interface BunkerStatusCallback {
 export interface BunkerSession {
   /** BlossomSigner adapter — ready after `connect()` resolves. */
   signer: BlossomSigner;
+  /** Hex-encoded local app private key — persist this to reconnect later. */
+  localPrivateKeyHex: string;
   /** Disconnect from the bunker and release resources. */
   disconnect: () => void;
 }
@@ -40,11 +42,14 @@ export interface BunkerSession {
  *
  * @param bunkerUri  - Full `bunker://` connection string (NIP-46)
  * @param onStatus   - Optional callback for connection-state feedback
+ * @param localPrivateKeyHex - Previously persisted local app key (hex) to
+ *   reuse the same NIP-46 channel.  When omitted a fresh keypair is generated.
  * @returns A `BunkerSession` whose `.signer` property satisfies `BlossomSigner`
  */
 export async function connectBunker(
   bunkerUri: string,
   onStatus?: BunkerStatusCallback,
+  localPrivateKeyHex?: string,
 ): Promise<BunkerSession> {
   onStatus?.('connecting');
 
@@ -54,7 +59,10 @@ export async function connectBunker(
       await import('@nostr-dev-kit/ndk');
 
     // Local keypair used as the "app" side of the NIP-46 channel.
-    const localSigner = NDKPrivateKeySigner.generate();
+    // Re-use a previously persisted key so the bunker recognises the app.
+    const localSigner = localPrivateKeyHex
+      ? new NDKPrivateKeySigner(localPrivateKeyHex)
+      : NDKPrivateKeySigner.generate();
 
     const ndk = new NDK({
       enableOutboxModel: false,
@@ -88,6 +96,7 @@ export async function connectBunker(
 
     return {
       signer,
+      localPrivateKeyHex: localSigner.privateKey,
       disconnect: () => {
         try {
           // NDKPool has no single close/destroy – disconnect each relay individually

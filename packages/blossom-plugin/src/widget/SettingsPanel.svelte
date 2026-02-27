@@ -3,7 +3,7 @@
   import type { BlossomSigner } from '../core/types';
   import type { BlossomUserSettings } from '../core/settings';
   import type { NostrProfile } from '../core/profile';
-  import type { BunkerStatus } from '../core/nip46';
+  import type { BunkerStatus, BunkerSession } from '../core/nip46';
   import { fetchProfile, shortenPubkey } from '../core/profile';
   import {
     saveSettingsToLocalStorage,
@@ -16,26 +16,32 @@
     settings: BlossomUserSettings;
     /** Currently active signer (NIP-07 / NIP-46 / config). */
     signer: BlossomSigner | null;
-    /** Relay URL for NIP-78 sync and profile fetch. */
-    relayUrl?: string;
+    /** Relay URLs for NIP-78 sync and profile fetch. */
+    relayUrls: string[];
     /** Application ID for localStorage scoping. */
     appId: string;
     /** Called when user clicks "← Zurück". */
     onClose: () => void;
     /** Called with updated settings after save. */
     onSettingsChanged: (settings: BlossomUserSettings) => void;
-    /** Called when a NIP-46 bunker signer has been established. */
-    onBunkerConnected: (signer: BlossomSigner) => void;
+    /** Whether a bunker session is currently active. */
+    bunkerConnected: boolean;
+    /** Called when a NIP-46 bunker session has been established. */
+    onBunkerConnected: (session: BunkerSession) => void;
+    /** Called when user wants to disconnect the bunker. */
+    onBunkerDisconnect: () => void;
   }
 
   let {
     settings,
     signer,
-    relayUrl,
+    relayUrls,
     appId,
     onClose,
     onSettingsChanged,
+    bunkerConnected,
     onBunkerConnected,
+    onBunkerDisconnect,
   }: SettingsPanelProps = $props();
 
   // ── Form state (initialised from current settings snapshot) ──────────
@@ -48,7 +54,8 @@
   let visionEndpoint = $state(_init.visionEndpoint ?? '');
 
   // ── Bunker connection state ────────────────────────────────────────────
-  let bunkerStatus = $state<BunkerStatus>('idle');
+  const _initBunkerConnected = untrack(() => bunkerConnected);
+  let bunkerStatus = $state<BunkerStatus>(_initBunkerConnected ? 'connected' : 'idle');
   let bunkerError = $state('');
 
   // ── Profile state ──────────────────────────────────────────────────────
@@ -61,13 +68,13 @@
 
   // ── Load profile when signer is available ──────────────────────────────
   $effect(() => {
-    if (!signer || !relayUrl) {
+    if (!signer || relayUrls.length === 0) {
       profile = null;
       return;
     }
     profileLoading = true;
     signer.getPublicKey().then((pubkey) => {
-      fetchProfile(pubkey, relayUrl!)
+      fetchProfile(pubkey, relayUrls)
         .then((p) => { profile = p; })
         .catch(() => { profile = null; })
         .finally(() => { profileLoading = false; });
@@ -88,10 +95,15 @@
         bunkerStatus = status;
         if (err) bunkerError = err;
       });
-      onBunkerConnected(session.signer);
+      onBunkerConnected(session);
     } catch {
       // Status/error already set via callback
     }
+  }
+
+  function handleBunkerDisconnect() {
+    bunkerStatus = 'idle';
+    onBunkerDisconnect();
   }
 
   // ── Save settings ─────────────────────────────────────────────────────
@@ -104,6 +116,7 @@
     saveMessage = '';
 
     const updated: BlossomUserSettings = {
+      ...untrack(() => settings),          // preserve bunkerLocalKey etc.
       bunkerUri: bunkerUri.trim() || undefined,
       servers: parseLines(serversText),
       relays: parseLines(relaysText),
@@ -115,9 +128,9 @@
     saveSettingsToLocalStorage(updated, appId);
 
     // 2) NIP-78 relay sync (if signer + relay available)
-    if (signer && relayUrl) {
+    if (signer && relayUrls.length > 0) {
       try {
-        await publishSettingsEvent(signer, relayUrl, updated);
+        await publishSettingsEvent(signer, relayUrls[0], updated);
         saveMessage = 'Gespeichert (lokal + Relay).';
       } catch {
         saveMessage = 'Lokal gespeichert. Relay-Sync fehlgeschlagen.';
@@ -190,33 +203,48 @@
         <a href="https://app.nsecbunker.com" target="_blank" rel="noopener">nsecBunker</a>.
         Gib die Bunker-URI ein und klicke auf „Verbinden".
       </p>
-      <div class="sp-bunker-row">
-        <input
-          type="text"
-          class="sp-input sp-input-bunker"
-          placeholder="bunker://pubkey?relay=wss://…&secret=…"
-          bind:value={bunkerUri}
-        />
-        <button
-          type="button"
-          class="sp-btn sp-btn-connect"
-          disabled={bunkerStatus === 'connecting' || !bunkerUri.trim()}
-          onclick={handleBunkerConnect}
-        >
-          {#if bunkerStatus === 'connecting'}
-            Verbinde…
-          {:else if bunkerStatus === 'connected'}
-            ✓ Verbunden
-          {:else}
-            Verbinden
-          {/if}
-        </button>
-      </div>
+
+      {#if bunkerStatus === 'connected'}
+        <!-- Connected state: show status + disconnect button -->
+        <div class="sp-bunker-connected">
+          <span class="sp-bunker-status-dot"></span>
+          <span class="sp-bunker-status-text">Bunker verbunden</span>
+          <button
+            type="button"
+            class="sp-btn sp-btn-disconnect"
+            onclick={handleBunkerDisconnect}
+          >
+            Trennen
+          </button>
+        </div>
+        {#if bunkerUri}
+          <p class="sp-bunker-uri-hint" title={bunkerUri}>URI: {bunkerUri.length > 50 ? bunkerUri.slice(0, 50) + '…' : bunkerUri}</p>
+        {/if}
+      {:else}
+        <!-- Disconnected state: show input + connect button -->
+        <div class="sp-bunker-row">
+          <input
+            type="text"
+            class="sp-input sp-input-bunker"
+            placeholder="bunker://pubkey?relay=wss://…&secret=…"
+            bind:value={bunkerUri}
+          />
+          <button
+            type="button"
+            class="sp-btn sp-btn-connect"
+            disabled={bunkerStatus === 'connecting' || !bunkerUri.trim()}
+            onclick={handleBunkerConnect}
+          >
+            {#if bunkerStatus === 'connecting'}
+              Verbinde…
+            {:else}
+              Verbinden
+            {/if}
+          </button>
+        </div>
+      {/if}
       {#if bunkerError}
         <p class="sp-error">{bunkerError}</p>
-      {/if}
-      {#if bunkerStatus === 'connected'}
-        <p class="sp-success">Bunker-Signer aktiv.</p>
       {/if}
     </div>
   </section>
@@ -448,6 +476,58 @@
 
   .sp-input-bunker {
     flex: 1;
+  }
+
+  .sp-bunker-connected {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.65rem;
+    background: var(--bm-bg-subtle);
+    border: 1px solid var(--bm-accent);
+    border-radius: 6px;
+  }
+
+  .sp-bunker-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--bm-accent);
+    flex-shrink: 0;
+  }
+
+  .sp-bunker-status-text {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--bm-text);
+  }
+
+  .sp-btn-disconnect {
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 4px;
+    border: 1px solid var(--bm-danger, #e55);
+    background: transparent;
+    color: var(--bm-danger, #e55);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .sp-btn-disconnect:hover {
+    background: color-mix(in srgb, var(--bm-danger, #e55) 12%, transparent);
+  }
+
+  .sp-bunker-uri-hint {
+    font-size: 0.75rem;
+    color: var(--bm-text-muted);
+    margin: 0.3rem 0 0 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: monospace;
   }
 
   /* ── Form elements ── */

@@ -6,10 +6,21 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+### Changed
+
+- **Multi-Relay Publishing**: `publishEvent()` und `publishDeletionEvent()` akzeptieren jetzt `relayUrls: string | string[]` und publizieren parallel an alle konfigurierten Relays. Pro Relay wird ein individuelles Ergebnis zurückgegeben (`PublishRelayResult`). Einzelne Relay-Ausfälle blockieren nicht mehr den gesamten Publish-Vorgang.
+- **`MergedConfig.relayUrls`**: Interne Config verwendet jetzt `relayUrls: string[]` statt `relayUrl?: string`. Alle User-Relays aus den Einstellungen werden berücksichtigt, nicht nur der erste Eintrag.
+
+### Fixed
+
+- **NIP-07 Poll bei Bunker-Credentials übersprungen**: Wenn gespeicherte Bunker-Credentials (`bunkerUri` + `bunkerLocalKey`) vorhanden sind, wird das 5-Sekunden-Polling für `window.nostr` übersprungen. Der Bunker-Auto-Reconnect übernimmt direkt — schnellerer Widget-Start.
+- **Alle konfigurierten Relays werden versucht**: NIP-94-Events und Löschungen werden jetzt an alle Relays gesendet, nicht nur an den ersten. Behebt das Problem, dass Events nicht ankamen, wenn ein einzelner Relay (z.B. `relay.damus.io`) ausfiel.
+
 ### Added
 
 - **Settings-Panel im Widget**: Neuer User-Icon-Button im Header öffnet ein Einstellungs-Panel (Overlay-Pattern). Enthält Login-Hinweise (NIP-07 Extensions, NIP-46 Bunker), Profil-Anzeige (readonly), und Formulare für Blossom-Server, Nostr-Relays und KI-Service-URL.
 - **NIP-46 Remote Signer (Bunker)**: Bunker-URI-Eingabe im Settings-Panel ermöglicht Login über `bunker://`-URIs. Nutzt NDK (`@nostr-dev-kit/ndk`) intern per Dynamic Import. Bunker-Signer wird bevorzugt, wenn konfiguriert.
+- **NIP-46 Bunker-Persistenz**: Lokaler App-Schlüssel wird in `localStorage` gespeichert (`bunkerLocalKey`), damit die Bunker-Verbindung beim erneuten Öffnen des Widgets automatisch wiederhergestellt wird. Disconnect-Button zum manuellen Trennen.
 - **NIP-78 Settings-Sync**: User-Einstellungen werden als Kind-30078-Event (NIP-78 Application-specific data) auf dem konfigurierten Relay gespeichert und beim Öffnen des Widgets geladen. `localStorage` dient als primäre Persistenz, NIP-78 als Sync-Layer.
 - **`BlossomUserSettings`**: Neues Interface für persistierte User-Einstellungen (`bunkerUri`, `servers`, `relays`, `visionEndpoint`). Settings überschreiben die Host-Config als non-destructive Override-Layer.
 - **Profil-Fetch (`fetchProfile`)**: Liest Kind-0-Events (NIP-01 Metadata) und zeigt Name, Avatar und NIP-05 im Settings-Panel an.

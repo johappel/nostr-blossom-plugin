@@ -5,6 +5,7 @@
   import type { Nip94FetchResult } from '../core/nip94';
   import type { VisionClientOptions } from '../core/vision';
   import type { BlossomUserSettings } from '../core/settings';
+  import type { BunkerSession } from '../core/nip46';
   import { listBlossomBlobs } from '../core/list';
   import { fetchNip94Events } from '../core/nip94';
   import { updateHistoryItemByUrl, removeHistoryItemByUrl } from '../core/history';
@@ -19,6 +20,7 @@
     mergeLocalAndRemote,
     saveSettingsToLocalStorage,
   } from '../core/settings';
+  import { connectBunker } from '../core/nip46';
   import { untrack } from 'svelte';
   import UploadTab from './UploadTab.svelte';
   import GalleryTab from './GalleryTab.svelte';
@@ -102,6 +104,10 @@
     // Already detected
     if (signer) return;
 
+    // Skip NIP-07 polling when bunker credentials are saved — the bunker
+    // auto-reconnect $effect will handle signer assignment.
+    if (userSettings.bunkerUri && userSettings.bunkerLocalKey) return;
+
     let attempts = 0;
     const MAX_ATTEMPTS = 10;
     const iv = setInterval(() => {
@@ -137,10 +143,10 @@
   $effect(() => {
     if (!signer || settingsSynced) return;
     settingsSynced = true;
-    const relayUrl = effective.relayUrl;
-    if (!relayUrl) return;
+    const urls = effective.relayUrls;
+    if (urls.length === 0) return;
     signer.getPublicKey().then((pubkey) => {
-      fetchSettingsEvent(pubkey, relayUrl).then((result) => {
+      fetchSettingsEvent(pubkey, urls).then((result) => {
         if (!result) return;
         const merged = mergeLocalAndRemote(userSettings, result.settings, result.createdAt);
         userSettings = merged;
@@ -153,9 +159,66 @@
     userSettings = updated;
   }
 
-  function handleBunkerConnected(bunkerSigner: BlossomSigner) {
-    signer = bunkerSigner;
+  // ── NIP-46 Bunker session management ──────────────────────────────────────
+  let bunkerSession = $state.raw<BunkerSession | null>(null);
+
+  function handleBunkerConnected(session: BunkerSession) {
+    bunkerSession = session;
+    signer = session.signer;
+
+    // Persist local key so we can auto-reconnect next time
+    const updated: BlossomUserSettings = {
+      ...userSettings,
+      bunkerLocalKey: session.localPrivateKeyHex,
+      updatedAt: Date.now(),
+    };
+    userSettings = updated;
+    saveSettingsToLocalStorage(updated, config.appId ?? 'default');
   }
+
+  function handleBunkerDisconnect() {
+    bunkerSession?.disconnect();
+    bunkerSession = null;
+
+    // Clear bunker signer – fall back to NIP-07 or config.signer
+    signer = detectSigner();
+
+    // Remove persisted bunker key (but keep the URI for convenience)
+    const updated: BlossomUserSettings = {
+      ...userSettings,
+      bunkerLocalKey: undefined,
+      updatedAt: Date.now(),
+    };
+    userSettings = updated;
+    saveSettingsToLocalStorage(updated, config.appId ?? 'default');
+  }
+
+  // Auto-reconnect from persisted bunker credentials on mount
+  let bunkerAutoReconnected = $state(false);
+  $effect(() => {
+    if (bunkerAutoReconnected) return;
+    if (bunkerSession) return;            // already connected
+    if (config.signer) return;            // host-provided signer takes priority
+
+    const uri = userSettings.bunkerUri;
+    const key = userSettings.bunkerLocalKey;
+    if (!uri || !key) return;
+
+    bunkerAutoReconnected = true;
+
+    // Reconnect in background — don't block mount
+    connectBunker(uri, undefined, key)
+      .then((session) => {
+        // Only apply if nothing else has set a signer in the meantime
+        if (!signer || signer === detectSigner()) {
+          bunkerSession = session;
+          signer = session.signer;
+        }
+      })
+      .catch(() => {
+        // Auto-reconnect failed silently – user can reconnect manually
+      });
+  });
 
   // ── Gallery state ─────────────────────────────────────────────────────────
   let items = $state<UploadHistoryItem[]>([]);
@@ -201,7 +264,7 @@
 
   // ── Gallery load ──────────────────────────────────────────────────────────
   async function loadGalleryIfNeeded() {
-    if (!effective.relayUrl && effective.servers.length === 0) return;
+    if (effective.relayUrls.length === 0 && effective.servers.length === 0) return;
     if (galleryLoading) return;
 
     galleryLoading = true;
@@ -237,9 +300,9 @@
         items = merged;
       }
 
-      // Load NIP-94 events from relay
-      if (effective.relayUrl && resolvedSigner) {
-        nip94Data = await fetchNip94Events(resolvedSigner, [effective.relayUrl]);
+      // Load NIP-94 events from relays
+      if (effective.relayUrls.length > 0 && resolvedSigner) {
+        nip94Data = await fetchNip94Events(resolvedSigner, effective.relayUrls);
       }
     } catch (err) {
       galleryError = err instanceof Error ? err.message : 'Mediathek konnte nicht geladen werden';
@@ -311,10 +374,10 @@
           ? [nip94Event.eventId]
           : [];
 
-      if (effective.relayUrl && eventIds.length) {
+      if (effective.relayUrls.length > 0 && eventIds.length) {
         await publishDeletionEvent(
           resolvedSigner,
-          effective.relayUrl,
+          effective.relayUrls,
           eventIds,
           'Deleted via Blossom Media Widget',
         );
@@ -388,10 +451,10 @@
       const newTags = buildImageMetadataTags(uploadTags, metadata);
 
       // 1) Publish new NIP-94 kind 1063 event
-      if (effective.relayUrl) {
+      if (effective.relayUrls.length > 0) {
         const result = await publishEvent(
           resolvedSigner,
-          effective.relayUrl,
+          effective.relayUrls,
           metadata.description || '',
           newTags,
           1063,
@@ -405,7 +468,7 @@
           try {
             await publishDeletionEvent(
               resolvedSigner,
-              effective.relayUrl!,
+              effective.relayUrls,
               oldEventIds,
               'Replaced by updated NIP-94 event',
             );
@@ -558,11 +621,13 @@
         <SettingsPanel
           settings={userSettings}
           {signer}
-          relayUrl={effective.relayUrl}
+          relayUrls={effective.relayUrls}
           appId={config.appId ?? 'default'}
+          bunkerConnected={bunkerSession !== null}
           onClose={() => { settingsOpen = false; }}
           onSettingsChanged={handleSettingsChanged}
           onBunkerConnected={handleBunkerConnected}
+          onBunkerDisconnect={handleBunkerDisconnect}
         />
       {:else if editItem}
         <!-- Edit-metadata overlay (shown on top, tabs stay mounted underneath) -->
@@ -599,7 +664,7 @@
               <UploadTab
                 {signer}
                 servers={effective.servers}
-                relayUrl={effective.relayUrl}
+                relayUrls={effective.relayUrls}
                 features={config.features ?? {}}
                 {visionOptions}
                 onInserted={handleInserted}
@@ -612,7 +677,7 @@
                 loadError={galleryError}
                 {signer}
                 servers={effective.servers}
-                relayUrl={effective.relayUrl}
+                relayUrls={effective.relayUrls}
                 features={config.features ?? {}}
                 {visionOptions}
                 targetElement={_targetElement}

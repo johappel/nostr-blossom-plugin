@@ -22,6 +22,8 @@ import type { BlossomSigner } from './types';
 export interface BlossomUserSettings {
   /** NIP-46 bunker URI (`bunker://…`). When set, preferred over NIP-07. */
   bunkerUri?: string;
+  /** Hex-encoded local app private key for NIP-46 reconnect. */
+  bunkerLocalKey?: string;
   /** User-defined Blossom upload servers. */
   servers?: string[];
   /** User-defined Nostr relay URLs for NIP-94 publishing / fetching. */
@@ -169,7 +171,7 @@ export async function fetchSettingsEvent(
  */
 export interface MergedConfig {
   servers: string[];
-  relayUrl?: string;
+  relayUrls: string[];
   visionEndpoint?: string;
 }
 
@@ -180,7 +182,7 @@ export interface MergedConfig {
  * - Non-empty user arrays override config arrays entirely.
  * - Non-empty user strings override config strings.
  * - Empty arrays / blank strings are ignored (fall through to config).
- * - For relays: `settings.relays[0]` becomes the primary `relayUrl`.
+ * - `relayUrls` is the full list of relays from user settings or config.
  */
 export function mergeWithSettings(
   configServers: string[],
@@ -193,17 +195,19 @@ export function mergeWithSettings(
       ? settings.servers
       : configServers;
 
-  const relayUrl =
+  const relayUrls =
     settings.relays && settings.relays.length > 0
-      ? settings.relays[0]
-      : configRelayUrl;
+      ? settings.relays
+      : configRelayUrl
+        ? [configRelayUrl]
+        : [];
 
   const visionEndpoint =
     settings.visionEndpoint && settings.visionEndpoint.trim()
       ? settings.visionEndpoint.trim()
       : configVisionEndpoint;
 
-  return { servers, relayUrl, visionEndpoint };
+  return { servers, relayUrls, visionEndpoint };
 }
 
 /**

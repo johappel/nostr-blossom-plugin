@@ -10,38 +10,44 @@
 import { Relay } from 'nostr-tools/relay';
 import type { BlossomSigner } from './types';
 
-export interface PublishEventResult {
+export interface PublishRelayResult {
   relayUrl: string;
+  ok: boolean;
+  error?: string;
+}
+
+export interface PublishEventResult {
+  /** The first relay URL (for backward compat). */
+  relayUrl: string;
+  /** Per-relay success/failure details. */
+  relays: PublishRelayResult[];
   /** The fully signed Nostr event returned by the signer. */
   event: Record<string, unknown>;
 }
 
 /**
- * Sign and publish a Nostr event to a single relay.
+ * Sign and publish a Nostr event to one or more relays.
  *
- * The event is signed via the provided `BlossomSigner`.  A deep-clone is
- * performed before handing the unsigned event to the signer because NIP-07
- * browser extensions use `structuredClone()` across the extension boundary,
- * which fails on Svelte 5 reactive proxies.
+ * The event is signed once, then sent to every relay in parallel.
+ * Individual relay failures are logged but do not reject the promise —
+ * the caller receives per-relay status in `result.relays`.
  *
- * Relay publish errors are caught and logged; the caller still receives the
- * signed event so it can be stored or retried independently.
- *
- * @param signer   - BlossomSigner (NIP-07, NIP-46, or any compatible adapter)
- * @param relayUrl - WebSocket URL of the target relay (required)
- * @param content  - Event content string
- * @param tags     - Event tags array
- * @param kind     - Nostr event kind (default: 1)
+ * @param signer    - BlossomSigner (NIP-07, NIP-46, or any compatible adapter)
+ * @param relayUrls - One or more WebSocket relay URLs
+ * @param content   - Event content string
+ * @param tags      - Event tags array
+ * @param kind      - Nostr event kind (default: 1)
  */
 export async function publishEvent(
   signer: BlossomSigner,
-  relayUrl: string,
+  relayUrls: string | string[],
   content: string,
   tags: string[][],
   kind = 1,
 ): Promise<PublishEventResult> {
-  if (!relayUrl) {
-    throw new Error('Relay URL is required.');
+  const urls = Array.isArray(relayUrls) ? relayUrls : [relayUrls];
+  if (urls.length === 0) {
+    throw new Error('At least one relay URL is required.');
   }
 
   // Deep-clone to strip Svelte 5 / framework reactivity proxies before
@@ -57,20 +63,27 @@ export async function publishEvent(
 
   const signedEvent = await signer.signEvent(unsignedEvent);
 
-  let relay: InstanceType<typeof Relay> | null = null;
-  try {
-    relay = await Relay.connect(relayUrl);
-    await relay.publish(signedEvent as never);
-    console.log(
-      `[publish] kind ${kind} event published to ${relayUrl}`,
-      (signedEvent as Record<string, unknown>).id,
-    );
-  } catch (err) {
-    // Non-fatal: event is signed and can be retried by the caller.
-    console.warn(`[publish] Failed to send kind ${kind} to ${relayUrl}:`, err);
-  } finally {
-    relay?.close();
-  }
+  // Publish to all relays in parallel
+  const relayResults = await Promise.all(
+    urls.map(async (url): Promise<PublishRelayResult> => {
+      let relay: InstanceType<typeof Relay> | null = null;
+      try {
+        relay = await Relay.connect(url);
+        await relay.publish(signedEvent as never);
+        console.log(
+          `[publish] kind ${kind} event published to ${url}`,
+          (signedEvent as Record<string, unknown>).id,
+        );
+        return { relayUrl: url, ok: true };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[publish] Failed to send kind ${kind} to ${url}:`, msg);
+        return { relayUrl: url, ok: false, error: msg };
+      } finally {
+        relay?.close();
+      }
+    }),
+  );
 
-  return { relayUrl, event: signedEvent };
+  return { relayUrl: urls[0], relays: relayResults, event: signedEvent };
 }

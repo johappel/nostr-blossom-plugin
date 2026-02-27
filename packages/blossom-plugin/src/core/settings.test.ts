@@ -65,7 +65,7 @@ describe('mergeWithSettings', () => {
     const result = mergeWithSettings(hostServers, hostRelay, hostVision, {});
     expect(result).toEqual({
       servers: hostServers,
-      relayUrl: hostRelay,
+      relayUrls: [hostRelay],
       visionEndpoint: hostVision,
     });
   });
@@ -75,7 +75,7 @@ describe('mergeWithSettings', () => {
       servers: ['https://user.example.com'],
     });
     expect(result.servers).toEqual(['https://user.example.com']);
-    expect(result.relayUrl).toBe(hostRelay);
+    expect(result.relayUrls).toEqual([hostRelay]);
   });
 
   it('ignores empty user servers array', () => {
@@ -85,11 +85,11 @@ describe('mergeWithSettings', () => {
     expect(result.servers).toEqual(hostServers);
   });
 
-  it('overrides relayUrl from first user relay', () => {
+  it('uses all user relays for relayUrls', () => {
     const result = mergeWithSettings(hostServers, hostRelay, hostVision, {
       relays: ['wss://user-relay.example.com', 'wss://user-relay2.example.com'],
     });
-    expect(result.relayUrl).toBe('wss://user-relay.example.com');
+    expect(result.relayUrls).toEqual(['wss://user-relay.example.com', 'wss://user-relay2.example.com']);
   });
 
   it('overrides visionEndpoint', () => {
@@ -114,7 +114,7 @@ describe('mergeWithSettings', () => {
     });
     expect(result).toEqual({
       servers: ['https://u.example.com'],
-      relayUrl: 'wss://u-relay.example.com',
+      relayUrls: ['wss://u-relay.example.com'],
       visionEndpoint: 'https://u-vision.example.com',
     });
   });
