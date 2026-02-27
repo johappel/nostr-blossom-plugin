@@ -8,6 +8,16 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- **Settings-Panel im Widget**: Neuer User-Icon-Button im Header öffnet ein Einstellungs-Panel (Overlay-Pattern). Enthält Login-Hinweise (NIP-07 Extensions, NIP-46 Bunker), Profil-Anzeige (readonly), und Formulare für Blossom-Server, Nostr-Relays und KI-Service-URL.
+- **NIP-46 Remote Signer (Bunker)**: Bunker-URI-Eingabe im Settings-Panel ermöglicht Login über `bunker://`-URIs. Nutzt NDK (`@nostr-dev-kit/ndk`) intern per Dynamic Import. Bunker-Signer wird bevorzugt, wenn konfiguriert.
+- **NIP-78 Settings-Sync**: User-Einstellungen werden als Kind-30078-Event (NIP-78 Application-specific data) auf dem konfigurierten Relay gespeichert und beim Öffnen des Widgets geladen. `localStorage` dient als primäre Persistenz, NIP-78 als Sync-Layer.
+- **`BlossomUserSettings`**: Neues Interface für persistierte User-Einstellungen (`bunkerUri`, `servers`, `relays`, `visionEndpoint`). Settings überschreiben die Host-Config als non-destructive Override-Layer.
+- **Profil-Fetch (`fetchProfile`)**: Liest Kind-0-Events (NIP-01 Metadata) und zeigt Name, Avatar und NIP-05 im Settings-Panel an.
+- **`appId` Config-Option**: Neues optionales Feld in `BlossomMediaConfig` für localStorage-Key-Scoping bei mehreren Widget-Instanzen.
+- **Signer-Status-Indikator**: Grüner Punkt am User-Icon zeigt an, ob ein Signer (NIP-07 oder NIP-46) aktiv ist.
+- **`@nostr-dev-kit/ndk`** als Dependency für NIP-46-Unterstützung.
+- Tests für `settings.ts` (localStorage, merge-Logik), `nip46.ts` (URI-Validierung), `profile.ts` (`shortenPubkey`).
+
 - **`@blossom/plugin/widget` — Embeddable Media Widget**: Neues Widget-Paket als einbettbares Script/ESM-Modul. Ein einziger `<script>`-Tag fügt der Hostseite eine vollständige Mediathek-Funktionalität hinzu (Upload + Gallery + Metadaten + KI-Vorschläge).
 - **`MediaWidget.svelte`**: Root-Komponente mit nativem `<dialog>` (Shadow DOM), Tab-Bar (Dateien hochladen / Mediathek / Custom Tabs), signer-Auflösung (config.signer → window.nostr) und Cross-Tab-Navigation für Metadaten-Bearbeitung.
 - **`UploadTab.svelte`**: Upload-Tab mit Drag-&-Drop-Zone, Fortschrittsanzeige, Preview-Generierung (Thumb 200px + Image 600px) und nahtlosem Übergang zu `MetadataSidebar` nach erfolgreichem Upload.

@@ -4,6 +4,7 @@
   import type { UploadHistoryItem } from '../core/history';
   import type { Nip94FetchResult } from '../core/nip94';
   import type { VisionClientOptions } from '../core/vision';
+  import type { BlossomUserSettings } from '../core/settings';
   import { listBlossomBlobs } from '../core/list';
   import { fetchNip94Events } from '../core/nip94';
   import { updateHistoryItemByUrl, removeHistoryItemByUrl } from '../core/history';
@@ -11,10 +12,18 @@
   import { buildImageMetadataTags } from '../core/metadata';
   import { publishEvent } from '../core/publish';
   import { resolveVisionEndpoint } from '../core/vision';
+  import {
+    loadSettingsFromLocalStorage,
+    mergeWithSettings,
+    fetchSettingsEvent,
+    mergeLocalAndRemote,
+    saveSettingsToLocalStorage,
+  } from '../core/settings';
   import { untrack } from 'svelte';
   import UploadTab from './UploadTab.svelte';
   import GalleryTab from './GalleryTab.svelte';
   import MetadataSidebar from './MetadataSidebar.svelte';
+  import SettingsPanel from './SettingsPanel.svelte';
 
   interface MediaWidgetProps {
     config: BlossomMediaConfig;
@@ -108,6 +117,46 @@
     return () => clearInterval(iv);
   });
 
+  // ── User settings & effective config ──────────────────────────────────────
+  let userSettings = $state<BlossomUserSettings>(
+    untrack(() => loadSettingsFromLocalStorage(config.appId ?? 'default')),
+  );
+  let settingsOpen = $state(false);
+
+  let effective = $derived.by(() =>
+    mergeWithSettings(
+      config.servers,
+      config.relayUrl,
+      config.visionEndpoint,
+      userSettings,
+    ),
+  );
+
+  // Sync settings from relay when signer becomes available (once)
+  let settingsSynced = $state(false);
+  $effect(() => {
+    if (!signer || settingsSynced) return;
+    settingsSynced = true;
+    const relayUrl = effective.relayUrl;
+    if (!relayUrl) return;
+    signer.getPublicKey().then((pubkey) => {
+      fetchSettingsEvent(pubkey, relayUrl).then((result) => {
+        if (!result) return;
+        const merged = mergeLocalAndRemote(userSettings, result.settings, result.createdAt);
+        userSettings = merged;
+        saveSettingsToLocalStorage(merged, config.appId ?? 'default');
+      }).catch(() => { /* non-fatal */ });
+    }).catch(() => { /* non-fatal */ });
+  });
+
+  function handleSettingsChanged(updated: BlossomUserSettings) {
+    userSettings = updated;
+  }
+
+  function handleBunkerConnected(bunkerSigner: BlossomSigner) {
+    signer = bunkerSigner;
+  }
+
   // ── Gallery state ─────────────────────────────────────────────────────────
   let items = $state<UploadHistoryItem[]>([]);
   let nip94Data = $state<Nip94FetchResult | null>(null);
@@ -116,7 +165,7 @@
 
   // ── Vision config ─────────────────────────────────────────────────────────
   let visionOptions = $derived.by<VisionClientOptions | undefined>(() => {
-    const ep = config.visionEndpoint ? resolveVisionEndpoint(config.visionEndpoint) : null;
+    const ep = effective.visionEndpoint ? resolveVisionEndpoint(effective.visionEndpoint) : null;
     return ep ? { endpoint: ep } : undefined;
   });
 
@@ -152,7 +201,7 @@
 
   // ── Gallery load ──────────────────────────────────────────────────────────
   async function loadGalleryIfNeeded() {
-    if (!config.relayUrl && config.servers.length === 0) return;
+    if (!effective.relayUrl && effective.servers.length === 0) return;
     if (galleryLoading) return;
 
     galleryLoading = true;
@@ -162,8 +211,8 @@
       const resolvedSigner = signer;
 
       // Load bloblist from servers
-      if (config.servers.length > 0 && resolvedSigner) {
-        const blobResult = await listBlossomBlobs(resolvedSigner, config.servers);
+      if (effective.servers.length > 0 && resolvedSigner) {
+        const blobResult = await listBlossomBlobs(resolvedSigner, effective.servers);
         const now = new Date().toISOString();
         const blobItems: UploadHistoryItem[] = blobResult.blobs.map((b) => ({
           url: b.url,
@@ -189,8 +238,8 @@
       }
 
       // Load NIP-94 events from relay
-      if (config.relayUrl && resolvedSigner) {
-        nip94Data = await fetchNip94Events(resolvedSigner, [config.relayUrl]);
+      if (effective.relayUrl && resolvedSigner) {
+        nip94Data = await fetchNip94Events(resolvedSigner, [effective.relayUrl]);
       }
     } catch (err) {
       galleryError = err instanceof Error ? err.message : 'Mediathek konnte nicht geladen werden';
@@ -245,10 +294,10 @@
       }
 
       // 1) Delete all blobs from blossom servers
-      if (config.servers.length > 0) {
+      if (effective.servers.length > 0) {
         for (const hash of hashesToDelete) {
           try {
-            await deleteBlossomBlob(resolvedSigner, config.servers, hash);
+            await deleteBlossomBlob(resolvedSigner, effective.servers, hash);
           } catch {
             // Partial failure is acceptable – continue with remaining hashes
           }
@@ -262,10 +311,10 @@
           ? [nip94Event.eventId]
           : [];
 
-      if (config.relayUrl && eventIds.length) {
+      if (effective.relayUrl && eventIds.length) {
         await publishDeletionEvent(
           resolvedSigner,
-          config.relayUrl,
+          effective.relayUrl,
           eventIds,
           'Deleted via Blossom Media Widget',
         );
@@ -339,10 +388,10 @@
       const newTags = buildImageMetadataTags(uploadTags, metadata);
 
       // 1) Publish new NIP-94 kind 1063 event
-      if (config.relayUrl) {
+      if (effective.relayUrl) {
         const result = await publishEvent(
           resolvedSigner,
-          config.relayUrl,
+          effective.relayUrl,
           metadata.description || '',
           newTags,
           1063,
@@ -356,7 +405,7 @@
           try {
             await publishDeletionEvent(
               resolvedSigner,
-              config.relayUrl,
+              effective.relayUrl!,
               oldEventIds,
               'Replaced by updated NIP-94 event',
             );
@@ -461,12 +510,29 @@
     <!-- Header -->
     <header class="bm-header">
       <h2 class="bm-title">Mediathek</h2>
-      <button
-        type="button"
-        class="bm-close"
-        aria-label="Schließen"
-        onclick={() => { open = false; onClose?.(); }}
-      >✕</button>
+      <div class="bm-header-actions">
+        <button
+          type="button"
+          class="bm-settings-btn"
+          class:active={settingsOpen}
+          aria-label="Einstellungen"
+          onclick={() => { settingsOpen = !settingsOpen; }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          {#if signer}
+            <span class="bm-signer-dot"></span>
+          {/if}
+        </button>
+        <button
+          type="button"
+          class="bm-close"
+          aria-label="Schließen"
+          onclick={() => { open = false; onClose?.(); }}
+        >✕</button>
+      </div>
     </header>
 
     <!-- Tab bar -->
@@ -487,7 +553,18 @@
 
     <!-- Content area -->
     <div class="bm-content">
-      {#if editItem}
+      {#if settingsOpen}
+        <!-- Settings overlay -->
+        <SettingsPanel
+          settings={userSettings}
+          {signer}
+          relayUrl={effective.relayUrl}
+          appId={config.appId ?? 'default'}
+          onClose={() => { settingsOpen = false; }}
+          onSettingsChanged={handleSettingsChanged}
+          onBunkerConnected={handleBunkerConnected}
+        />
+      {:else if editItem}
         <!-- Edit-metadata overlay (shown on top, tabs stay mounted underneath) -->
         <div class="bm-edit-overlay">
           <div class="edit-overlay-header">
@@ -521,8 +598,8 @@
             {#if tab.builtin === 'upload'}
               <UploadTab
                 {signer}
-                servers={config.servers}
-                relayUrl={config.relayUrl}
+                servers={effective.servers}
+                relayUrl={effective.relayUrl}
                 features={config.features ?? {}}
                 {visionOptions}
                 onInserted={handleInserted}
@@ -534,8 +611,8 @@
                 loading={galleryLoading}
                 loadError={galleryError}
                 {signer}
-                servers={config.servers}
-                relayUrl={config.relayUrl}
+                servers={effective.servers}
+                relayUrl={effective.relayUrl}
                 features={config.features ?? {}}
                 {visionOptions}
                 targetElement={_targetElement}
@@ -678,6 +755,45 @@
   .bm-close:hover {
     background: var(--bm-bg-hover);
     color: var(--bm-text);
+  }
+
+  /* ── Header actions (settings + close) ── */
+  .bm-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .bm-settings-btn {
+    position: relative;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--bm-text-subtle);
+    padding: 0.3rem;
+    border-radius: 4px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .bm-settings-btn:hover,
+  .bm-settings-btn.active {
+    background: var(--bm-bg-hover);
+    color: var(--bm-accent);
+  }
+
+  .bm-signer-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    border: 1.5px solid var(--bm-bg);
   }
 
   /* ── Tabs ── */

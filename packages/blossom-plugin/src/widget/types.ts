@@ -116,6 +116,13 @@ export interface BlossomMediaConfig {
   targets?: string;
 
   /**
+   * Application ID used to scope user settings in localStorage.
+   * Defaults to `'default'`.  Use different IDs if multiple widget instances
+   * on the same page need independent settings.
+   */
+  appId?: string;
+
+  /**
    * List of Blossom server base URLs.
    * @example ['https://blossom.primal.net', 'https://nostr.download']
    */

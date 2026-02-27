@@ -11,3 +11,6 @@ export * from './nip94';
 export * from './vision';
 export * from './previews';
 export * from './format';
+export * from './settings';
+export * from './profile';
+export * from './nip46';

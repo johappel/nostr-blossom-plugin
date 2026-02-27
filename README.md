@@ -89,6 +89,35 @@ import { init } from '@blossom/plugin/widget';
 const media = init({ servers: ['https://blossom.primal.net'] });
 ```
 
+## User Settings (Einstellungen)
+
+Das Widget enthält ein integriertes Settings-Panel, erreichbar über das **👤 User-Icon** im Header.
+
+### Funktionen
+
+- **Login-Hinweise:** Informationen zu NIP-07 Browser-Extensions und NIP-46 Remote Signern (Bunker).
+- **NIP-46 Bunker:** Eingabefeld für `bunker://`-URIs — erlaubt Login über Remote Signer wie [nsec.app](https://nsec.app) oder [nsecBunker](https://app.nsecbunker.com).
+- **Profil:** Zeigt den verbundenen Nostr-Nutzer (Name, Avatar, NIP-05) readonly an.
+- **Konfiguration:** Blossom-Server, Nostr-Relays und KI-Service-URL können vom Nutzer überschrieben werden.
+- **Persistenz:** Einstellungen werden in `localStorage` gespeichert und optional als NIP-78-Event (Kind 30078) auf das Relay synchronisiert.
+
+### `appId` (Multi-Instanz)
+
+Wenn mehrere Widget-Instanzen auf derselben Seite unterschiedliche Settings benötigen:
+
+```js
+const media = window.BlossomMedia.init({
+  servers: ['https://blossom.primal.net'],
+  appId: 'my-unique-app',  // scoped localStorage key
+});
+```
+
+### Signer-Priorität
+
+1. **NIP-46 Bunker** (wenn `bunkerUri` in Settings gesetzt)
+2. **`config.signer`** (vom Host übergeben)
+3. **`window.nostr`** (NIP-07 Browser-Extension, auto-detected)
+
 ## KI-Vision-Service (image-describer)
 
 Für den KI-Vorschlag-Button im Metadaten-Dialog wird der `image-describer`-Service benötigt.
