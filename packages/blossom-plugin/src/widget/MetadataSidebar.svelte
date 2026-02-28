@@ -32,6 +32,8 @@
     onSubmit: (metadata: ImageMetadataInput) => void;
     /** Called when user clicks "Löschen" */
     onDelete?: () => void;
+    /** Called when user wants to discard and delete the orphaned upload from the server */
+    onDeleteUpload?: () => void;
     /** Called when user cancels */
     onCancel?: () => void;
   }
@@ -47,6 +49,7 @@
     showMetadata = true,
     onSubmit,
     onDelete,
+    onDeleteUpload,
     onCancel,
   }: MetadataSidebarProps = $props();
 
@@ -78,6 +81,7 @@
   let visionChangedAlt = $state(false);
   let visionChangedGenre = $state(false);
   let visionChangedKeywords = $state(false);
+  let deleteUploadConfirm = $state(false);
 
   let isPdf = $derived(mime.trim().toLowerCase() === 'application/pdf');
   let isImage = $derived(mime.trim().toLowerCase().startsWith('image/'));
@@ -310,6 +314,13 @@
         {#if onCancel}
           <button type="button" class="btn-secondary" onclick={onCancel}>Abbrechen</button>
         {/if}
+        {#if onDeleteUpload}
+          {#if deleteUploadConfirm}
+            <button type="button" class="btn-delete-upload" onclick={() => { deleteUploadConfirm = false; onDeleteUpload(); }}>Wirklich löschen?</button>
+          {:else}
+            <button type="button" class="btn-delete-upload" onclick={() => { deleteUploadConfirm = true; }}>Upload löschen</button>
+          {/if}
+        {/if}
         {#if showDelete && onDelete}
           <button type="button" class="btn-delete" onclick={onDelete}>🗑 Löschen</button>
         {/if}
@@ -521,5 +532,23 @@
 
   .btn-delete:hover {
     background: var(--bm-danger-bg, #fdf0ee);
+  }
+
+  .btn-delete-upload {
+    font: inherit;
+    padding: 0.5rem 1rem;
+    background: var(--bm-danger-bg, #fdf0ee);
+    color: var(--bm-danger, #c0392b);
+    border: 1px solid var(--bm-danger-border, #f0c8c2);
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background 0.12s, border-color 0.12s;
+  }
+
+  .btn-delete-upload:hover {
+    background: var(--bm-danger, #c0392b);
+    color: #fff;
+    border-color: var(--bm-danger, #c0392b);
   }
 </style>

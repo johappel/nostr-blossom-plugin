@@ -15,3 +15,5 @@ export * from './format';
 export * from './settings';
 export * from './profile';
 export * from './nip46';
+export * from './pending-uploads';
+export * from './publish-media';

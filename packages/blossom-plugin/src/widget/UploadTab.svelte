@@ -5,16 +5,18 @@
   import type { VisionClientOptions } from '../core/vision';
   import { createBlossomBridge } from '../core/simple-bridge';
   import {
-    buildImageMetadataTags,
-    buildKind1FallbackTags,
-  } from '../core/metadata';
-  import {
     createImagePreviewFile,
     createPdfPreviewFile,
     previewFileBaseName,
     normalizeMime,
   } from '../core/previews';
-  import { publishEvent } from '../core/publish';
+  import { publishMediaMetadata } from '../core/publish-media';
+  import {
+    savePendingUpload,
+    removePendingUpload,
+    removePendingUploadByUrl,
+    extractRelatedFromTags,
+  } from '../core/pending-uploads';
   import MetadataSidebar from './MetadataSidebar.svelte';
 
   const THUMB_MAX_DIM = 200;
@@ -26,6 +28,8 @@
     relayUrls: string[];
     features: BlossomMediaFeatures;
     visionOptions?: VisionClientOptions;
+    /** Application ID for localStorage scoping of pending uploads */
+    appId?: string;
     onInserted: (result: InsertResult) => void;
   }
 
@@ -35,13 +39,14 @@
     relayUrls,
     features,
     visionOptions,
+    appId = 'default',
     onInserted,
   }: UploadTabProps = $props();
 
   type Phase =
     | { type: 'idle' }
     | { type: 'uploading'; fileName: string; progress: number }
-    | { type: 'metadata'; uploadResult: BlossomUploadResult; file: File; mime: string; uploadTags: string[][] }
+    | { type: 'metadata'; uploadResult: BlossomUploadResult; file: File; mime: string; uploadTags: string[][]; pendingId?: string }
     | { type: 'publishing' }
     | { type: 'done'; insertResult: InsertResult }
     | { type: 'error'; message: string };
@@ -130,6 +135,19 @@
 
     // For non-media files just insert directly without metadata dialog
     if (!mime.startsWith('image/') && mime !== 'application/pdf') {
+      // Track briefly in case browser crashes between upload and insert
+      savePendingUpload(appId, {
+        url: uploadResult.url,
+        sha256: getTagValue(uploadTags, 'x'),
+        mime,
+        fileName: file.name,
+        uploadTags,
+        servers,
+        relatedHashes: [],
+        relatedUrls: [],
+        createdAt: Date.now(),
+      });
+
       const insertResult: InsertResult = {
         url: uploadResult.url,
         mimeType: mime,
@@ -138,6 +156,9 @@
       };
       phase = { type: 'done', insertResult };
       onInserted(insertResult);
+
+      // Remove pending — insert succeeded
+      removePendingUploadByUrl(appId, uploadResult.url);
       return;
     }
 
@@ -146,19 +167,34 @@
     const previewTags = await buildPreviewTags(file, mime, bridge);
     const mergedTags = mergePreviewTags(uploadTags, previewTags);
 
+    // Persist as pending upload — will be removed after successful publish
+    const { relatedHashes, relatedUrls } = extractRelatedFromTags(mergedTags);
+    const pending = savePendingUpload(appId, {
+      url: uploadResult.url,
+      sha256: getTagValue(mergedTags, 'x'),
+      mime,
+      fileName: file.name,
+      uploadTags: mergedTags,
+      servers,
+      relatedHashes,
+      relatedUrls,
+      createdAt: Date.now(),
+    });
+
     phase = {
       type: 'metadata',
       uploadResult,
       file,
       mime,
       uploadTags: mergedTags,
+      pendingId: pending.id,
     };
   }
 
   async function handleMetadataSubmit(metadata: ImageMetadataInput) {
     if (phase.type !== 'metadata') return;
 
-    const { uploadResult, uploadTags, mime: savedMime } = phase;
+    const { uploadResult, uploadTags, mime: savedMime, pendingId } = phase;
 
     if (!signer) {
       phase = { type: 'error', message: 'Signer verloren.' };
@@ -168,44 +204,22 @@
     phase = { type: 'publishing' };
 
     try {
-      const kind1063Tags = buildImageMetadataTags(uploadTags, metadata);
-      const kind1Tags = buildKind1FallbackTags(uploadTags, metadata);
-
-      const publishedEventIds: string[] = [];
-
-      if (relayUrls.length > 0) {
-        const res1063 = await publishEvent(signer, relayUrls, metadata.description, kind1063Tags, 1063);
-        const res1 = await publishEvent(signer, relayUrls, metadata.description, kind1Tags, 1);
-        const id1063 = (res1063.event as Record<string, unknown> | null)?.id;
-        const id1 = (res1.event as Record<string, unknown> | null)?.id;
-        if (typeof id1063 === 'string') publishedEventIds.push(id1063);
-        if (typeof id1 === 'string') publishedEventIds.push(id1);
-      }
-
-      const sha256 = getTagValue(uploadTags, 'x');
-      const thumbUrl = getTagValue(uploadTags, 'thumb');
-      const previewUrl = getTagValue(uploadTags, 'image') ?? thumbUrl;
-      const sizeStr = getTagValue(uploadTags, 'size');
-
-      const insertResult: InsertResult = {
+      const { insertResult } = await publishMediaMetadata({
+        signer,
+        relayUrls,
         url: uploadResult.url,
-        thumbnailUrl: thumbUrl,
-        previewUrl: previewUrl,
-        mimeType: savedMime,
-        sha256,
-        size: sizeStr ? Number(sizeStr) : undefined,
-        description: metadata.description,
-        alt: metadata.altAttribution,
-        author: metadata.author,
-        license: metadata.license,
-        licenseLabel: metadata.licenseLabel,
-        genre: metadata.genre,
-        keywords: metadata.keywords,
-        tags: uploadTags,
-      };
+        mime: savedMime,
+        uploadTags,
+        metadata,
+      });
 
       phase = { type: 'done', insertResult };
       onInserted(insertResult);
+
+      // Upload is no longer pending — NIP-94 was published successfully
+      if (pendingId) {
+        removePendingUpload(appId, pendingId);
+      }
     } catch (err) {
       phase = {
         type: 'error',

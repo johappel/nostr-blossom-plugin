@@ -8,6 +8,12 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- **Pending-Upload-Recovery**: Verwaiste Blossom-Uploads (hochgeladen, aber nicht als NIP-94 publiziert) werden im `localStorage` verfolgt (`blossom-pending:${appId}`). Beim nächsten Öffnen des Widgets zeigt ein Banner die nicht abgeschlossenen Uploads an. Der User kann sie sequentiell vervollständigen (Metadaten eingeben + publizieren) oder mit „Upload löschen" den Blob inkl. Previews vom Server entfernen.
+- **`core/pending-uploads.ts`**: Neues framework-agnostisches Modul mit `savePendingUpload()`, `removePendingUpload()`, `removePendingUploadByUrl()`, `loadPendingUploads()`, `clearAllPendingUploads()` und `extractRelatedFromTags()`.
+- **`core/publish-media.ts`**: Extrahierte wiederverwendbare `publishMediaMetadata()` Funktion für NIP-94 + Kind 1 Fallback Publishing mit `InsertResult`-Rückgabe.
+- **`MetadataSidebar` — `onDeleteUpload` Prop**: Neuer optionaler Callback zeigt einen roten „Upload löschen"-Button mit Bestätigungsschritt an. Wird im Recovery-Flow und potenziell im normalen Upload-Flow verwendet.
+- **`UploadTab` — `appId` Prop**: Upload-Tab erhält jetzt die `appId` zum Scoping der Pending-Upload-Einträge im `localStorage`.
+
 - **„Bild erstellen"-Tab im Media-Widget**: Neuer Builtin-Tab `imagegen` mit Prompt-Eingabe, KI-Bildgenerierung, Vorschau, Blossom-Upload und Inline-Metadaten/Publish. Wird automatisch angezeigt, wenn eine KI-Service-URL (`imageGenEndpoint` oder `visionEndpoint`) konfiguriert ist.
 - **`ImageGenTab.svelte`**: Vollständige State-Machine (idle → generating → preview → uploading → metadata → publishing → done/error) mit Cancel-Support und Retry.
 - **`POST /image-gen` Server-Route**: Neue Route in `apps/image-describer` für OpenAI-kompatible Bildgenerierungs-APIs (Ollama, ComfyUI, LocalAI, OpenRouter, DALL-E). Prompt-Validierung, Timeout, strukturierte Fehler.

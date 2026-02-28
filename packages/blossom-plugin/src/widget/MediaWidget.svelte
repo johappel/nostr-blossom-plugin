@@ -6,14 +6,20 @@
   import type { VisionClientOptions } from '../core/vision';
   import type { BlossomUserSettings } from '../core/settings';
   import type { BunkerSession } from '../core/nip46';
+  import type { PendingUpload } from '../core/pending-uploads';
   import { listBlossomBlobs } from '../core/list';
   import { fetchNip94Events } from '../core/nip94';
   import { updateHistoryItemByUrl, removeHistoryItemByUrl } from '../core/history';
   import { deleteBlossomBlob, publishDeletionEvent } from '../core/delete';
   import { buildImageMetadataTags } from '../core/metadata';
   import { publishEvent } from '../core/publish';
+  import { publishMediaMetadata } from '../core/publish-media';
   import { resolveVisionEndpoint } from '../core/vision';
   import { resolveImageGenEndpoint } from '../core/imagegen';
+  import {
+    loadPendingUploads,
+    removePendingUpload,
+  } from '../core/pending-uploads';
   import {
     loadSettingsFromLocalStorage,
     mergeWithSettings,
@@ -311,6 +317,7 @@
     if (open && !dialogEl.open) {
       dialogEl.showModal();
       loadGalleryIfNeeded();
+      loadPendingIfNeeded();
     } else if (!open && dialogEl.open) {
       dialogEl.close();
     }
@@ -627,6 +634,141 @@
       onClose?.();
     }
   }
+
+  // ── Pending upload recovery ───────────────────────────────────────────────
+  let pendingUploads = $state<PendingUpload[]>([]);
+  let pendingRecoveryActive = $state(false);
+  let pendingCurrentIndex = $state(0);
+  let pendingPublishing = $state(false);
+  let pendingDeleting = $state(false);
+  let pendingError = $state('');
+
+  /** The currently shown pending upload (if recovery is active). */
+  let currentPending = $derived.by(() =>
+    pendingRecoveryActive && pendingCurrentIndex < pendingUploads.length
+      ? pendingUploads[pendingCurrentIndex]
+      : null,
+  );
+
+  /** Load pending uploads from localStorage (called on dialog open). */
+  function loadPendingIfNeeded() {
+    const appId = config.appId ?? 'default';
+    pendingUploads = loadPendingUploads(appId);
+    // Reset recovery state
+    pendingRecoveryActive = false;
+    pendingCurrentIndex = 0;
+    pendingPublishing = false;
+    pendingDeleting = false;
+    pendingError = '';
+  }
+
+  /** Start the sequential recovery flow. */
+  function startPendingRecovery() {
+    pendingCurrentIndex = 0;
+    pendingRecoveryActive = true;
+    pendingError = '';
+  }
+
+  /** Advance to next pending or finish recovery. */
+  function advancePending() {
+    // Reload from localStorage to reflect removals
+    const appId = config.appId ?? 'default';
+    pendingUploads = loadPendingUploads(appId);
+    pendingError = '';
+
+    if (pendingUploads.length === 0) {
+      pendingRecoveryActive = false;
+      pendingCurrentIndex = 0;
+      return;
+    }
+
+    // Stay at index 0 since we always remove the current item
+    pendingCurrentIndex = 0;
+  }
+
+  /** Publish metadata for the current pending upload and remove it. */
+  async function handlePendingPublish(metadata: import('../core/metadata').ImageMetadataInput) {
+    const pending = currentPending;
+    if (!pending || !signer) return;
+
+    pendingPublishing = true;
+    pendingError = '';
+
+    try {
+      const { insertResult } = await publishMediaMetadata({
+        signer,
+        relayUrls: effective.relayUrls,
+        url: pending.url,
+        mime: pending.mime,
+        uploadTags: pending.uploadTags,
+        metadata,
+      });
+
+      // Remove from pending list
+      removePendingUpload(config.appId ?? 'default', pending.id);
+
+      // Notify host
+      handleInserted(insertResult);
+
+      // Don't close dialog — advance to next pending or finish
+      // (handleInserted closes the dialog, so re-open is handled by the host)
+      // Actually, for recovery flow we want to continue, so re-set open
+      open = true;
+      advancePending();
+    } catch (err) {
+      pendingError = err instanceof Error ? err.message : 'Publish fehlgeschlagen.';
+    } finally {
+      pendingPublishing = false;
+    }
+  }
+
+  /** Delete the current pending upload from Blossom servers and remove from localStorage. */
+  async function handlePendingDelete() {
+    const pending = currentPending;
+    if (!pending || !signer) return;
+
+    pendingDeleting = true;
+    pendingError = '';
+
+    try {
+      // Delete main blob
+      if (pending.sha256 && pending.servers.length > 0) {
+        try {
+          await deleteBlossomBlob(signer, pending.servers, pending.sha256);
+        } catch { /* partial failure acceptable */ }
+      }
+
+      // Delete related blobs (thumb, image preview)
+      for (const hash of pending.relatedHashes) {
+        try {
+          await deleteBlossomBlob(signer, pending.servers, hash);
+        } catch { /* partial failure acceptable */ }
+      }
+
+      // Remove from pending list
+      removePendingUpload(config.appId ?? 'default', pending.id);
+
+      config.onDelete?.(pending.url);
+
+      advancePending();
+    } catch (err) {
+      pendingError = err instanceof Error ? err.message : 'Löschen fehlgeschlagen.';
+    } finally {
+      pendingDeleting = false;
+    }
+  }
+
+  /** Skip current pending without publishing or deleting (dismissed for this session). */
+  function handlePendingSkip() {
+    // We don't remove from localStorage — it will show again next time.
+    // Just move to the next one in the list for this session.
+    if (pendingCurrentIndex + 1 < pendingUploads.length) {
+      pendingCurrentIndex++;
+      pendingError = '';
+    } else {
+      pendingRecoveryActive = false;
+    }
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -697,6 +839,41 @@
           onBunkerConnected={handleBunkerConnected}
           onBunkerDisconnect={handleBunkerDisconnect}
         />
+      {:else if pendingRecoveryActive && currentPending}
+        <!-- Pending upload recovery overlay -->
+        <div class="bm-pending-overlay">
+          <div class="pending-overlay-header">
+            <button type="button" class="btn-back" onclick={() => { pendingRecoveryActive = false; }}>← Zurück</button>
+            <span class="pending-title">
+              Upload vervollständigen ({pendingCurrentIndex + 1} von {pendingUploads.length}): {currentPending.fileName}
+            </span>
+          </div>
+          {#if pendingPublishing}
+            <div class="pending-status">
+              <span class="pending-spinner">📡</span> Veröffentliche Metadaten…
+            </div>
+          {:else if pendingDeleting}
+            <div class="pending-status">
+              <span class="pending-spinner">🗑️</span> Lösche Upload vom Server…
+            </div>
+          {:else}
+            <MetadataSidebar
+              fileUrl={currentPending.url}
+              mime={currentPending.mime}
+              thumbnailUrl={currentPending.uploadTags.find((t) => t[0] === 'thumb')?.[1]}
+              mode="create"
+              {visionOptions}
+              showDelete={false}
+              showMetadata={config.features?.metadata !== false}
+              onSubmit={handlePendingPublish}
+              onCancel={handlePendingSkip}
+              onDeleteUpload={handlePendingDelete}
+            />
+          {/if}
+          {#if pendingError}
+            <p class="pending-error">{pendingError}</p>
+          {/if}
+        </div>
       {:else if editItem}
         <!-- Edit-metadata overlay (shown on top, tabs stay mounted underneath) -->
         <div class="bm-edit-overlay">
@@ -719,8 +896,23 @@
         </div>
       {/if}
 
+      <!-- Pending uploads banner (outside tabs-content so it doesn't affect grid layout) -->
+      {#if !settingsOpen && !pendingRecoveryActive && !editItem && pendingUploads.length > 0 && signer}
+        <div class="bm-pending-banner">
+          <span class="pending-banner-icon">⚠️</span>
+          <span class="pending-banner-text">
+            {pendingUploads.length === 1
+              ? '1 Datei wurde hochgeladen, aber nicht publiziert.'
+              : `${pendingUploads.length} Dateien wurden hochgeladen, aber nicht publiziert.`}
+          </span>
+          <button type="button" class="btn-pending-action" onclick={startPendingRecovery}>
+            Jetzt vervollständigen
+          </button>
+        </div>
+      {/if}
+
       <!-- Tabs always stay mounted so selection state is preserved -->
-      <div class="bm-tabs-content" hidden={!!editItem}>
+      <div class="bm-tabs-content" hidden={!!editItem || pendingRecoveryActive}>
         {#each tabs as tab}
           <div
             class="bm-tab-panel"
@@ -735,6 +927,7 @@
                 relayUrls={effective.relayUrls}
                 features={config.features ?? {}}
                 {visionOptions}
+                appId={config.appId ?? 'default'}
                 onInserted={handleInserted}
               />
             {:else if tab.builtin === 'gallery'}
@@ -975,6 +1168,7 @@
   .bm-content {
     overflow: hidden;
     display: grid;
+    grid-template-rows: auto 1fr;
     min-height: 0;
   }
 
@@ -1036,5 +1230,95 @@
 
   .btn-back:hover {
     background: var(--bm-bg-hover);
+  }
+
+  /* ── Pending uploads banner ── */
+  .bm-pending-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.75rem;
+    background: var(--bm-accent-bg-subtle, #f0eeff);
+    border-bottom: 1px solid var(--bm-accent, #6c63ff);
+    font-size: 0.8rem;
+    color: var(--bm-text);
+    height: fit-content;
+  }
+
+  .pending-banner-icon {
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+
+  .pending-banner-text {
+    flex: 1;
+  }
+
+  .btn-pending-action {
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.3rem 0.7rem;
+    background: var(--bm-accent, #6c63ff);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s;
+  }
+
+  .btn-pending-action:hover {
+    background: var(--bm-accent-hover, #5a52d5);
+  }
+
+  /* ── Pending upload recovery overlay ── */
+  .bm-pending-overlay {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    overflow-y: auto;
+  }
+
+  .pending-overlay-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: var(--bm-text-muted);
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--bm-border-muted);
+  }
+
+  .pending-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pending-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 2rem;
+    justify-content: center;
+    font-size: 0.9rem;
+    color: var(--bm-text-muted);
+  }
+
+  .pending-spinner {
+    font-size: 1.5rem;
+    animation: bm-pulse 1.2s infinite ease-in-out;
+  }
+
+  @keyframes bm-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .pending-error {
+    font-size: 0.85rem;
+    color: var(--bm-danger, #c0392b);
+    padding: 0.25rem 0.75rem;
+    margin: 0;
   }
 </style>
