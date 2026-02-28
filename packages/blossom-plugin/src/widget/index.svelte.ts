@@ -26,6 +26,7 @@ import { mount, unmount } from 'svelte';
 import type { BlossomMediaConfig, BlossomMediaInstance, InsertResult } from './types';
 import MediaWidget from './MediaWidget.svelte';
 import { Injector } from './Injector';
+import { communityTabPlugin } from '@blossom/tab-communikey';
 
 // Injected by the vite build plugin — contains all Svelte component CSS.
 // Declared as ambient so TypeScript doesn't complain; the variable is prepended
@@ -56,6 +57,16 @@ const SHADOW_RESET_CSS = `
  * @returns `BlossomMediaInstance` with `open()`, `close()`, and `destroy()`
  */
 export function init(config: BlossomMediaConfig): BlossomMediaInstance {
+  // ── Built-in community tab (opt-out via features.community = false) ────
+  if (config.features?.community !== false) {
+    const alreadyRegistered = (config.plugins ?? []).some(
+      (p) => p.id === communityTabPlugin.id,
+    );
+    if (!alreadyRegistered) {
+      config.plugins = [communityTabPlugin, ...(config.plugins ?? [])];
+    }
+  }
+
   // ── Shadow DOM host ────────────────────────────────────────────────────
   const host = document.createElement('div');
   host.setAttribute('data-blossom-media-host', '');

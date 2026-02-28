@@ -85,6 +85,8 @@ export interface BlossomMediaFeatures {
   metadata?: boolean;
   /** Allow deleting files from gallery */
   deleteFiles?: boolean;
+  /** Show the "Community Media" tab (built-in tab-communikey plugin) */
+  community?: boolean;
 }
 
 // ─── Custom tabs ─────────────────────────────────────────────────────────────

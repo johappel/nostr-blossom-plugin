@@ -20,6 +20,10 @@ The format is based on Keep a Changelog.
   - „Share to Community"-Aktion: DOM-Overlay Community-Picker im Gallery-Detail, publiziert kind:30222 an Community-Relays.
   - `CommunityTab.svelte`: Vollständige Community-Media-Browser-UI mit Community-Selector, Info-Bar, Media-Grid und Detail-Sidebar.
   - Nostr-Helper: `parseMembershipEvent`, `parseCommunityEvent`, `parseShareEvent`, `fetchMemberships`, `fetchCommunity`, `fetchCommunityMedia`, `publishCommunityShare`.
+- **Community-Tab als Builtin im IIFE-Bundle**: `communityTabPlugin` wird automatisch in `init()` injiziert wenn `features.community !== false`. Kein separates Script nötig.
+  - Neues Feature-Flag `community?: boolean` in `BlossomMediaFeatures`.
+  - Vite Widget-Build löst `@blossom/tab-communikey` und `@blossom/plugin/plugin` per Alias auf.
+  - Deaktivierbar via `features: { community: false }` in der Config.
 - **`plugin-api.ts` Erweiterung**: Neue Exports für Plugin-Autoren: `ShareTarget`, `NostrProfile`, `PublishEventResult`, `PublishRelayResult`, `publishEvent`, `fetchProfile`, `shortenPubkey`.
 
 ### Tests
