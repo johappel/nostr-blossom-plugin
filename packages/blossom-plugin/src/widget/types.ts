@@ -87,6 +87,8 @@ export interface BlossomMediaFeatures {
   deleteFiles?: boolean;
   /** Show the "Community Media" tab (built-in tab-communikey plugin) */
   community?: boolean;
+  /** Show the "OER-Shares" tab for sharing media as AMB OER resources (opt-in, default: false) */
+  oerShares?: boolean;
 }
 
 // ─── Custom tabs ─────────────────────────────────────────────────────────────

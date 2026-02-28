@@ -27,6 +27,7 @@ import type { BlossomMediaConfig, BlossomMediaInstance, InsertResult } from './t
 import MediaWidget from './MediaWidget.svelte';
 import { Injector } from './Injector';
 import { communityTabPlugin } from '@blossom/tab-communikey';
+import { oerSharesPlugin } from '@blossom/tab-oer-shares';
 
 // Injected by the vite build plugin — contains all Svelte component CSS.
 // Declared as ambient so TypeScript doesn't complain; the variable is prepended
@@ -64,6 +65,16 @@ export function init(config: BlossomMediaConfig): BlossomMediaInstance {
     );
     if (!alreadyRegistered) {
       config.plugins = [communityTabPlugin, ...(config.plugins ?? [])];
+    }
+  }
+
+  // ── Built-in OER-Shares tab (opt-in via features.oerShares = true) ─────
+  if (config.features?.oerShares === true) {
+    const alreadyRegistered = (config.plugins ?? []).some(
+      (p) => p.id === oerSharesPlugin.id,
+    );
+    if (!alreadyRegistered) {
+      config.plugins = [...(config.plugins ?? []), oerSharesPlugin];
     }
   }
 
