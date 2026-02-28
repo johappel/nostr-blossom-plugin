@@ -247,11 +247,9 @@ async function handleShare(
 
     overlay.prepend(style);
 
-    // Find the widget container to append the overlay
-    // We walk up from targetElement or use document.body as fallback
-    const widgetRoot = (ctx.targetElement?.closest('.bm-root') as HTMLElement)
-      ?? document.querySelector('.bm-root')
-      ?? document.body;
+    // Append overlay inside the widget's root element (the <dialog>)
+    // so it stays within the Shadow DOM and inherits CSS custom properties.
+    const widgetRoot = ctx.rootElement ?? document.body;
     widgetRoot.appendChild(overlay);
 
     const selectEl = overlay.querySelector('.bm-share-select') as HTMLSelectElement;

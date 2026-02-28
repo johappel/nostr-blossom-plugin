@@ -159,6 +159,8 @@ export interface WidgetContext {
   readonly activeTab: string;
   /** The HTML element that triggered the dialog open (for insert-back). */
   readonly targetElement: HTMLElement | null;
+  /** The widget's root DOM element (e.g. `<dialog>`) — plugins can append overlays here. */
+  readonly rootElement: HTMLElement | null;
   /** The raw widget configuration. */
   readonly config: BlossomMediaConfig;
 

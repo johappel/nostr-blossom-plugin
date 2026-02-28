@@ -649,6 +649,7 @@
     get userSettings() { return userSettings; },
     get activeTab() { return activeTab; },
     get targetElement() { return _targetElement ?? null; },
+    get rootElement() { return dialogEl ?? null; },
     get config() { return config; },
 
     insert: (result: InsertResult) => handleInserted(result),
