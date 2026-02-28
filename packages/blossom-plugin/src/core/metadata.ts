@@ -121,53 +121,7 @@ export function buildImageMetadataTags(
   return tags;
 }
 
-/**
- * Build a minimal kind 1 fallback tag set derived from upload tags and
- * user metadata. Useful for including file context in regular Nostr notes.
- *
- * Passes through: `url`, `m`, `thumb`, `image`
- * Adds: `summary`, `alt`, `author`, `license`, `genre`, `t`, `hint`
- *
- * @param uploadTags - Tags returned by the Blossom upload
- * @param metadata   - User-provided / AI-suggested metadata
- */
-export function buildKind1FallbackTags(
-  uploadTags: string[][],
-  metadata: ImageMetadataInput,
-): string[][] {
-  const url = uploadTags.find((tag) => tag[0] === 'url')?.[1];
-  const mime = uploadTags.find((tag) => tag[0] === 'm')?.[1];
-  const previewTags = uploadTags.filter(
-    (tag) => tag[0] === 'thumb' || tag[0] === 'image',
-  );
 
-  const tags: string[][] = [];
-
-  if (url) tags.push(['url', url]);
-  if (mime) tags.push(['m', mime]);
-  tags.push(...previewTags);
-
-  tags.push(
-    ['summary', metadata.description],
-    ['alt', metadata.altAttribution],
-  );
-
-  if (metadata.author.trim()) tags.push(['author', metadata.author.trim()]);
-
-  const licenseTag = buildLicenseTag(metadata);
-  if (licenseTag) tags.push(licenseTag);
-
-  if (metadata.genre?.trim()) tags.push(['genre', metadata.genre.trim()]);
-
-  for (const keyword of metadata.keywords) {
-    const kw = keyword.trim();
-    if (kw) tags.push(['t', kw]);
-  }
-
-  tags.push(...buildAiHintTags(metadata));
-
-  return tags;
-}
 
 // ─── Display helpers ──────────────────────────────────────────────────────────
 

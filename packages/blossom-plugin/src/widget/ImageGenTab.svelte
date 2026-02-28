@@ -8,7 +8,6 @@
   import { createBlossomBridge } from '../core/simple-bridge';
   import {
     buildImageMetadataTags,
-    buildKind1FallbackTags,
   } from '../core/metadata';
   import {
     createImagePreviewFile,
@@ -213,11 +212,9 @@
 
     try {
       const kind1063Tags = buildImageMetadataTags(uploadTags, metadata);
-      const kind1Tags = buildKind1FallbackTags(uploadTags, metadata);
 
       if (relayUrls.length > 0) {
         await publishEvent(signer, relayUrls, metadata.description, kind1063Tags, 1063);
-        await publishEvent(signer, relayUrls, metadata.description, kind1Tags, 1);
       }
 
       const sha256 = getTagValue(uploadTags, 'x');

@@ -12,7 +12,7 @@
 import type { BlossomSigner } from './types';
 import type { ImageMetadataInput } from './metadata';
 import type { InsertResult } from '../widget/types';
-import { buildImageMetadataTags, buildKind1FallbackTags } from './metadata';
+import { buildImageMetadataTags } from './metadata';
 import { publishEvent } from './publish';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -59,17 +59,13 @@ export async function publishMediaMetadata(
   const { signer, relayUrls, url, mime, uploadTags, metadata } = options;
 
   const kind1063Tags = buildImageMetadataTags(uploadTags, metadata);
-  const kind1Tags = buildKind1FallbackTags(uploadTags, metadata);
 
   const publishedEventIds: string[] = [];
 
   if (relayUrls.length > 0) {
     const res1063 = await publishEvent(signer, relayUrls, metadata.description, kind1063Tags, 1063);
-    const res1 = await publishEvent(signer, relayUrls, metadata.description, kind1Tags, 1);
     const id1063 = (res1063.event as Record<string, unknown> | null)?.id;
-    const id1 = (res1.event as Record<string, unknown> | null)?.id;
     if (typeof id1063 === 'string') publishedEventIds.push(id1063);
-    if (typeof id1 === 'string') publishedEventIds.push(id1);
   }
 
   const sha256 = getTagValue(uploadTags, 'x');
