@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { UploadHistoryItem } from '../core/history';
   import type { Nip94FetchResult } from '../core/nip94';
-  import type { InsertResult, BlossomMediaFeatures, InsertMode } from './types';
+  import type { InsertResult, BlossomMediaFeatures, InsertMode, ShareTarget, WidgetContext } from './types';
   import type { BlossomSigner } from '../core/types';
   import type { VisionClientOptions } from '../core/vision';
   import { formatLicenseDisplay } from '../core/licenses';
@@ -25,6 +25,10 @@
     onRefresh: () => void;
     /** Emits when user clicks "Metadaten bearbeiten" for an item */
     onEditMetadata?: (item: UploadHistoryItem) => void;
+    /** Share targets from registered plugins */
+    shareTargets?: ShareTarget[];
+    /** Widget context (needed by share target handlers) */
+    widgetContext?: WidgetContext;
   }
 
   let {
@@ -42,12 +46,16 @@
     onDelete,
     onRefresh,
     onEditMetadata,
+    shareTargets = [],
+    widgetContext,
   }: GalleryTabProps = $props();
 
   let selectedUrl = $state<string | null>(null);
   let deleteConfirmUrl = $state<string | null>(null);
   let filterQuery = $state('');
   let activeKeyword = $state<string | null>(null);
+  let sharePopoverOpen = $state(false);
+  let sharingTargetId = $state<string | null>(null);
   let copiedUrl = $state(false);
   let insertMode = $state<InsertMode>('url');
 
@@ -435,6 +443,47 @@
 
             <!-- Toolbar pinned at bottom -->
             <div class="sidebar-toolbar">
+              {#if shareTargets.length > 0 && widgetContext}
+                <div class="share-wrapper">
+                  <button
+                    type="button"
+                    class="btn-icon"
+                    onclick={() => { sharePopoverOpen = !sharePopoverOpen; }}
+                    title="Teilen"
+                  ><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg></button>
+                  {#if sharePopoverOpen}
+                    <div class="share-popover">
+                      {#each shareTargets as target (target.id)}
+                        <button
+                          type="button"
+                          class="share-option"
+                          disabled={sharingTargetId === target.id}
+                          onclick={async () => {
+                            if (!selectedItem || !widgetContext) return;
+                            const nip94Event = nip94Data?.byUrl?.get(selectedItem.url);
+                            if (!nip94Event) {
+                              widgetContext.reportError(new Error('Kein NIP-94 Event für dieses Item vorhanden.'));
+                              return;
+                            }
+                            sharePopoverOpen = false;
+                            sharingTargetId = target.id;
+                            try {
+                              await target.handler(selectedItem, nip94Event, widgetContext);
+                            } catch (err) {
+                              widgetContext.reportError(err instanceof Error ? err : new Error(String(err)));
+                            } finally {
+                              sharingTargetId = null;
+                            }
+                          }}
+                        >
+                          {#if target.icon}<span class="share-option-icon">{target.icon}</span>{/if}
+                          <span>{sharingTargetId === target.id ? 'Wird geteilt…' : target.label}</span>
+                        </button>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              {/if}
               {#if onEditMetadata}
                 <button
                   type="button"
@@ -894,5 +943,58 @@
     .sidebar-close {
       display: flex;
     }
+  }
+
+  /* ── Share popover ── */
+  .share-wrapper {
+    position: relative;
+  }
+
+  .share-popover {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    margin-bottom: 6px;
+    min-width: 180px;
+    background: var(--bm-bg, #fff);
+    border: 1px solid var(--bm-border, #ddd);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 0.3rem;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .share-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.6rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--bm-text, #222);
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    transition: background 0.1s;
+  }
+
+  .share-option:hover {
+    background: var(--bm-accent-bg-subtle, #f0eeff);
+  }
+
+  .share-option:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .share-option-icon {
+    font-size: 1rem;
+    line-height: 1;
   }
 </style>

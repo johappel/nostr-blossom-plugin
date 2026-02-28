@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { BlossomMediaConfig, CustomTab, InsertResult } from './types';
+  import type { BlossomMediaConfig, CustomTab, TabPlugin, ShareTarget, InsertResult, WidgetContext, WidgetEventMap } from './types';
   import type { BlossomSigner } from '../core/types';
   import type { UploadHistoryItem } from '../core/history';
   import type { Nip94FetchResult } from '../core/nip94';
@@ -7,6 +7,8 @@
   import type { BlossomUserSettings } from '../core/settings';
   import type { BunkerSession } from '../core/nip46';
   import type { PendingUpload } from '../core/pending-uploads';
+  import { createEventEmitter } from './event-emitter';
+  import { mount as svelteMount, unmount as svelteUnmount } from 'svelte';
   import { listBlossomBlobs } from '../core/list';
   import { fetchNip94Events } from '../core/nip94';
   import { updateHistoryItemByUrl, removeHistoryItemByUrl } from '../core/history';
@@ -61,26 +63,46 @@
   interface TabDef {
     id: TabId;
     label: string;
+    icon?: string;
+    order: number;
     builtin?: BuiltinTab;
     custom?: CustomTab;
+    plugin?: TabPlugin;
   }
 
   let tabs = $derived.by((): TabDef[] => {
     const result: TabDef[] = [];
     if (config.features?.upload !== false) {
-      result.push({ id: 'upload', label: 'Dateien hochladen', builtin: 'upload' });
+      result.push({ id: 'upload', label: 'Dateien hochladen', order: 0, builtin: 'upload' });
     }
     if (config.features?.gallery !== false) {
-      result.push({ id: 'gallery', label: 'Mediathek', builtin: 'gallery' });
+      result.push({ id: 'gallery', label: 'Mediathek', order: 10, builtin: 'gallery' });
     }
     // Show image gen tab when feature is not explicitly disabled AND an endpoint is available
     if (config.features?.imageGen !== false && resolvedImageGenEndpoint) {
-      result.push({ id: 'imagegen', label: 'Bild erstellen', builtin: 'imagegen' });
+      result.push({ id: 'imagegen', label: 'Bild erstellen', order: 20, builtin: 'imagegen' });
     }
+    // Legacy custom tabs (deprecated — use plugins instead)
     for (const ct of config.tabs ?? []) {
-      result.push({ id: ct.id, label: ct.label, custom: ct });
+      result.push({ id: ct.id, label: ct.label, order: 100, custom: ct });
     }
+    // Tab plugins (skip user-disabled ones)
+    const disabled = new Set(userSettings.disabledPlugins ?? []);
+    for (const p of config.plugins ?? []) {
+      if (!disabled.has(p.id)) {
+        result.push({ id: p.id, label: p.label, icon: p.icon, order: p.order ?? 100, plugin: p });
+      }
+    }
+    result.sort((a, b) => a.order - b.order);
     return result;
+  });
+
+  // ── Collect share targets from active plugins ─────────────────────────────
+  let shareTargets = $derived.by((): ShareTarget[] => {
+    const disabled = new Set(userSettings.disabledPlugins ?? []);
+    return (config.plugins ?? [])
+      .filter(p => !disabled.has(p.id))
+      .flatMap(p => p.shareTargets ?? []);
   });
 
   // Default to 'upload' — avoid eagerly reading `tabs` here because
@@ -613,17 +635,136 @@
     }
   }
 
-  // ── Custom tab container ──────────────────────────────────────────────────
+  // ── Event emitter for plugin context ──────────────────────────────────────
+  const _emitter = createEventEmitter<WidgetEventMap>();
+
+  // ── Widget context (shared with plugins) ──────────────────────────────────
+  // Uses getters so plugins always read current values without deep-proxy issues.
+  const widgetContext: WidgetContext = {
+    get signer() { return signer; },
+    get servers() { return effective.servers; },
+    get relayUrls() { return effective.relayUrls; },
+    get items() { return items; },
+    get nip94Data() { return nip94Data; },
+    get userSettings() { return userSettings; },
+    get activeTab() { return activeTab; },
+    get targetElement() { return _targetElement ?? null; },
+    get rootElement() { return dialogEl ?? null; },
+    get config() { return config; },
+
+    insert: (result: InsertResult) => handleInserted(result),
+    refreshGallery: () => loadGalleryIfNeeded(),
+    close: () => { open = false; onClose?.(); },
+    switchTab: (tabId: string) => { activeTab = tabId; editItem = null; },
+    reportError: (error: Error) => config.onError?.(error),
+
+    on: (event, handler) => _emitter.on(event, handler),
+    off: (event, handler) => _emitter.off(event, handler),
+  };
+
+  // ── Emit context events on state changes ──────────────────────────────────
+  $effect(() => {
+    _emitter.emit('signer-changed', signer);
+  });
+  $effect(() => {
+    _emitter.emit('settings-changed', userSettings);
+  });
+  $effect(() => {
+    // Emit after gallery load completes (track items + nip94Data)
+    if (!galleryLoading) {
+      _emitter.emit('gallery-loaded', { items, nip94Data });
+    }
+  });
+  $effect(() => {
+    _emitter.emit('tab-changed', activeTab);
+  });
+  $effect(() => {
+    if (open) {
+      _emitter.emit('open', undefined as unknown as void);
+    } else {
+      _emitter.emit('close', undefined as unknown as void);
+    }
+  });
+
+  // ── Plugin tab lifecycle ──────────────────────────────────────────────────
+  let previousActiveTab = $state<string>('');
+  $effect(() => {
+    const current = activeTab;
+    if (current === previousActiveTab) return;
+    const prev = previousActiveTab;
+    previousActiveTab = current;
+
+    // Deactivate previous plugin tab
+    const prevPlugin = tabs.find(t => t.id === prev)?.plugin;
+    if (prevPlugin?.onDeactivate) prevPlugin.onDeactivate(widgetContext);
+
+    // Activate current plugin tab
+    const curPlugin = tabs.find(t => t.id === current)?.plugin;
+    if (curPlugin?.onActivate) curPlugin.onActivate(widgetContext);
+  });
+
+  // ── Custom tab container (legacy + plugin) ────────────────────────────────
   let customContainers = $state<Record<string, HTMLElement>>({});
+  /** Tracks which containers have been rendered into (to avoid double-render). */
+  let renderedContainers = $state<Record<string, boolean>>({});
+  /** Tracks mounted Svelte plugin component instances for cleanup. */
+  let mountedPluginComponents: Record<string, ReturnType<typeof svelteMount>> = {};
+  /** Tracks cleanup functions returned by plugin render(). */
+  let pluginCleanups: Record<string, (() => void) | undefined> = {};
 
   $effect(() => {
     for (const tab of tabs) {
-      if (!tab.custom) continue;
       const el = customContainers[tab.id];
-      if (el && el.childElementCount === 0) {
+      if (!el || renderedContainers[tab.id]) continue;
+
+      if (tab.custom) {
+        // Legacy CustomTab: render(container)
         tab.custom.render(el);
+        renderedContainers[tab.id] = true;
+      } else if (tab.plugin) {
+        if (tab.plugin.component) {
+          // Svelte 5 component plugin
+          const comp = svelteMount(tab.plugin.component, {
+            target: el,
+            props: { ctx: widgetContext },
+          });
+          mountedPluginComponents[tab.id] = comp;
+          renderedContainers[tab.id] = true;
+        } else if (tab.plugin.render) {
+          // Vanilla DOM plugin
+          const cleanup = tab.plugin.render(el, widgetContext);
+          if (cleanup) pluginCleanups[tab.id] = cleanup;
+          renderedContainers[tab.id] = true;
+        }
       }
     }
+  });
+
+  // Cleanup plugin components and render functions on destroy
+  // (called via Svelte 5's $effect cleanup when component unmounts)
+  $effect(() => {
+    return () => {
+      // Destroy all mounted Svelte plugin components
+      for (const [id, comp] of Object.entries(mountedPluginComponents)) {
+        try { svelteUnmount(comp); } catch { /* ignore */ }
+      }
+      mountedPluginComponents = {};
+
+      // Call cleanup functions from vanilla render plugins
+      for (const [id, cleanup] of Object.entries(pluginCleanups)) {
+        try { cleanup?.(); } catch { /* ignore */ }
+      }
+      pluginCleanups = {};
+
+      // Notify all plugins of destroy
+      for (const tab of tabs) {
+        if (tab.plugin?.onDestroy) {
+          try { tab.plugin.onDestroy(widgetContext); } catch { /* ignore */ }
+        }
+      }
+
+      _emitter.clear();
+    };
   });
 
   // ── Keyboard close ───────────────────────────────────────────────────────
@@ -819,7 +960,7 @@
             class:active={activeTab === tab.id}
             aria-selected={activeTab === tab.id}
             onclick={() => { activeTab = tab.id; editItem = null; }}
-          >{tab.label}</button>
+          >{#if tab.icon}<span class="bm-tab-icon">{tab.icon}</span>{/if}{tab.label}</button>
         {/each}
       </div>
     {/if}
@@ -834,6 +975,7 @@
           relayUrls={effective.relayUrls}
           appId={config.appId ?? 'default'}
           bunkerConnected={bunkerSession !== null}
+          registeredPlugins={(config.plugins ?? []).map(p => ({ id: p.id, label: p.label, icon: p.icon }))}
           onClose={() => { settingsOpen = false; }}
           onSettingsChanged={handleSettingsChanged}
           onBunkerConnected={handleBunkerConnected}
@@ -942,6 +1084,8 @@
                 features={config.features ?? {}}
                 {visionOptions}
                 targetElement={_targetElement}
+                {shareTargets}
+                {widgetContext}
                 onInserted={handleInserted}
                 onDelete={handleDelete}
                 onRefresh={loadGalleryIfNeeded}
@@ -957,10 +1101,11 @@
                 imageGenEndpoint={resolvedImageGenEndpoint}
                 onInserted={handleInserted}
               />
-            {:else if tab.custom}
+            {:else if tab.custom || tab.plugin}
               <div
                 bind:this={customContainers[tab.id]}
-                class="bm-custom-tab"
+                class="bm-custom-tab bm-plugin-tab"
+                data-plugin-id={tab.plugin?.id ?? tab.custom?.id}
               ></div>
             {/if}
           </div>
@@ -1197,6 +1342,15 @@
   .bm-custom-tab {
     overflow: auto;
     padding: 0.75rem;
+  }
+
+  .bm-plugin-tab {
+    /* Plugin tabs get the same layout as custom tabs */
+    min-height: 0;
+  }
+
+  .bm-tab-icon {
+    margin-right: 0.35em;
   }
 
   /* ── Edit metadata overlay ── */

@@ -8,6 +8,52 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- **Share-Action-Infrastruktur**: Generisches Share-System für das Media Widget. Plugins können `shareTargets` registrieren, die in der Gallery-Sidebar als Share-Popover angezeigt werden.
+  - `ShareTarget` Interface: `id`, `label`, `icon`, `handler(item, nip94Event, ctx)`.
+  - `TabPlugin.shareTargets?: ShareTarget[]`: Plugins liefern Share-Targets über ihre Tab-Definition.
+  - Share-Button (📤) in der Gallery-Sidebar-Toolbar mit Popover-Dropdown aller registrierten Share-Targets.
+  - `'share-completed'` Event in `WidgetEventMap`.
+- **`packages/tab-communikey`**: Community-Media TabPlugin basierend auf COMMUNIKEY-Protokoll.
+  - Community-Feed: Lädt kind:30222 (Targeted Publications) + kind:1063 (NIP-94) von Community-Relays.
+  - Mitgliedschaften: Liest kind:30382 Events und zeigt abonnierte Communities im Dropdown.
+  - Community-Info: Parst kind:10222 Events (Name, Relays, Blossom-Server, Content-Sections).
+  - „Share to Community"-Aktion: DOM-Overlay Community-Picker im Gallery-Detail, publiziert kind:30222 an Community-Relays.
+  - `CommunityTab.svelte`: Vollständige Community-Media-Browser-UI mit Community-Selector, Info-Bar, Media-Grid und Detail-Sidebar.
+  - Nostr-Helper: `parseMembershipEvent`, `parseCommunityEvent`, `parseShareEvent`, `fetchMemberships`, `fetchCommunity`, `fetchCommunityMedia`, `publishCommunityShare`.
+- **Community-Tab als Builtin im IIFE-Bundle**: `communityTabPlugin` wird automatisch in `init()` injiziert wenn `features.community !== false`. Kein separates Script nötig.
+  - Neues Feature-Flag `community?: boolean` in `BlossomMediaFeatures`.
+  - Vite Widget-Build löst `@blossom/tab-communikey` und `@blossom/plugin/plugin` per Alias auf.
+  - Deaktivierbar via `features: { community: false }` in der Config.
+- **`plugin-api.ts` Erweiterung**: Neue Exports für Plugin-Autoren: `ShareTarget`, `NostrProfile`, `PublishEventResult`, `PublishRelayResult`, `publishEvent`, `fetchProfile`, `shortenPubkey`.
+
+### Tests
+
+- 13 Unit-Tests für `tab-communikey` Nostr-Parser (Membership, Community, Share-Event Parsing).
+- Alle 63 Core-Tests weiterhin grün nach Share-Infrastruktur-Änderungen.
+
+- **Tab-Plugin-API**: Externes Tab-Plugin-System für das Media Widget. Neue Tabs können als eigenständige Pakete implementiert werden, ohne den Core-Code anzufassen.
+  - `TabPlugin` Interface: Unterstützt sowohl Vanilla-DOM (`render(container, ctx)`) als auch Svelte 5 (`component`) Rendering.
+  - `WidgetContext`: Getter-basiertes Context-Objekt mit Zugriff auf `signer`, `servers`, `relayUrls`, `items`, `nip94Data`, `userSettings` und Actions (`insert`, `refreshGallery`, `close`, `switchTab`, `reportError`).
+  - Event-System: `ctx.on('signer-changed' | 'settings-changed' | 'gallery-loaded' | 'tab-changed' | 'open' | 'close', handler)` mit Unsubscribe-Support.
+  - Plugin-Lifecycle: `onActivate`, `onDeactivate`, `onDestroy` Hooks.
+  - Tab-Sortierung: `order`-Feld (Builtin 0–99, Plugins ab 100).
+  - Tab-Icons: Optionales `icon`-Feld (Emoji/SVG) für die Tabbar.
+- **`@blossom/plugin/plugin` Export**: Neuer Package-Export-Pfad mit allen Types und Utilities für Plugin-Autoren.
+- **`packages/tab-example`**: Referenz-Paket mit Vanilla-DOM und Svelte-Component Tab-Plugin-Beispielen.
+- **`event-emitter.ts`**: Leichtgewichtiger typisierter Event-Emitter für die Plugin-Kontext-API.
+- **`BlossomMediaConfig.plugins`**: Neues Config-Feld zum Registrieren von Tab-Plugins.
+- **Plugin-Toggles in User Settings**: Tab-Plugins können vom Benutzer in den Einstellungen ein- und ausgeschaltet werden.
+  - `BlossomUserSettings.disabledPlugins`: Array deaktivierter Plugin-IDs, wird in localStorage + NIP-78 persistiert.
+  - Neue UI-Sektion „Erweiterungen" im SettingsPanel mit Checkboxen für jedes registrierte Plugin.
+
+### Docs
+
+- **`docs/plugin-tabs.md`**: Plugin-Authoring-Guide mit API-Referenz, Quick-Start, Beispielen und Best Practices.
+
+### Deprecated
+
+- **`CustomTab` Interface**: Durch `TabPlugin` ersetzt. `CustomTab` bleibt über `config.tabs` rückwärtskompatibel erhalten.
+
 - **Pending-Upload-Recovery**: Verwaiste Blossom-Uploads (hochgeladen, aber nicht als NIP-94 publiziert) werden im `localStorage` verfolgt (`blossom-pending:${appId}`). Beim nächsten Öffnen des Widgets zeigt ein Banner die nicht abgeschlossenen Uploads an. Der User kann sie sequentiell vervollständigen (Metadaten eingeben + publizieren) oder mit „Upload löschen" den Blob inkl. Previews vom Server entfernen.
 - **`core/pending-uploads.ts`**: Neues framework-agnostisches Modul mit `savePendingUpload()`, `removePendingUpload()`, `removePendingUploadByUrl()`, `loadPendingUploads()`, `clearAllPendingUploads()` und `extractRelatedFromTags()`.
 - **`core/publish-media.ts`**: Extrahierte wiederverwendbare `publishMediaMetadata()` Funktion für NIP-94 Publishing mit `InsertResult`-Rückgabe.

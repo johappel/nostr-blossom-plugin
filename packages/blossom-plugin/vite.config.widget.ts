@@ -72,6 +72,13 @@ export default defineConfig({
     }),
   ],
 
+  resolve: {
+    alias: {
+      '@blossom/tab-communikey': path.resolve(__dirname, '../tab-communikey/src/index.ts'),
+      '@blossom/plugin/plugin': path.resolve(__dirname, 'src/widget/plugin-api.ts'),
+    },
+  },
+
   build: {
     outDir: path.resolve(__dirname, 'dist/widget'),
     emptyOutDir: true,
