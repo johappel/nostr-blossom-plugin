@@ -94,6 +94,11 @@ interface TabPlugin {
   onDeactivate?: (ctx: WidgetContext) => void;
   /** Called when the widget is destroyed */
   onDestroy?: (ctx: WidgetContext) => void;
+
+  // === Share targets (optional) ===
+
+  /** Share actions shown in gallery sidebar popover */
+  shareTargets?: ShareTarget[];
 }
 ```
 
@@ -137,6 +142,7 @@ Subscribe with `ctx.on(event, handler)` — returns an unsubscribe function.
 | `'tab-changed'` | `string` | Active tab changes |
 | `'open'` | `void` | Widget dialog opens |
 | `'close'` | `void` | Widget dialog closes |
+| `'share-completed'` | `{ targetId, url }` | Share target handler completes |
 
 ## Svelte Component Plugin
 
@@ -167,9 +173,70 @@ export const myPlugin: TabPlugin = {
 };
 ```
 
+## Share Targets
+
+Plugins can register **Share Targets** — actions that appear in the gallery sidebar's share popover (📤 button). This allows plugins to offer "Share to…" actions for any gallery item.
+
+### ShareTarget Interface
+
+```ts
+interface ShareTarget {
+  /** Unique share target ID */
+  id: string;
+  /** Label shown in the share popover */
+  label: string;
+  /** Icon (emoji or SVG string) */
+  icon?: string;
+  /** Handler called when the user selects this share target */
+  handler: (
+    item: UploadHistoryItem,
+    nip94Event: Nip94FileEvent | undefined,
+    ctx: WidgetContext,
+  ) => void | Promise<void>;
+}
+```
+
+### Registering Share Targets
+
+Add `shareTargets` to your `TabPlugin` definition:
+
+```ts
+import type { TabPlugin, ShareTarget } from '@blossom/plugin/plugin';
+
+const shareToMyService: ShareTarget = {
+  id: 'my-share',
+  label: 'Share to My Service',
+  icon: '🔗',
+  async handler(item, nip94Event, ctx) {
+    // item.url — the Blossom blob URL
+    // nip94Event — the NIP-94 metadata event (if available)
+    // ctx — full WidgetContext for signer, servers, etc.
+    await doSomethingWith(item.url);
+  },
+};
+
+export const myPlugin: TabPlugin = {
+  id: 'my-plugin',
+  label: 'My Plugin',
+  component: MyTab,
+  shareTargets: [shareToMyService],
+};
+```
+
+The share button (📤) appears in the gallery sidebar toolbar whenever at least one plugin provides share targets. Clicking it opens a popover listing all available targets.
+
+### Events
+
+When a share action completes, the widget emits `'share-completed'`:
+
+| Event | Payload | When |
+|---|---|---|
+| `'share-completed'` | `{ targetId: string; url: string }` | A share target handler finishes |
+
 ## Example Plugins
 
-See `packages/tab-example/` for a complete working example with both vanilla-DOM and Svelte component patterns.
+- **`packages/tab-example/`**: Reference package with vanilla-DOM and Svelte component patterns.
+- **`packages/tab-communikey/`**: Community media plugin (COMMUNIKEY protocol) — community feed browser + "Share to Community" action via `shareTargets`.
 
 ## Important Notes
 

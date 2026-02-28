@@ -8,7 +8,7 @@
 
 import type { BlossomSigner } from '../core/types';
 import type { UploadHistoryItem } from '../core/history';
-import type { Nip94FetchResult } from '../core/nip94';
+import type { Nip94FetchResult, Nip94FileEvent } from '../core/nip94';
 import type { BlossomUserSettings } from '../core/settings';
 import type { Component } from 'svelte';
 
@@ -125,6 +125,8 @@ export interface WidgetEventMap {
   'open': void;
   /** Fired when the widget dialog closes. */
   'close': void;
+  /** Fired after a share target handler completes successfully. */
+  'share-completed': { targetId: string; item: UploadHistoryItem };
 }
 
 // ─── Widget context (plugin API) ─────────────────────────────────────────────
@@ -177,6 +179,38 @@ export interface WidgetContext {
   off<K extends keyof WidgetEventMap>(event: K, handler: (payload: WidgetEventMap[K]) => void): void;
 }
 
+// ─── Share targets ───────────────────────────────────────────────────────────
+
+/**
+ * A share target registered by a tab plugin.
+ *
+ * When a user views a gallery item, share targets appear in the sidebar
+ * toolbar's share popover.  Clicking one executes the handler, which can
+ * publish the item to external systems (e.g. Communikey communities,
+ * AMB NIP events, etc.).
+ */
+export interface ShareTarget {
+  /** Unique identifier (e.g. `'communikey-share'`). */
+  id: string;
+  /** Display label in the share popover (e.g. `'An Community teilen'`). */
+  label: string;
+  /** Optional icon (emoji or SVG) shown before the label. */
+  icon?: string;
+  /**
+   * Called when the user selects this share target.
+   *
+   * @param item     - The gallery item being shared.
+   * @param nip94    - The NIP-94 event for this item (contains `eventId`).
+   * @param ctx      - Widget context for accessing signer, relays, actions.
+   * @returns May return a Promise; errors are caught and reported.
+   */
+  handler: (
+    item: UploadHistoryItem,
+    nip94: Nip94FileEvent,
+    ctx: WidgetContext,
+  ) => void | Promise<void>;
+}
+
 // ─── Tab plugin ──────────────────────────────────────────────────────────────
 
 /**
@@ -220,6 +254,13 @@ export interface TabPlugin {
   onDeactivate?: (ctx: WidgetContext) => void;
   /** Called when the widget is destroyed. Use for final cleanup. */
   onDestroy?: (ctx: WidgetContext) => void;
+
+  // ── Share integration (optional) ─────────────────────────────────────
+  /**
+   * Share targets provided by this plugin.
+   * They appear in the gallery sidebar toolbar's share popover.
+   */
+  shareTargets?: ShareTarget[];
 }
 
 // ─── Main configuration ───────────────────────────────────────────────────────

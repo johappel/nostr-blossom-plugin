@@ -13,6 +13,7 @@
 // ── Types ────────────────────────────────────────────────────────────────────
 export type {
   TabPlugin,
+  ShareTarget,
   WidgetContext,
   WidgetEventMap,
   InsertResult,
@@ -25,6 +26,10 @@ export type { BlossomSigner } from '../core/types';
 export type { UploadHistoryItem } from '../core/history';
 export type { Nip94FetchResult, Nip94FileEvent } from '../core/nip94';
 export type { BlossomUserSettings } from '../core/settings';
+export type { NostrProfile } from '../core/profile';
+export type { PublishEventResult, PublishRelayResult } from '../core/publish';
 
 // ── Utilities useful for plugin authors ──────────────────────────────────────
 export { formatInsertResult } from '../core/format';
+export { publishEvent } from '../core/publish';
+export { fetchProfile, shortenPubkey } from '../core/profile';

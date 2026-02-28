@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { BlossomMediaConfig, CustomTab, TabPlugin, InsertResult, WidgetContext, WidgetEventMap } from './types';
+  import type { BlossomMediaConfig, CustomTab, TabPlugin, ShareTarget, InsertResult, WidgetContext, WidgetEventMap } from './types';
   import type { BlossomSigner } from '../core/types';
   import type { UploadHistoryItem } from '../core/history';
   import type { Nip94FetchResult } from '../core/nip94';
@@ -95,6 +95,14 @@
     }
     result.sort((a, b) => a.order - b.order);
     return result;
+  });
+
+  // ── Collect share targets from active plugins ─────────────────────────────
+  let shareTargets = $derived.by((): ShareTarget[] => {
+    const disabled = new Set(userSettings.disabledPlugins ?? []);
+    return (config.plugins ?? [])
+      .filter(p => !disabled.has(p.id))
+      .flatMap(p => p.shareTargets ?? []);
   });
 
   // Default to 'upload' — avoid eagerly reading `tabs` here because
@@ -1075,6 +1083,8 @@
                 features={config.features ?? {}}
                 {visionOptions}
                 targetElement={_targetElement}
+                {shareTargets}
+                {widgetContext}
                 onInserted={handleInserted}
                 onDelete={handleDelete}
                 onRefresh={loadGalleryIfNeeded}

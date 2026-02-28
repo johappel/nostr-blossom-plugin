@@ -8,6 +8,25 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- **Share-Action-Infrastruktur**: Generisches Share-System für das Media Widget. Plugins können `shareTargets` registrieren, die in der Gallery-Sidebar als Share-Popover angezeigt werden.
+  - `ShareTarget` Interface: `id`, `label`, `icon`, `handler(item, nip94Event, ctx)`.
+  - `TabPlugin.shareTargets?: ShareTarget[]`: Plugins liefern Share-Targets über ihre Tab-Definition.
+  - Share-Button (📤) in der Gallery-Sidebar-Toolbar mit Popover-Dropdown aller registrierten Share-Targets.
+  - `'share-completed'` Event in `WidgetEventMap`.
+- **`packages/tab-communikey`**: Community-Media TabPlugin basierend auf COMMUNIKEY-Protokoll.
+  - Community-Feed: Lädt kind:30222 (Targeted Publications) + kind:1063 (NIP-94) von Community-Relays.
+  - Mitgliedschaften: Liest kind:30382 Events und zeigt abonnierte Communities im Dropdown.
+  - Community-Info: Parst kind:10222 Events (Name, Relays, Blossom-Server, Content-Sections).
+  - „Share to Community"-Aktion: DOM-Overlay Community-Picker im Gallery-Detail, publiziert kind:30222 an Community-Relays.
+  - `CommunityTab.svelte`: Vollständige Community-Media-Browser-UI mit Community-Selector, Info-Bar, Media-Grid und Detail-Sidebar.
+  - Nostr-Helper: `parseMembershipEvent`, `parseCommunityEvent`, `parseShareEvent`, `fetchMemberships`, `fetchCommunity`, `fetchCommunityMedia`, `publishCommunityShare`.
+- **`plugin-api.ts` Erweiterung**: Neue Exports für Plugin-Autoren: `ShareTarget`, `NostrProfile`, `PublishEventResult`, `PublishRelayResult`, `publishEvent`, `fetchProfile`, `shortenPubkey`.
+
+### Tests
+
+- 13 Unit-Tests für `tab-communikey` Nostr-Parser (Membership, Community, Share-Event Parsing).
+- Alle 63 Core-Tests weiterhin grün nach Share-Infrastruktur-Änderungen.
+
 - **Tab-Plugin-API**: Externes Tab-Plugin-System für das Media Widget. Neue Tabs können als eigenständige Pakete implementiert werden, ohne den Core-Code anzufassen.
   - `TabPlugin` Interface: Unterstützt sowohl Vanilla-DOM (`render(container, ctx)`) als auch Svelte 5 (`component`) Rendering.
   - `WidgetContext`: Getter-basiertes Context-Objekt mit Zugriff auf `signer`, `servers`, `relayUrls`, `items`, `nip94Data`, `userSettings` und Actions (`insert`, `refreshGallery`, `close`, `switchTab`, `reportError`).
