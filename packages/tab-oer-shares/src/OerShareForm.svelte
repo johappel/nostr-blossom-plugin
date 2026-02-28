@@ -44,9 +44,17 @@
   let licenseUrl = $state(initial.licenseUrl ?? '');
   let inLanguage = $state(initial.inLanguage);
 
-  let audience = $state<SkosSelection[]>([]);
+  let audience = $state<SkosSelection[]>(
+    nip94.mime?.startsWith('image/')
+      ? [{ id: 'https://w3id.org/kim/lrmi-audience-role/general-public', prefLabel: 'Allgemeinheit' }]
+      : [],
+  );
   let educationalLevel = $state<SkosSelection[]>([]);
-  let learningResourceType = $state<SkosSelection[]>([]);
+  let learningResourceType = $state<SkosSelection[]>(
+    nip94.mime?.startsWith('image/')
+      ? [{ id: 'https://vocabs.sodix.de/sodix/educational/learningresourcetype/BILD', prefLabel: 'Bild' }]
+      : [],
+  );
   let about = $state<SkosSelection[]>([]);
 
   // ── UI state ──
