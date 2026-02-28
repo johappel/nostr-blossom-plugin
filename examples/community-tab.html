@@ -82,7 +82,7 @@
 <body>
 
 <h1>🌸 Community Tab Plugin — Test</h1>
-<p class="subtitle">Testet den Community-Media-Tab und Share-to-Community im Widget.</p>
+<p class="subtitle">Testet den Community-Media-Tab, OER-Shares-Tab und Share-Aktionen im Widget.</p>
 
 <div class="demo-form">
   <label>
@@ -90,10 +90,13 @@
     <input type="text" id="imageUrl" placeholder="URL wird hier eingefügt…" />
   </label>
 
-  <div style="display: flex; gap: 0.5rem;">
+  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
     <button class="open-btn" id="openBtn">🌸 Mediathek</button>
     <button class="open-btn" id="openCommunityBtn" style="background: #4a9;">
       👥 Community-Tab
+    </button>
+    <button class="open-btn" id="openOerBtn" style="background: #d4a017;">
+      🎓 OER-Shares
     </button>
   </div>
 </div>
@@ -105,6 +108,7 @@
   ▸ Für den Community-Tab brauchst du eine NIP-07 Extension (nos2x, Alby, etc.) oder NIP-46 Bunker.<br/>
   ▸ Du musst mindestens einer Community beigetreten sein (kind:30382 Events).<br/>
   ▸ Der Share-Button (📤) erscheint in der Mediathek-Sidebar, wenn du ein Bild auswählst.<br/>
+  ▸ Der OER-Shares-Tab zeigt deine kind:30142 Events von <code>wss://relay-amb.edufeed.org</code>.<br/>
   ▸ Dev-Server: <code>pnpm dev:community</code> im Workspace-Root.
 </div>
 
@@ -112,6 +116,7 @@
   // Vite löst workspace-Pakete direkt auf — kein Build nötig.
   import { init } from '@blossom/plugin/widget';
   import { communityTabPlugin } from '@blossom/tab-communikey';
+  import { oerSharesPlugin } from '@blossom/tab-oer-shares';
 
   const output = document.getElementById('output');
 
@@ -120,8 +125,8 @@
     relayUrl: 'wss://relay.damus.io',
     targets: '',  // Injector deaktivieren — wir nutzen manuelle Buttons
 
-    // ← Hier wird das Community-Plugin registriert!
-    plugins: [communityTabPlugin],
+    // ← Hier werden die Plugins registriert!
+    plugins: [communityTabPlugin, oerSharesPlugin],
 
     onInsert: (result) => {
       output.textContent = `✅ Übernommen:\n  URL: ${result.url}\n  Typ: ${result.mimeType ?? '?'}\n  Beschreibung: ${result.description ?? '-'}`;
@@ -139,6 +144,11 @@
   // Direkt Community-Tab öffnen
   document.getElementById('openCommunityBtn').addEventListener('click', () => {
     media.open(document.getElementById('imageUrl'), 'communikey');
+  });
+
+  // Direkt OER-Shares-Tab öffnen
+  document.getElementById('openOerBtn').addEventListener('click', () => {
+    media.open(document.getElementById('imageUrl'), 'oer-shares');
   });
 </script>
 

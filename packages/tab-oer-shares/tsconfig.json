@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@blossom/plugin/plugin": ["../blossom-plugin/src/widget/plugin-api"]
+    }
+  },
+  "include": ["src"]
+}

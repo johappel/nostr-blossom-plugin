@@ -8,6 +8,15 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- **`packages/tab-oer-shares`**: OER-Shares TabPlugin für AMB-Metadaten und Edufeed-Integration (kind:30142).
+  - „Im Edufeed teilen" ShareTarget in der Gallery-Sidebar mit AMB-Metadaten-Formular.
+  - NIP-94 → AMB Auto-Mapping (alt→name, summary→description, author, license, keywords).
+  - SKOS-Vocabulary-Selektoren für Zielgruppe, Bildungsstufe, Ressourcentyp und Fach/Thema.
+  - OER-Shares Tab: Übersicht eigener kind:30142 Events mit Detailansicht (prefLabels statt URIs).
+  - SKOS-Loader mit In-Memory-Cache für SkoHub JSON-LD Endpoints.
+  - Konfigurierbare Vocabulary-URLs und AMB-Relay-Adresse (localStorage-persistiert).
+  - Nostr-Helper: `mapNip94ToAmb`, `buildAmbEventTags`, `publishAmbEvent`, `fetchUserAmbShares`, `fetchSkosVocabulary`.
+  - Unit-Tests: SKOS-Parsing, AMB-Tag-Builder, Event-Fetch-Parsing.
 - **Share-Action-Infrastruktur**: Generisches Share-System für das Media Widget. Plugins können `shareTargets` registrieren, die in der Gallery-Sidebar als Share-Popover angezeigt werden.
   - `ShareTarget` Interface: `id`, `label`, `icon`, `handler(item, nip94Event, ctx)`.
   - `TabPlugin.shareTargets?: ShareTarget[]`: Plugins liefern Share-Targets über ihre Tab-Definition.

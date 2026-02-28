@@ -44,6 +44,7 @@ export default defineConfig({
       '@blossom/plugin/plugin': path.resolve(__dirname, 'packages/blossom-plugin/src/widget/plugin-api.ts'),
       '@blossom/plugin': path.resolve(__dirname, 'packages/blossom-plugin/src/index.ts'),
       '@blossom/tab-communikey': path.resolve(__dirname, 'packages/tab-communikey/src/index.ts'),
+      '@blossom/tab-oer-shares': path.resolve(__dirname, 'packages/tab-oer-shares/src/index.ts'),
     },
   },
 
