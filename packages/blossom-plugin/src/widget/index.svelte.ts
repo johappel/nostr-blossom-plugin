@@ -33,7 +33,7 @@ import { Injector } from './Injector';
 declare const __BLOSSOM_CSS__: string | undefined;
 
 export type { BlossomMediaConfig, BlossomMediaInstance, InsertResult };
-export type { CustomTab, BlossomMediaFeatures, InsertMode } from './types';
+export type { CustomTab, BlossomMediaFeatures, InsertMode, TabPlugin, WidgetContext, WidgetEventMap } from './types';
 
 /**
  * Minimal CSS reset injected into the Shadow DOM so that host-page styles

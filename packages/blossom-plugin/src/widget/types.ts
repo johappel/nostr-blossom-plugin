@@ -7,6 +7,10 @@
  */
 
 import type { BlossomSigner } from '../core/types';
+import type { UploadHistoryItem } from '../core/history';
+import type { Nip94FetchResult } from '../core/nip94';
+import type { BlossomUserSettings } from '../core/settings';
+import type { Component } from 'svelte';
 
 // ─── Insert modes ─────────────────────────────────────────────────────────────
 
@@ -87,7 +91,7 @@ export interface BlossomMediaFeatures {
 
 /**
  * Interface for adding custom tabs to the media widget.
- * Reserved for future use — custom tabs are not yet implemented.
+ * @deprecated Use `TabPlugin` instead — `CustomTab` is kept for backwards compatibility.
  */
 export interface CustomTab {
   /** Unique tab ID */
@@ -100,6 +104,122 @@ export interface CustomTab {
    * Returns an optional cleanup function called when the tab is hidden.
    */
   render: (container: HTMLElement) => (() => void) | void;
+}
+
+// ─── Widget event system ─────────────────────────────────────────────────────
+
+/**
+ * Map of events that can be observed on the widget context.
+ * Plugin authors can subscribe via `ctx.on(event, handler)`.
+ */
+export interface WidgetEventMap {
+  /** Fired when the signer changes (available, changed, or removed). */
+  'signer-changed': BlossomSigner | null;
+  /** Fired when user settings are updated (servers, relays, etc.). */
+  'settings-changed': BlossomUserSettings;
+  /** Fired after the gallery finishes (re-)loading. */
+  'gallery-loaded': { items: UploadHistoryItem[]; nip94Data: Nip94FetchResult | null };
+  /** Fired when the active tab changes. */
+  'tab-changed': string;
+  /** Fired when the widget dialog opens. */
+  'open': void;
+  /** Fired when the widget dialog closes. */
+  'close': void;
+}
+
+// ─── Widget context (plugin API) ─────────────────────────────────────────────
+
+/**
+ * Context object provided to tab plugins.
+ *
+ * All property getters return **current** values — they read from the
+ * widget's internal reactive state but are themselves plain getters, so
+ * they are safe to use from vanilla JS (no Svelte proxy issues with NIP-07
+ * extension objects).
+ */
+export interface WidgetContext {
+  // ── Reactive getters ────────────────────────────────────────────────────
+  /** Current Nostr signer (NIP-07, NIP-46 bunker, or host-provided). `null` if unavailable. */
+  readonly signer: BlossomSigner | null;
+  /** Effective Blossom server URLs (config merged with user settings). */
+  readonly servers: string[];
+  /** Effective relay WebSocket URLs. */
+  readonly relayUrls: string[];
+  /** Gallery items (bloblist). */
+  readonly items: UploadHistoryItem[];
+  /** NIP-94 event data for gallery items. */
+  readonly nip94Data: Nip94FetchResult | null;
+  /** Current user settings. */
+  readonly userSettings: BlossomUserSettings;
+  /** ID of the currently active tab. */
+  readonly activeTab: string;
+  /** The HTML element that triggered the dialog open (for insert-back). */
+  readonly targetElement: HTMLElement | null;
+  /** The raw widget configuration. */
+  readonly config: BlossomMediaConfig;
+
+  // ── Actions ─────────────────────────────────────────────────────────────
+  /** Insert a result (triggers `onInsert` callback and closes the dialog). */
+  insert(result: InsertResult): void;
+  /** Refresh the gallery (re-fetch bloblist + NIP-94 events). */
+  refreshGallery(): void;
+  /** Close the widget dialog. */
+  close(): void;
+  /** Switch to a different tab by ID. */
+  switchTab(tabId: string): void;
+  /** Show an error to the user / fire `onError`. */
+  reportError(error: Error): void;
+
+  // ── Event emitter ───────────────────────────────────────────────────────
+  /** Subscribe to a widget event. Returns an unsubscribe function. */
+  on<K extends keyof WidgetEventMap>(event: K, handler: (payload: WidgetEventMap[K]) => void): () => void;
+  /** Unsubscribe from a widget event. */
+  off<K extends keyof WidgetEventMap>(event: K, handler: (payload: WidgetEventMap[K]) => void): void;
+}
+
+// ─── Tab plugin ──────────────────────────────────────────────────────────────
+
+/**
+ * Definition of an external tab plugin.
+ *
+ * Exactly **one** of `render` or `component` must be provided:
+ * - `render` — vanilla DOM: receives a container `<div>` and a `WidgetContext`.
+ * - `component` — Svelte 5 component: mounted automatically with `{ ctx }` props.
+ */
+export interface TabPlugin {
+  /** Unique tab identifier. Must not collide with builtin IDs (`upload`, `gallery`, `imagegen`). */
+  id: string;
+  /** Label displayed in the tab bar. */
+  label: string;
+  /** Optional icon (SVG string, emoji, or URL) displayed before the label. */
+  icon?: string;
+  /**
+   * Sort order. Builtin tabs use 0–99; plugins default to 100.
+   * Lower numbers appear first.
+   */
+  order?: number;
+
+  // ── Rendering (exactly one required) ───────────────────────────────────
+  /**
+   * Vanilla-DOM render function.
+   * Called once when the tab container mounts. Must render into `container`.
+   * May return a cleanup function called on destroy.
+   */
+  render?: (container: HTMLElement, ctx: WidgetContext) => (() => void) | void;
+
+  /**
+   * Svelte 5 component reference.
+   * The component will receive `ctx: WidgetContext` as a prop.
+   */
+  component?: Component<{ ctx: WidgetContext }>;
+
+  // ── Lifecycle hooks (optional) ─────────────────────────────────────────
+  /** Called each time this tab becomes the active tab. */
+  onActivate?: (ctx: WidgetContext) => void;
+  /** Called each time this tab is deactivated (another tab selected). */
+  onDeactivate?: (ctx: WidgetContext) => void;
+  /** Called when the widget is destroyed. Use for final cleanup. */
+  onDestroy?: (ctx: WidgetContext) => void;
 }
 
 // ─── Main configuration ───────────────────────────────────────────────────────
@@ -174,9 +294,27 @@ export interface BlossomMediaConfig {
 
   /**
    * Additional custom tabs (reserved for future extension points).
+   * @deprecated Use `plugins` instead for the full plugin API.
    * @experimental
    */
   tabs?: CustomTab[];
+
+  /**
+   * Tab plugins to register with the widget.
+   *
+   * Each plugin adds a tab to the tab bar. Plugins receive a `WidgetContext`
+   * for accessing shared state (signer, servers, items, etc.) and actions
+   * (insert, refreshGallery, close, etc.).
+   *
+   * @example
+   * ```ts
+   * BlossomMedia.init({
+   *   servers: ['https://blossom.example.com'],
+   *   plugins: [myAmbTabPlugin, myCommunikeyPlugin],
+   * });
+   * ```
+   */
+  plugins?: TabPlugin[];
 
   // ─── Callbacks ─────────────────────────────────────────────────────────────
 

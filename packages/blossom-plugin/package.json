@@ -29,6 +29,11 @@
       "types": "./dist/widget/index.d.ts",
       "import": "./dist/widget/index.d.ts",
       "default": "./dist/widget/blossom-media.esm.js"
+    },
+    "./plugin": {
+      "types": "./dist/widget/plugin-api.d.ts",
+      "import": "./dist/widget/plugin-api.js",
+      "default": "./dist/widget/plugin-api.js"
     }
   },
   "files": [
