@@ -105,6 +105,7 @@ export function init(config: BlossomMediaConfig): BlossomMediaInstance {
     onClose: () => {
       isOpen = false;
       activeTarget = undefined;
+      config.onClose?.();
     },
   };
 

@@ -212,6 +212,13 @@ export interface BlossomMediaConfig {
    * @param pubkey - The hex public key of the active signer.
    */
   onSignerReady?: (pubkey: string) => void;
+
+  /**
+   * Called when the widget dialog is closed (by user clicking X, pressing
+   * Escape, or programmatic close). Useful for showing a re-open button
+   * in popup/bookmarklet scenarios.
+   */
+  onClose?: () => void;
 }
 
 // ─── Instance API ─────────────────────────────────────────────────────────────

@@ -92,6 +92,42 @@
     .result-screen .btn-back:hover {
       background: #475569;
     }
+
+    .reopen-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 999998;
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      bottom: 36px; /* leave room for status bar */
+    }
+
+    .reopen-overlay p {
+      color: #888;
+      font-size: 0.85rem;
+      margin: 0;
+    }
+
+    .btn-reopen {
+      padding: 0.75rem 2rem;
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      background: #6c63ff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-reopen:hover {
+      background: #5a52d5;
+    }
   </style>
 </head>
 <body>
@@ -250,6 +286,10 @@
       },
     };
 
+    config.onClose = function () {
+      showReopenOverlay();
+    };
+
     if (visionEndpoint) {
       config.visionEndpoint = visionEndpoint;
     }
@@ -260,6 +300,28 @@
 
     media = window.BlossomMedia.init(config);
     media.open();
+  }
+
+  // ── Reopen-Overlay ──────────────────────────────────────────────────────
+  function showReopenOverlay() {
+    // Skip if result-overlay is already showing (onInsert → onClose race)
+    if (document.getElementById('result-overlay')) return;
+    // Remove any existing reopen overlay first
+    var existing = document.getElementById('reopen-overlay');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.className = 'reopen-overlay';
+    overlay.id = 'reopen-overlay';
+    overlay.innerHTML =
+      '<p>Widget wurde geschlossen</p>' +
+      '<button class="btn-reopen" id="btn-reopen">🌸 Widget öffnen</button>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('btn-reopen').addEventListener('click', function () {
+      overlay.remove();
+      media.open();
+    });
   }
 
   // ── Hilfsfunktionen ──────────────────────────────────────────────────────
