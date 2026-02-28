@@ -8,6 +8,29 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- **Tab-Plugin-API**: Externes Tab-Plugin-System für das Media Widget. Neue Tabs können als eigenständige Pakete implementiert werden, ohne den Core-Code anzufassen.
+  - `TabPlugin` Interface: Unterstützt sowohl Vanilla-DOM (`render(container, ctx)`) als auch Svelte 5 (`component`) Rendering.
+  - `WidgetContext`: Getter-basiertes Context-Objekt mit Zugriff auf `signer`, `servers`, `relayUrls`, `items`, `nip94Data`, `userSettings` und Actions (`insert`, `refreshGallery`, `close`, `switchTab`, `reportError`).
+  - Event-System: `ctx.on('signer-changed' | 'settings-changed' | 'gallery-loaded' | 'tab-changed' | 'open' | 'close', handler)` mit Unsubscribe-Support.
+  - Plugin-Lifecycle: `onActivate`, `onDeactivate`, `onDestroy` Hooks.
+  - Tab-Sortierung: `order`-Feld (Builtin 0–99, Plugins ab 100).
+  - Tab-Icons: Optionales `icon`-Feld (Emoji/SVG) für die Tabbar.
+- **`@blossom/plugin/plugin` Export**: Neuer Package-Export-Pfad mit allen Types und Utilities für Plugin-Autoren.
+- **`packages/tab-example`**: Referenz-Paket mit Vanilla-DOM und Svelte-Component Tab-Plugin-Beispielen.
+- **`event-emitter.ts`**: Leichtgewichtiger typisierter Event-Emitter für die Plugin-Kontext-API.
+- **`BlossomMediaConfig.plugins`**: Neues Config-Feld zum Registrieren von Tab-Plugins.
+- **Plugin-Toggles in User Settings**: Tab-Plugins können vom Benutzer in den Einstellungen ein- und ausgeschaltet werden.
+  - `BlossomUserSettings.disabledPlugins`: Array deaktivierter Plugin-IDs, wird in localStorage + NIP-78 persistiert.
+  - Neue UI-Sektion „Erweiterungen" im SettingsPanel mit Checkboxen für jedes registrierte Plugin.
+
+### Docs
+
+- **`docs/plugin-tabs.md`**: Plugin-Authoring-Guide mit API-Referenz, Quick-Start, Beispielen und Best Practices.
+
+### Deprecated
+
+- **`CustomTab` Interface**: Durch `TabPlugin` ersetzt. `CustomTab` bleibt über `config.tabs` rückwärtskompatibel erhalten.
+
 - **Pending-Upload-Recovery**: Verwaiste Blossom-Uploads (hochgeladen, aber nicht als NIP-94 publiziert) werden im `localStorage` verfolgt (`blossom-pending:${appId}`). Beim nächsten Öffnen des Widgets zeigt ein Banner die nicht abgeschlossenen Uploads an. Der User kann sie sequentiell vervollständigen (Metadaten eingeben + publizieren) oder mit „Upload löschen" den Blob inkl. Previews vom Server entfernen.
 - **`core/pending-uploads.ts`**: Neues framework-agnostisches Modul mit `savePendingUpload()`, `removePendingUpload()`, `removePendingUploadByUrl()`, `loadPendingUploads()`, `clearAllPendingUploads()` und `extractRelatedFromTags()`.
 - **`core/publish-media.ts`**: Extrahierte wiederverwendbare `publishMediaMetadata()` Funktion für NIP-94 Publishing mit `InsertResult`-Rückgabe.

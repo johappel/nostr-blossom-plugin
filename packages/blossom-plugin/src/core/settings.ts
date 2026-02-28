@@ -32,6 +32,8 @@ export interface BlossomUserSettings {
   visionEndpoint?: string;
   /** Base URL of the image generation API (without `/image-gen`). */
   imageGenEndpoint?: string;
+  /** IDs of tab plugins disabled by the user. */
+  disabledPlugins?: string[];
   /** Unix-ms timestamp of last modification (for NIP-78 merge). */
   updatedAt?: number;
 }

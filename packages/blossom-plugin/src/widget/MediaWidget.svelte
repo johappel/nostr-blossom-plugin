@@ -86,9 +86,12 @@
     for (const ct of config.tabs ?? []) {
       result.push({ id: ct.id, label: ct.label, order: 100, custom: ct });
     }
-    // Tab plugins
+    // Tab plugins (skip user-disabled ones)
+    const disabled = new Set(userSettings.disabledPlugins ?? []);
     for (const p of config.plugins ?? []) {
-      result.push({ id: p.id, label: p.label, icon: p.icon, order: p.order ?? 100, plugin: p });
+      if (!disabled.has(p.id)) {
+        result.push({ id: p.id, label: p.label, icon: p.icon, order: p.order ?? 100, plugin: p });
+      }
     }
     result.sort((a, b) => a.order - b.order);
     return result;
@@ -963,6 +966,7 @@
           relayUrls={effective.relayUrls}
           appId={config.appId ?? 'default'}
           bunkerConnected={bunkerSession !== null}
+          registeredPlugins={(config.plugins ?? []).map(p => ({ id: p.id, label: p.label, icon: p.icon }))}
           onClose={() => { settingsOpen = false; }}
           onSettingsChanged={handleSettingsChanged}
           onBunkerConnected={handleBunkerConnected}
@@ -1327,6 +1331,15 @@
   .bm-custom-tab {
     overflow: auto;
     padding: 0.75rem;
+  }
+
+  .bm-plugin-tab {
+    /* Plugin tabs get the same layout as custom tabs */
+    min-height: 0;
+  }
+
+  .bm-tab-icon {
+    margin-right: 0.35em;
   }
 
   /* ── Edit metadata overlay ── */

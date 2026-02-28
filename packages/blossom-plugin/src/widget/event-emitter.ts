@@ -13,7 +13,7 @@
  * ```
  */
 
-export interface TypedEventEmitter<EventMap extends Record<string, unknown>> {
+export interface TypedEventEmitter<EventMap> {
   /** Subscribe to an event. Returns an unsubscribe function. */
   on<K extends keyof EventMap & string>(event: K, handler: (payload: EventMap[K]) => void): () => void;
   /** Unsubscribe a previously registered handler. */
@@ -27,7 +27,7 @@ export interface TypedEventEmitter<EventMap extends Record<string, unknown>> {
 /**
  * Create a new typed event emitter instance.
  */
-export function createEventEmitter<EventMap extends Record<string, unknown>>(): TypedEventEmitter<EventMap> {
+export function createEventEmitter<EventMap>(): TypedEventEmitter<EventMap> {
   const listeners = new Map<string, Set<Function>>();
 
   function on<K extends keyof EventMap & string>(event: K, handler: (payload: EventMap[K]) => void): () => void {

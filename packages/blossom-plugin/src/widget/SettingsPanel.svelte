@@ -30,6 +30,8 @@
     onBunkerConnected: (session: BunkerSession) => void;
     /** Called when user wants to disconnect the bunker. */
     onBunkerDisconnect: () => void;
+    /** Registered tab plugins (for enable/disable toggles). */
+    registeredPlugins?: { id: string; label: string; icon?: string }[];
   }
 
   let {
@@ -42,6 +44,7 @@
     bunkerConnected,
     onBunkerConnected,
     onBunkerDisconnect,
+    registeredPlugins = [],
   }: SettingsPanelProps = $props();
 
   // ── Form state (initialised from current settings snapshot) ──────────
@@ -52,6 +55,7 @@
   let serversText = $state((_init.servers ?? []).join('\n'));
   let relaysText = $state((_init.relays ?? []).join('\n'));
   let visionEndpoint = $state(_init.visionEndpoint ?? '');
+  let disabledPlugins = $state<Set<string>>(new Set(_init.disabledPlugins ?? []));
 
   // ── Bunker connection state ────────────────────────────────────────────
   const _initBunkerConnected = untrack(() => bunkerConnected);
@@ -122,6 +126,7 @@
       relays: parseLines(relaysText),
       visionEndpoint: visionEndpoint.trim() || undefined,
       imageGenEndpoint: untrack(() => settings).imageGenEndpoint,  // preserve if set externally
+      disabledPlugins: disabledPlugins.size > 0 ? [...disabledPlugins] : undefined,
       updatedAt: Date.now(),
     };
 
@@ -287,6 +292,36 @@
       />
     </label>
   </section>
+
+  <!-- ─── Plugin toggles ─── -->
+  {#if registeredPlugins.length > 0}
+    <section class="sp-section">
+      <h3 class="sp-section-title">Erweiterungen</h3>
+      <span class="sp-hint">Aktiviere oder deaktiviere installierte Tab-Plugins.</span>
+      <div class="sp-plugin-list">
+        {#each registeredPlugins as plugin (plugin.id)}
+          {@const isDisabled = disabledPlugins.has(plugin.id)}
+          <label class="sp-plugin-toggle">
+            <input
+              type="checkbox"
+              checked={!isDisabled}
+              onchange={() => {
+                if (isDisabled) {
+                  disabledPlugins.delete(plugin.id);
+                } else {
+                  disabledPlugins.add(plugin.id);
+                }
+                // trigger reactivity
+                disabledPlugins = new Set(disabledPlugins);
+              }}
+            />
+            {#if plugin.icon}<span class="sp-plugin-icon">{plugin.icon}</span>{/if}
+            <span class="sp-plugin-label">{plugin.label}</span>
+          </label>
+        {/each}
+      </div>
+    </section>
+  {/if}
 
   <!-- ─── Save ─── -->
   <div class="sp-save-row">
@@ -637,5 +672,37 @@
     margin: 0;
     padding-top: 0.5rem;
     border-top: 1px solid var(--bm-border-muted);
+  }
+
+  /* ── Plugin toggles ── */
+  .sp-plugin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.4rem;
+  }
+
+  .sp-plugin-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+
+  .sp-plugin-toggle input[type='checkbox'] {
+    accent-color: var(--bm-accent);
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+  }
+
+  .sp-plugin-icon {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .sp-plugin-label {
+    color: var(--bm-text);
   }
 </style>
