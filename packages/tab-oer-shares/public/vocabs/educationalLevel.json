@@ -1,0 +1,96 @@
+{
+  "id": "https://w3id.org/kim/educationalLevel/",
+  "type": "ConceptScheme",
+  "title": {
+    "de": "Bildungsstufe",
+    "en": "Educational level"
+  },
+  "hasTopConcept": [
+    {
+      "id": "https://w3id.org/kim/educationalLevel/level_0",
+      "prefLabel": {
+        "de": "Elementarbereich",
+        "en": "Early childhood education"
+      }
+    },
+    {
+      "id": "https://w3id.org/kim/educationalLevel/level_1",
+      "prefLabel": {
+        "de": "Primarbereich",
+        "en": "Primary education"
+      }
+    },
+    {
+      "id": "https://w3id.org/kim/educationalLevel/level_2",
+      "prefLabel": {
+        "de": "Sekundarbereich I",
+        "en": "Lower secondary education"
+      }
+    },
+    {
+      "id": "https://w3id.org/kim/educationalLevel/level_3",
+      "prefLabel": {
+        "de": "Sekundarbereich II",
+        "en": "Upper secondary education"
+      }
+    },
+    {
+      "id": "https://w3id.org/kim/educationalLevel/level_4",
+      "prefLabel": {
+        "de": "Postsekundarer nicht-tertiärer Bereich",
+        "en": "Post-secondary non-tertiary education"
+      }
+    },
+    {
+      "id": "https://w3id.org/kim/educationalLevel/level_5",
+      "prefLabel": {
+        "de": "Kurzes tertiäres Bildungsprogramm",
+        "en": "Short-cycle tertiary education"
+      }
+    },
+    {
+      "id": "https://w3id.org/kim/educationalLevel/level_A",
+      "prefLabel": {
+        "de": "Hochschule",
+        "en": "University"
+      },
+      "narrower": [
+        {
+          "id": "https://w3id.org/kim/educationalLevel/level_6",
+          "prefLabel": {
+            "de": "Bachelor oder äquivalent",
+            "en": "Bachelor or equivalent"
+          }
+        },
+        {
+          "id": "https://w3id.org/kim/educationalLevel/level_7",
+          "prefLabel": {
+            "de": "Master oder äquivalent",
+            "en": "Master or equivalent"
+          }
+        },
+        {
+          "id": "https://w3id.org/kim/educationalLevel/level_8",
+          "prefLabel": {
+            "de": "Promotion oder äquivalent",
+            "en": "Doctoral or equivalent"
+          }
+        }
+      ]
+    },
+    {
+      "id": "https://w3id.org/kim/educationalLevel/level_B",
+      "prefLabel": {
+        "de": "Vorbereitungsdienst",
+        "en": "Preparatory service"
+      }
+    },
+    {
+      "id": "https://w3id.org/kim/educationalLevel/level_C",
+      "prefLabel": {
+        "de": "Fortbildung",
+        "en": "Advanced training"
+      }
+    }
+  ]
+}

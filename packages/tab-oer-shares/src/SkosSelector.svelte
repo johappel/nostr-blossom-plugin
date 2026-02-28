@@ -5,7 +5,8 @@
   checkbox grid. Supports hierarchical concepts (parent → children).
 
   Props:
-    vocabUrl   — SkoHub JSON-LD URL to load
+    vocabUrl   — JSON-LD URL (or local path) to load
+    vocabKey   — Optional vocab key for bundled fallback (e.g. 'audience')
     label      — Section heading text
     selected   — Currently selected concepts (bindable)
     onchange   — Called when selection changes
@@ -24,11 +25,13 @@
 
   let {
     vocabUrl,
+    vocabKey,
     label,
     selected = [],
     onchange,
   }: {
     vocabUrl: string;
+    vocabKey?: string;
     label: string;
     selected: SkosSelection[];
     onchange: (selected: SkosSelection[]) => void;
@@ -47,7 +50,7 @@
     loading = true;
     error = null;
 
-    fetchSkosVocabulary(vocabUrl)
+    fetchSkosVocabulary(vocabUrl, vocabKey)
       .then((result) => {
         concepts = result;
         loading = false;
@@ -74,7 +77,7 @@
   function retry() {
     loading = true;
     error = null;
-    fetchSkosVocabulary(vocabUrl)
+    fetchSkosVocabulary(vocabUrl, vocabKey)
       .then((result) => {
         concepts = result;
         loading = false;

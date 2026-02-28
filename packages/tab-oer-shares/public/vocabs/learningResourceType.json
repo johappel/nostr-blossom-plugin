@@ -1,0 +1,346 @@
+{
+  "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/learningresourcetype",
+  "type": "ConceptScheme",
+  "title": {
+    "de": "Typ der Lernressource",
+    "en": "Learning Resource Type"
+  },
+  "hasTopConcept": [
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/ANLEITUNG",
+      "prefLabel": {
+        "de": "Anleitung",
+        "en": "Instruction manual"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/APP",
+      "prefLabel": {
+        "de": "App",
+        "en": "App"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/ARBEITSBLATT",
+      "prefLabel": {
+        "de": "Arbeitsblatt",
+        "en": "Worksheet"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/AUDIO",
+      "prefLabel": {
+        "de": "Audio",
+        "en": "Audio"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/AUDIOVISUELLES",
+      "prefLabel": {
+        "de": "Audiovisuelles Medium",
+        "en": "Audiovisual medium"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/BILD",
+      "prefLabel": {
+        "de": "Bild",
+        "en": "Image"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/BROSCHUERE",
+      "prefLabel": {
+        "de": "Broschüre",
+        "en": "Brochure"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/DATEN",
+      "prefLabel": {
+        "de": "Daten",
+        "en": "Data"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/EBOOK",
+      "prefLabel": {
+        "de": "E-Book",
+        "en": "E-book"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/ENTDECKENDES",
+      "prefLabel": {
+        "de": "Entdeckendes Lernen",
+        "en": "Discovery Learning"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/EXPERIMENT",
+      "prefLabel": {
+        "de": "Experiment",
+        "en": "Experiment"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/FALLSTUDIE",
+      "prefLabel": {
+        "de": "Fallstudie",
+        "en": "Case Study"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/FLYER",
+      "prefLabel": {
+        "de": "Flyer",
+        "en": "Flyer"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/GLOSSAR",
+      "prefLabel": {
+        "de": "Glossar",
+        "en": "Glossary"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/HANDBUCH",
+      "prefLabel": {
+        "de": "Handbuch",
+        "en": "Guide"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/HANDREICHUNG",
+      "prefLabel": {
+        "de": "Handreichung",
+        "en": "Guidance"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/INFOGRAFIK",
+      "prefLabel": {
+        "de": "Infografik",
+        "en": "Infographic"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/INTERAKTION",
+      "prefLabel": {
+        "de": "Interaktion",
+        "en": "Interaction"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/KARTE",
+      "prefLabel": {
+        "de": "Karte",
+        "en": "Map"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/KURS",
+      "prefLabel": {
+        "de": "Kurs",
+        "en": "Course"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/LEHRBUCH",
+      "prefLabel": {
+        "de": "Lehrbuch",
+        "en": "Textbook"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/LERNKONTROLLE",
+      "prefLabel": {
+        "de": "Lernkontrolle",
+        "en": "Learning assesment"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/LERNSPIEL",
+      "prefLabel": {
+        "de": "Lernspiel",
+        "en": "Educational Game"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/MERKBLATT",
+      "prefLabel": {
+        "de": "Merkblatt",
+        "en": "Leaflet"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/MODELL",
+      "prefLabel": {
+        "de": "Modell",
+        "en": "Model"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/MUSIKNOTEN",
+      "prefLabel": {
+        "de": "Musiknoten",
+        "en": "Sheet music"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/OFFENE",
+      "prefLabel": {
+        "de": "Offene Aktivität",
+        "en": "Open Activity"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/POSTER",
+      "prefLabel": {
+        "de": "Poster",
+        "en": "Poster"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/PRESENTATION",
+      "prefLabel": {
+        "de": "Präsentation",
+        "en": "Presentation"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/PROJECT",
+      "prefLabel": {
+        "de": "Projekt",
+        "en": "Project"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/QUELLE",
+      "prefLabel": {
+        "de": "Primärmaterial/Quelle",
+        "en": "reference"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/RADIO",
+      "prefLabel": {
+        "de": "Radio/TV",
+        "en": "Radio/TV"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/RECHERCHE",
+      "prefLabel": {
+        "de": "Recherche-Auftrag",
+        "en": "Research Assignment"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/REZEPT",
+      "prefLabel": {
+        "de": "Rezept",
+        "en": "Receipe"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/ROLLENSPIEL",
+      "prefLabel": {
+        "de": "Rollenspiel",
+        "en": "Role Play"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/SIMULATION",
+      "prefLabel": {
+        "de": "Simulation/Animation",
+        "en": "Simulation/Animation"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/SOFTWARE",
+      "prefLabel": {
+        "de": "Software",
+        "en": "Software"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/SONSTIGES",
+      "prefLabel": {
+        "de": "Sonstiges",
+        "en": "Other"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/TEST",
+      "prefLabel": {
+        "de": "Prüfung",
+        "en": "Translation pending"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/TEXT",
+      "prefLabel": {
+        "de": "Text",
+        "en": "Text"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/UBUNG",
+      "prefLabel": {
+        "de": "Übung",
+        "en": "Excersise"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/UNTERRICHTSBAUSTEIN",
+      "prefLabel": {
+        "de": "Unterrichtsbaustein",
+        "en": "Teaching Module"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/UNTERRICHTSPLANUNG",
+      "prefLabel": {
+        "de": "Unterrichtsplanung",
+        "en": "Lesson Planning"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/VERANSCHAULICHUNG",
+      "prefLabel": {
+        "de": "Veranschaulichung",
+        "en": "Demonstration"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/VIDEO",
+      "prefLabel": {
+        "de": "Video",
+        "en": "Video"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/WEBSEITE",
+      "prefLabel": {
+        "de": "Webseite",
+        "en": "Website"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/WEBTOOL",
+      "prefLabel": {
+        "de": "Webtool",
+        "en": "Webtool"
+      }
+    },
+    {
+      "id": "https://vocabs.sodix.de/sodix/educational/learningresourcetype/VIRTUAL",
+      "prefLabel": {
+        "de": "Virtual Reality & Augmented Reality",
+        "en": "Virtual Reality & Augmented Reality"
+      }
+    }
+  ]
+}

@@ -145,4 +145,114 @@ describe('fetchSkosVocabulary', () => {
     const concepts = await fetchSkosVocabulary('https://example.com/sort.json');
     expect(concepts.map((c) => c.prefLabel)).toEqual(['Apfel', 'Maus', 'Zebra']);
   });
+
+  it('should parse @graph-wrapped ConceptScheme', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          '@graph': [
+            {
+              id: 'scheme',
+              type: 'ConceptScheme',
+              hasTopConcept: [
+                { id: 'c1', prefLabel: { de: 'Eins' } },
+                { id: 'c2', prefLabel: { de: 'Zwei' } },
+              ],
+            },
+          ],
+        }),
+    });
+
+    const concepts = await fetchSkosVocabulary('https://example.com/graph.json');
+    expect(concepts).toHaveLength(2);
+    expect(concepts[0].prefLabel).toBe('Eins');
+  });
+
+  it('should parse flat @graph with Concept nodes', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          '@graph': [
+            { id: 'scheme', type: 'ConceptScheme' },
+            { id: 'c1', type: 'Concept', prefLabel: { de: 'Alpha' } },
+            { id: 'c2', type: 'Concept', prefLabel: { de: 'Beta' } },
+          ],
+        }),
+    });
+
+    const concepts = await fetchSkosVocabulary('https://example.com/flat-graph.json');
+    expect(concepts).toHaveLength(2);
+    expect(concepts.map((c) => c.prefLabel)).toEqual(['Alpha', 'Beta']);
+  });
+
+  it('should parse member-based SKOS export', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          member: [
+            { id: 'm1', prefLabel: { de: 'Mitglied A' } },
+            { id: 'm2', prefLabel: { de: 'Mitglied B' } },
+          ],
+        }),
+    });
+
+    const concepts = await fetchSkosVocabulary('https://example.com/member.json');
+    expect(concepts).toHaveLength(2);
+    expect(concepts[0].prefLabel).toBe('Mitglied A');
+  });
+
+  it('should fall back to bundled vocab when remote URL fails', async () => {
+    // First call: remote URL fails
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+    });
+    // Second call: bundled fallback succeeds
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          hasTopConcept: [
+            { id: 'fallback1', prefLabel: { de: 'Bundled Concept' } },
+          ],
+        }),
+    });
+
+    const concepts = await fetchSkosVocabulary(
+      'https://remote.example.com/broken.json',
+      'audience', // vocabKey enables fallback to BUNDLED_VOCAB_PATHS.audience
+    );
+    expect(concepts).toHaveLength(1);
+    expect(concepts[0].prefLabel).toBe('Bundled Concept');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('should throw if both remote and fallback fail', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+    });
+
+    await expect(
+      fetchSkosVocabulary('https://broken.example.com/vocab.json', 'audience'),
+    ).rejects.toThrow('SKOS fetch failed: 500');
+  });
+
+  it('should not attempt fallback when vocabKey is not provided', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+    });
+
+    await expect(
+      fetchSkosVocabulary('https://broken.example.com/no-key.json'),
+    ).rejects.toThrow('SKOS fetch failed: 404');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
 });

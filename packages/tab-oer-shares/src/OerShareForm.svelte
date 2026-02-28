@@ -256,6 +256,7 @@
       <!-- SKOS Vocabulary Selectors -->
       <SkosSelector
         vocabUrl={vocabUrls.audience ?? ''}
+        vocabKey="audience"
         label="Zielgruppe"
         selected={audience}
         onchange={(sel) => (audience = sel)}
@@ -263,6 +264,7 @@
 
       <SkosSelector
         vocabUrl={vocabUrls.educationalLevel ?? ''}
+        vocabKey="educationalLevel"
         label="Bildungsstufe"
         selected={educationalLevel}
         onchange={(sel) => (educationalLevel = sel)}
@@ -270,6 +272,7 @@
 
       <SkosSelector
         vocabUrl={vocabUrls.learningResourceType ?? ''}
+        vocabKey="learningResourceType"
         label="Ressourcentyp"
         selected={learningResourceType}
         onchange={(sel) => (learningResourceType = sel)}
@@ -277,6 +280,7 @@
 
       <SkosSelector
         vocabUrl={vocabUrls.about ?? ''}
+        vocabKey="about"
         label="Fach / Thema"
         selected={about}
         onchange={(sel) => (about = sel)}

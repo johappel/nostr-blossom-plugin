@@ -8,16 +8,27 @@
 /** Default AMB relay for Edufeed. */
 export const DEFAULT_AMB_RELAY = 'wss://relay-amb.edufeed.org';
 
-/** Default SKOS vocabulary URLs (SkoHub JSON-LD endpoints). */
+/** Default SKOS vocabulary URLs.
+ *  All vocabs are bundled locally under /vocabs/ for reliability.
+ *  Users can override with remote URLs in Settings — if those fail,
+ *  the SKOS loader falls back to the bundled version automatically.
+ */
 export const DEFAULT_VOCAB_URLS: Record<string, string> = {
-  audience:
-    'https://skohub.io/dini-ag-kim/lrmi-audience-role/heads/master/w3id.org/kim/lrmi-audience-role/index.json',
-  educationalLevel:
-    'https://skohub.io/dini-ag-kim/educationalLevel/heads/main/w3id.org/kim/educationalLevel/index.json',
-  learningResourceType:
-    'https://skohub.io/dini-ag-kim/hcrt/heads/master/w3id.org/kim/hcrt/index.json',
-  about:
-    'https://skohub.io/dini-ag-kim/schulfaecher/heads/main/w3id.org/kim/schulfaecher/index.json',
+  audience: '/vocabs/audience.json',
+  educationalLevel: '/vocabs/educationalLevel.json',
+  learningResourceType: '/vocabs/learningResourceType.json',
+  about: '/vocabs/schulfaecher.json',
+};
+
+/**
+ * Bundled fallback paths — used when a user-configured remote URL fails.
+ * These are always the local copies shipped with the plugin.
+ */
+export const BUNDLED_VOCAB_PATHS: Record<string, string> = {
+  audience: '/vocabs/audience.json',
+  educationalLevel: '/vocabs/educationalLevel.json',
+  learningResourceType: '/vocabs/learningResourceType.json',
+  about: '/vocabs/schulfaecher.json',
 };
 
 /** localStorage key for persisted config overrides. */

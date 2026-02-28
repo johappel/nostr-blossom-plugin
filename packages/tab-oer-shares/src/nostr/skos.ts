@@ -1,12 +1,18 @@
 /**
  * SKOS Vocabulary Loader
  *
- * Fetches and caches SKOS concept hierarchies from SkoHub JSON-LD endpoints.
- * Concepts are normalized to a simple `{ id, prefLabel, children? }` tree
- * with only the German (`de`) label extracted.
+ * Fetches and caches SKOS concept hierarchies from local or remote JSON-LD
+ * endpoints. Concepts are normalized to `{ id, prefLabel, children? }` trees
+ * with the German (`de`) label preferred.
+ *
+ * Fallback strategy:
+ *  1. Try the configured URL (could be local or a user-provided remote URL)
+ *  2. If that fails and a bundled local file exists → load the bundled version
+ *  3. If both fail → throw
  */
 
 import type { SkosConcept } from './types';
+import { BUNDLED_VOCAB_PATHS } from '../config';
 
 // ── In-memory cache (module closure) ─────────────────────────────────────────
 const _cache = new Map<string, SkosConcept[]>();
@@ -43,19 +49,55 @@ function parseConcept(raw: Record<string, unknown>): SkosConcept | null {
 }
 
 /**
- * Fetch and parse a SKOS vocabulary from a SkoHub JSON-LD URL.
+ * Fetch and parse a SKOS vocabulary.
  *
- * Returns a flat/hierarchical list of concepts. Results are cached
- * in-memory so subsequent calls for the same URL return instantly.
+ * Tries the given URL first. If it fails (network/CORS/404) and a bundled
+ * fallback exists for the vocab key, the local copy is loaded instead.
  *
- * @param url  SkoHub JSON-LD endpoint (e.g. `https://skohub.io/...index.json`)
- * @returns    Parsed concepts (top-level, with optional children)
- * @throws     On network or parse errors
+ * @param url      JSON-LD endpoint or local path
+ * @param vocabKey Optional key ('audience'|'educationalLevel'|…) to enable
+ *                 automatic fallback to the bundled version on failure.
+ * @returns        Parsed concepts (top-level, with optional children)
+ * @throws         Only if both primary URL and fallback fail
  */
-export async function fetchSkosVocabulary(url: string): Promise<SkosConcept[]> {
+export async function fetchSkosVocabulary(
+  url: string,
+  vocabKey?: string,
+): Promise<SkosConcept[]> {
   const cached = _cache.get(url);
   if (cached) return cached;
 
+  try {
+    const concepts = await fetchAndParse(url);
+    _cache.set(url, concepts);
+    return concepts;
+  } catch (primaryError) {
+    // If a bundled fallback exists and is different from the URL we just tried,
+    // attempt loading it before giving up.
+    const fallbackPath =
+      vocabKey ? BUNDLED_VOCAB_PATHS[vocabKey] : undefined;
+
+    if (fallbackPath && fallbackPath !== url) {
+      try {
+        const concepts = await fetchAndParse(fallbackPath);
+        _cache.set(url, concepts); // Cache under the original key
+        console.warn(
+          `[OER-Shares] Remote vocab failed (${url}), using bundled fallback.`,
+        );
+        return concepts;
+      } catch {
+        // Fallback also failed — throw the original error
+      }
+    }
+
+    throw primaryError;
+  }
+}
+
+/**
+ * Internal: fetch a URL and parse it into SkosConcept[]
+ */
+async function fetchAndParse(url: string): Promise<SkosConcept[]> {
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`SKOS fetch failed: ${res.status} ${res.statusText} (${url})`);
@@ -63,19 +105,51 @@ export async function fetchSkosVocabulary(url: string): Promise<SkosConcept[]> {
 
   const json = (await res.json()) as Record<string, unknown>;
 
-  // SkoHub ConceptScheme has `hasTopConcept` as the concept list
-  const rawConcepts = json.hasTopConcept as Record<string, unknown>[] | undefined;
-  if (!Array.isArray(rawConcepts)) {
+  const rawConcepts = extractTopConcepts(json);
+  if (!rawConcepts || rawConcepts.length === 0) {
     throw new Error(`Unexpected SKOS response: no hasTopConcept array (${url})`);
   }
 
-  const concepts = rawConcepts
+  return rawConcepts
     .map(parseConcept)
     .filter((c): c is SkosConcept => c !== null)
     .sort((a, b) => a.prefLabel.localeCompare(b.prefLabel, 'de'));
+}
 
-  _cache.set(url, concepts);
-  return concepts;
+/**
+ * Extract the top-level concepts from various JSON-LD shapes.
+ */
+function extractTopConcepts(
+  json: Record<string, unknown>,
+): Record<string, unknown>[] | null {
+  // Shape 1: Direct hasTopConcept at root
+  if (Array.isArray(json.hasTopConcept)) {
+    return json.hasTopConcept as Record<string, unknown>[];
+  }
+
+  // Shape 2 & 3: @graph wrapper
+  const graph = json['@graph'];
+  if (Array.isArray(graph)) {
+    // Look for a ConceptScheme node with hasTopConcept inside the graph
+    for (const node of graph) {
+      const n = node as Record<string, unknown>;
+      if (Array.isArray(n.hasTopConcept)) {
+        return n.hasTopConcept as Record<string, unknown>[];
+      }
+    }
+    // Fallback: treat all Concept-typed nodes in @graph as top concepts
+    const concepts = (graph as Record<string, unknown>[]).filter(
+      (n) => n.type === 'Concept' || n['@type'] === 'Concept',
+    );
+    if (concepts.length > 0) return concepts;
+  }
+
+  // Shape 4: `member` array (some SKOS exports)
+  if (Array.isArray(json.member)) {
+    return json.member as Record<string, unknown>[];
+  }
+
+  return null;
 }
 
 /**
