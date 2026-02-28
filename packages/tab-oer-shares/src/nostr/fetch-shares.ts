@@ -63,6 +63,7 @@ function parseAmbEvent(event: Record<string, unknown>): AmbShareItem | null {
 
     name: getTagValue(tags, 'name') ?? '',
     description: getTagValue(tags, 'description') ?? (event.content as string) ?? '',
+    content: (event.content as string) || undefined,
     keywords: getTagValues(tags, 't'),
 
     audience: extractConcepts(tags, 'audience'),

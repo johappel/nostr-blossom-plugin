@@ -30,6 +30,8 @@ export interface AmbFormData {
   name: string;
   /** Description / summary. */
   description: string;
+  /** Optional long-form content (used as Nostr event body). */
+  content?: string;
   /** Keywords / tags. */
   keywords: string[];
   /** Creator display name (non-Nostr fallback). */
@@ -80,6 +82,8 @@ export interface AmbShareItem {
   // ── AMB metadata ──
   name: string;
   description: string;
+  /** Optional long-form content body. */
+  content?: string;
   keywords: string[];
 
   /** Audience concepts with prefLabels. */

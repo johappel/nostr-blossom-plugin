@@ -29,7 +29,7 @@ export async function publishAmbEvent(
   dTag?: string,
 ): Promise<PublishEventResult> {
   const tags = buildAmbEventTags(formData, relayUrl, dTag);
-  const content = formData.description; // content = description for client compat
+  const content = formData.content?.trim() || formData.description;
 
   return publishEvent(signer, [relayUrl], content, tags, 30142);
 }

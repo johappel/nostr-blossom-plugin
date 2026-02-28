@@ -47,6 +47,7 @@
       return {
         name: editItem.name,
         description: editItem.description,
+        content: editItem.content ?? undefined,
         keywords: editItem.keywords,
         creatorName: editItem.creatorName ?? undefined,
         licenseUrl: editItem.licenseId ?? undefined,
@@ -64,7 +65,7 @@
     return {
       name: '', description: '', keywords: [],
       audience: [], educationalLevel: [], learningResourceType: [], about: [],
-      inLanguage: 'de', isAccessibleForFree: true,
+      inLanguage: 'de', isAccessibleForFree: true, content: '',
     };
   });
 
@@ -88,6 +89,7 @@
 
   let name = $state(initial.name);
   let description = $state(initial.description);
+  let content = $state(initial.content ?? '');
   let keywordsText = $state(initial.keywords.join(', '));
   let creatorName = $state(initial.creatorName ?? '');
   let licenseUrl = $state(initial.licenseUrl ?? '');
@@ -149,6 +151,7 @@
       ...initial,
       name: name.trim(),
       description: description.trim(),
+      content: content.trim() || undefined,
       keywords,
       creatorName: creatorName.trim() || undefined,
       licenseUrl: licenseUrl || undefined,
@@ -265,6 +268,18 @@
           rows="3"
           required
         ></textarea>
+      </label>
+
+      <!-- Content (optional long-form body) -->
+      <label class="oer-field">
+        <span class="oer-label">Inhalt</span>
+        <textarea
+          class="oer-textarea"
+          bind:value={content}
+          placeholder="Optionaler ausführlicher Text zur Ressource"
+          rows="5"
+        ></textarea>
+        <span class="oer-hint">Wird als Event-Body veröffentlicht (optional)</span>
       </label>
 
       <!-- Author -->
