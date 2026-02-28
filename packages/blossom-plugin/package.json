@@ -45,6 +45,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@nostr-dev-kit/ndk": "^3.0.3",
     "@nostrify/nostrify": "^0.50.2",
     "@tiptap/core": "^2.11.5",
     "nostr-tools": "^2.17.0"

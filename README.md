@@ -89,25 +89,53 @@ import { init } from '@blossom/plugin/widget';
 const media = init({ servers: ['https://blossom.primal.net'] });
 ```
 
-## KI-Vision-Service (image-describer)
+## User Settings (Einstellungen)
 
-Für den KI-Vorschlag-Button im Metadaten-Dialog wird der `image-describer`-Service benötigt.
+Das Widget enthält ein integriertes Settings-Panel, erreichbar über das **👤 User-Icon** im Header.
 
-1. Env anlegen:
+### Funktionen
 
-```powershell
-Copy-Item apps/image-describer/.env.example apps/image-describer/.env
+- **Login-Hinweise:** Informationen zu NIP-07 Browser-Extensions und NIP-46 Remote Signern (Bunker).
+- **NIP-46 Bunker:** Eingabefeld für `bunker://`-URIs — erlaubt Login über Remote Signer wie [nsec.app](https://nsec.app) oder [nsecBunker](https://app.nsecbunker.com).
+- **Profil:** Zeigt den verbundenen Nostr-Nutzer (Name, Avatar, NIP-05) readonly an.
+- **Konfiguration:** Blossom-Server, Nostr-Relays und KI-Service-URL können vom Nutzer überschrieben werden.
+- **Persistenz:** Einstellungen werden in `localStorage` gespeichert und optional als NIP-78-Event (Kind 30078) auf das Relay synchronisiert.
+
+### `appId` (Multi-Instanz)
+
+Wenn mehrere Widget-Instanzen auf derselben Seite unterschiedliche Settings benötigen:
+
+```js
+const media = window.BlossomMedia.init({
+  servers: ['https://blossom.primal.net'],
+  appId: 'my-unique-app',  // scoped localStorage key
+});
 ```
 
-2. In `.env` mindestens `OPENROUTER_API_KEY` setzen.
+### Signer-Priorität
 
-3. Starten:
+1. **NIP-46 Bunker** (wenn `bunkerUri` in Settings gesetzt)
+2. **`config.signer`** (vom Host übergeben)
+3. **`window.nostr`** (NIP-07 Browser-Extension, auto-detected)
+
+## KI-Service (image-describer)
+
+Der `image-describer`-Service stellt zwei KI-Funktionen bereit:
+
+- **Bildbeschreibung** (`POST /describe`) – generiert Alt-Text, Genre und Tags via Vision-LLM
+- **Bildgenerierung** (`POST /image-gen`) – erstellt Bilder aus Textprompts via OpenAI-kompatible API
+
+**Schnellstart:**
 
 ```bash
+cp apps/image-describer/.env.example apps/image-describer/.env
+# → .env öffnen, mindestens OPENROUTER_API_KEY setzen
 docker compose up -d image-describer
 ```
 
-4. Widget-Konfiguration: `visionEndpoint: 'http://localhost:8787'`
+Widget-Konfiguration: `visionEndpoint: 'http://localhost:8787'`
+
+> **Ausführliche Dokumentation:** Setup-Optionen (lokal, Nginx, Apache2, Render.com, Fly.io), alle Env-Vars, Provider-Konfiguration und Sicherheitshinweise → **[docs/ai-service.md](docs/ai-service.md)**
 
 ## Build-Skripte
 
@@ -158,6 +186,7 @@ await uploadAndInsertBlossomMedia(editor, async () => ({
 ## Dokumentation
 
 - Vollständige Integrations-Referenz: [`integration.md`](integration.md)
+- KI-Service Setup & Deployment: [`docs/ai-service.md`](docs/ai-service.md)
 - Einbettungsbeispiele: [`examples/`](examples/)
 
 
@@ -181,31 +210,44 @@ pnpm --filter demo dev
 
 ## Image Describer als Docker-Service
 
-Die Vision-Logik läuft als separater Service.
-Sie unterstützt Upload-Beschreibungen für Bilder und PDFs (PDFs werden serverseitig als Mehrseiten-Vorschau gerendert und mit Textauszug analysiert).
+Die KI-Logik läuft als separater Fastify-Service mit zwei Endpunkten:
 
-1. Service-Env anlegen:
+| Endpunkt | Funktion |
+|---|---|
+| `POST /describe` | Vision-Beschreibung für Bilder und PDFs (Alt-Text, Genre, Tags) |
+| `POST /image-gen` | Bildgenerierung aus Textprompts (FLUX, DALL-E etc.) |
+| `GET /health` | Health-Check |
+
+PDFs werden serverseitig als Mehrseiten-Vorschau gerendert und mit Textauszug analysiert.
+
+**Setup:**
 
 ```powershell
 Copy-Item apps/image-describer/.env.example apps/image-describer/.env
 ```
 
-2. In `apps/image-describer/.env` mindestens `OPENROUTER_API_KEY` setzen.
-  Optional: `OPENROUTER_RESPONSE_LANGUAGE` (Default: `German`) für die Sprache von `description`, `alt` und `genre`.
-  Optional: `OPENROUTER_PDF_MAX_PAGES` (Default: `4`) und `OPENROUTER_PDF_TEXT_MAX_CHARS` (Default: `4500`) für PDF-Tiefe und Textkontext.
+In `apps/image-describer/.env` konfigurieren:
 
-3. Service starten:
+| Variable | Pflicht | Beschreibung |
+|---|---|---|
+| `OPENROUTER_API_KEY` | Ja (Vision) | API-Key für Bildbeschreibung |
+| `IMAGE_GEN_API_KEY` | Ja (Image Gen) | API-Key für Bildgenerierung |
+| `IMAGE_GEN_API_URL` | Nein | Provider-URL (Default: Ollama lokal) |
+| `IMAGE_GEN_MODEL` | Nein | Modellname (Default: `FLUX.1-schnell`) |
+
+> Alle Variablen und Provider-Optionen (OpenRouter, ImageRouter, Ollama) → **[docs/ai-service.md](docs/ai-service.md)**
+
+Service starten:
 
 ```bash
 docker compose up -d image-describer
 ```
 
-4. Demo auf Service zeigen (`apps/demo/.env`):
+Demo auf Service zeigen (`apps/demo/.env`):
 
 - `VITE_IMAGE_DESCRIBER_URL=http://localhost:8787`
 
-Dann ruft die Demo `POST /describe` auf dem Container auf.
-Im Metadaten-Dialog kann dadurch auch für `application/pdf` eine Kurzbeschreibung per Vision vorgeschlagen werden.
+Dann ruft die Demo `POST /describe` und `POST /image-gen` auf dem Container auf.
 
 ## Fokus: Unknown Client Integration
 

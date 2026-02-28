@@ -29,6 +29,7 @@ export interface BlossomDeleteResult {
 
 export interface PublishDeletionResult {
   relayUrl: string;
+  relays: Array<{ relayUrl: string; ok: boolean; error?: string }>;
   event: Record<string, unknown>;
 }
 
@@ -132,17 +133,18 @@ export async function deleteBlossomBlob(
  * regardless so callers can store it for retries.
  *
  * @param signer    - BlossomSigner
- * @param relayUrl  - WebSocket URL of the target relay
+ * @param relayUrls - One or more WebSocket relay URLs
  * @param eventIds  - IDs of the events to delete
  * @param reason    - Reason string for the NIP-09 event content
  */
 export async function publishDeletionEvent(
   signer: BlossomSigner,
-  relayUrl: string,
+  relayUrls: string | string[],
   eventIds: string[],
   reason = 'Deleted from gallery',
 ): Promise<PublishDeletionResult | null> {
-  if (!relayUrl) throw new Error('Relay URL is required for deletion.');
+  const urls = Array.isArray(relayUrls) ? relayUrls : [relayUrls];
+  if (urls.length === 0) throw new Error('At least one relay URL is required for deletion.');
   if (eventIds.length === 0) return null;
 
   const tags = [
@@ -161,19 +163,26 @@ export async function publishDeletionEvent(
 
   const signedEvent = await signer.signEvent(unsignedEvent);
 
-  let relay: InstanceType<typeof Relay> | null = null;
-  try {
-    relay = await Relay.connect(relayUrl);
-    await relay.publish(signedEvent as never);
-    console.log(
-      `[delete] kind 5 deletion event published to ${relayUrl}`,
-      (signedEvent as Record<string, unknown>).id,
-    );
-  } catch (err) {
-    console.warn(`[delete] Failed to send kind 5 to ${relayUrl}:`, err);
-  } finally {
-    relay?.close();
-  }
+  const relayResults = await Promise.all(
+    urls.map(async (url) => {
+      let relay: InstanceType<typeof Relay> | null = null;
+      try {
+        relay = await Relay.connect(url);
+        await relay.publish(signedEvent as never);
+        console.log(
+          `[delete] kind 5 deletion event published to ${url}`,
+          (signedEvent as Record<string, unknown>).id,
+        );
+        return { relayUrl: url, ok: true };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[delete] Failed to send kind 5 to ${url}:`, msg);
+        return { relayUrl: url, ok: false, error: msg };
+      } finally {
+        relay?.close();
+      }
+    }),
+  );
 
-  return { relayUrl, event: signedEvent as Record<string, unknown> };
+  return { relayUrl: urls[0], relays: relayResults, event: signedEvent as Record<string, unknown> };
 }

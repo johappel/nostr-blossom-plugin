@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🌸 Blossom Upload</title>
+  <title>🌸 Blossom Upload & Mediathek</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
 
@@ -76,6 +76,22 @@
       color: #666;
       font-size: 0.75rem;
     }
+
+    .result-screen .btn-back {
+      margin-top: 0.5rem;
+      padding: 0.5rem 1.25rem;
+      font: inherit;
+      font-size: 0.85rem;
+      background: #334155;
+      color: #e2e8f0;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .result-screen .btn-back:hover {
+      background: #475569;
+    }
   </style>
 </head>
 <body>
@@ -107,6 +123,19 @@
 
   var relayUrl = params.get('relay') || 'wss://relay.damus.io';
   var visionEndpoint = params.get('vision') || '';
+  var media = null; // Widget-Instanz — wird in startWidget() gesetzt
+
+  // ── Prüfe ob gespeicherte Bunker-Credentials vorhanden sind ──────────────
+  function hasSavedBunkerCredentials() {
+    try {
+      var raw = localStorage.getItem('blossom-settings:default');
+      if (!raw) return false;
+      var s = JSON.parse(raw);
+      return !!(s.bunkerUri && s.bunkerLocalKey);
+    } catch (e) { return false; }
+  }
+
+  var bunkerSaved = hasSavedBunkerCredentials();
 
   // ── Auf window.nostr warten (NIP-07 Extensions injizieren asynchron) ──
   var attempts = 0;
@@ -117,6 +146,16 @@
       startWidget();
       return;
     }
+
+    // Bunker-Credentials vorhanden → NIP-07-Suche überspringen
+    if (bunkerSaved) {
+      document.getElementById('status-dot').style.background = '#60a5fa';
+      document.getElementById('status-text').textContent =
+        'Bunker-Verbindung wird hergestellt\u2026';
+      startWidget();
+      return;
+    }
+
     attempts++;
     if (attempts >= maxAttempts) {
       document.getElementById('status-dot').style.background = '#f87171';
@@ -131,26 +170,42 @@
 
   function startWidget() {
     var hasSigner = !!window.nostr;
-    document.getElementById('status-dot').style.background = hasSigner ? '#4ade80' : '#fbbf24';
-    document.getElementById('status-text').innerHTML = hasSigner
-      ? 'Signer erkannt \u2014 Datei ausw\u00e4hlen oder hochladen, dann mit <kbd>Strg+V</kbd> einf\u00fcgen'
-      : 'Kein Signer \u2014 nur Zwischenablage-Modus (kein Upload m\u00f6glich)';
+
+    // Status nur aktualisieren, wenn nicht schon Bunker-Status gesetzt
+    if (!bunkerSaved) {
+      document.getElementById('status-dot').style.background = hasSigner ? '#4ade80' : '#fbbf24';
+      document.getElementById('status-text').innerHTML = hasSigner
+        ? 'Signer erkannt \u2014 Datei ausw\u00e4hlen oder hochladen, dann mit <kbd>Strg+V</kbd> einf\u00fcgen'
+        : 'Kein Signer \u2014 nur Zwischenablage-Modus (kein Upload m\u00f6glich)';
+    }
 
     var config = {
       servers: servers,
       relayUrl: relayUrl,
       targets: '',
+      onSignerReady: function (pubkey) {
+        var dot = document.getElementById('status-dot');
+        var text = document.getElementById('status-text');
+        if (dot) dot.style.background = '#4ade80';
+        if (text) text.innerHTML =
+          'Signer verbunden \u2014 Datei ausw\u00e4hlen oder hochladen, dann mit <kbd>Strg+V</kbd> einf\u00fcgen';
+      },
       onInsert: function (result) {
         var text = result.formattedText || result.url;
 
         navigator.clipboard.writeText(text).then(function () {
-          document.body.innerHTML =
-            '<div class="result-screen">' +
+          // Overlay über das Widget legen (Widget-DOM bleibt erhalten)
+          var overlay = document.createElement('div');
+          overlay.className = 'result-screen';
+          overlay.id = 'result-overlay';
+          overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;background:#1a1a2e;';
+          overlay.innerHTML =
               '<h2>\u2705 URL kopiert!</h2>' +
               '<div class="url">' + escapeHtml(text) + '</div>' +
               '<p class="hint">Geh zur\u00fcck zur Seite und f\u00fcge mit <kbd>Strg+V</kbd> ein.</p>' +
               '<p class="countdown" id="cd"></p>' +
-            '</div>';
+              '<button class="btn-back" id="btn-back">\u2190 Zur\u00fcck zur Mediathek</button>';
+          document.body.appendChild(overlay);
 
           var remaining = 5;
           var cd = document.getElementById('cd');
@@ -164,6 +219,13 @@
               cd.textContent = 'Fenster schlie\u00dft in ' + remaining + 's\u2026';
             }
           }, 1000);
+
+          document.getElementById('btn-back').addEventListener('click', function () {
+            clearInterval(iv);
+            overlay.remove();
+            // Widget ist noch im DOM — direkt auf Gallery-Tab öffnen
+            media.open(undefined, 'gallery');
+          });
 
           if (window.opener) {
             try {
@@ -196,7 +258,7 @@
       config.signer = window.nostr;
     }
 
-    var media = window.BlossomMedia.init(config);
+    media = window.BlossomMedia.init(config);
     media.open();
   }
 

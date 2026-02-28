@@ -91,6 +91,7 @@ export function init(config: BlossomMediaConfig): BlossomMediaInstance {
   const _reactive = $state({
     open: false,
     targetElement: undefined as HTMLElement | undefined,
+    requestedTab: undefined as string | undefined,
   });
 
   const widgetProps: Record<string, unknown> = {
@@ -99,6 +100,8 @@ export function init(config: BlossomMediaConfig): BlossomMediaInstance {
     set open(v: boolean) { _reactive.open = v; },
     get targetElement() { return _reactive.targetElement; },
     set targetElement(v: HTMLElement | undefined) { _reactive.targetElement = v; },
+    get requestedTab() { return _reactive.requestedTab; },
+    set requestedTab(v: string | undefined) { _reactive.requestedTab = v; },
     onClose: () => {
       isOpen = false;
       activeTarget = undefined;
@@ -130,10 +133,11 @@ export function init(config: BlossomMediaConfig): BlossomMediaInstance {
 
   // ── Instance API ─────────────────────────────────────────────────────────
   const instance: BlossomMediaInstance = {
-    open(targetElement?: HTMLElement) {
+    open(targetElement?: HTMLElement, tab?: string) {
       isOpen = true;
       activeTarget = targetElement;
       widgetProps.targetElement = targetElement;
+      if (tab) widgetProps.requestedTab = tab;
       widgetProps.open = true;
     },
 

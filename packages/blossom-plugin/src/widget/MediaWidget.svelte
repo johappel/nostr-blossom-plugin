@@ -4,6 +4,8 @@
   import type { UploadHistoryItem } from '../core/history';
   import type { Nip94FetchResult } from '../core/nip94';
   import type { VisionClientOptions } from '../core/vision';
+  import type { BlossomUserSettings } from '../core/settings';
+  import type { BunkerSession } from '../core/nip46';
   import { listBlossomBlobs } from '../core/list';
   import { fetchNip94Events } from '../core/nip94';
   import { updateHistoryItemByUrl, removeHistoryItemByUrl } from '../core/history';
@@ -11,10 +13,21 @@
   import { buildImageMetadataTags } from '../core/metadata';
   import { publishEvent } from '../core/publish';
   import { resolveVisionEndpoint } from '../core/vision';
+  import { resolveImageGenEndpoint } from '../core/imagegen';
+  import {
+    loadSettingsFromLocalStorage,
+    mergeWithSettings,
+    fetchSettingsEvent,
+    mergeLocalAndRemote,
+    saveSettingsToLocalStorage,
+  } from '../core/settings';
+  import { connectBunker } from '../core/nip46';
   import { untrack } from 'svelte';
   import UploadTab from './UploadTab.svelte';
   import GalleryTab from './GalleryTab.svelte';
+  import ImageGenTab from './ImageGenTab.svelte';
   import MetadataSidebar from './MetadataSidebar.svelte';
+  import SettingsPanel from './SettingsPanel.svelte';
 
   interface MediaWidgetProps {
     config: BlossomMediaConfig;
@@ -22,6 +35,8 @@
     targetElement?: HTMLElement;
     /** Whether the dialog is currently open */
     open?: boolean;
+    /** Tab to activate when opening (set by open(target, tab)) */
+    requestedTab?: string;
     onClose?: () => void;
   }
 
@@ -29,11 +44,12 @@
     config,
     targetElement: _targetElement,
     open = $bindable(false),
+    requestedTab = $bindable(undefined),
     onClose,
   }: MediaWidgetProps = $props();
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
-  type BuiltinTab = 'upload' | 'gallery';
+  type BuiltinTab = 'upload' | 'gallery' | 'imagegen';
   type TabId = BuiltinTab | string;
 
   interface TabDef {
@@ -51,13 +67,28 @@
     if (config.features?.gallery !== false) {
       result.push({ id: 'gallery', label: 'Mediathek', builtin: 'gallery' });
     }
+    // Show image gen tab when feature is not explicitly disabled AND an endpoint is available
+    if (config.features?.imageGen !== false && resolvedImageGenEndpoint) {
+      result.push({ id: 'imagegen', label: 'Bild erstellen', builtin: 'imagegen' });
+    }
     for (const ct of config.tabs ?? []) {
       result.push({ id: ct.id, label: ct.label, custom: ct });
     }
     return result;
   });
 
-  let activeTab = $state<TabId>(untrack(() => tabs[0]?.id ?? 'upload'));
+  // Default to 'upload' — avoid eagerly reading `tabs` here because
+  // resolvedImageGenEndpoint (referenced inside tabs) is declared later
+  // and would cause a TDZ in the bundled output.
+  let activeTab = $state<TabId>('upload');
+
+  // ── Honour requestedTab from open(target, tab) ────────────────────────────
+  $effect(() => {
+    if (requestedTab && tabs.some((t) => t.id === requestedTab)) {
+      activeTab = requestedTab as TabId;
+      requestedTab = undefined; // consume — one-shot
+    }
+  });
 
   // ── Signer ────────────────────────────────────────────────────────────────
   // NIP-07 extensions inject `window.nostr` asynchronously, often after our
@@ -93,6 +124,10 @@
     // Already detected
     if (signer) return;
 
+    // Skip NIP-07 polling when bunker credentials are saved — the bunker
+    // auto-reconnect $effect will handle signer assignment.
+    if (userSettings.bunkerUri && userSettings.bunkerLocalKey) return;
+
     let attempts = 0;
     const MAX_ATTEMPTS = 10;
     const iv = setInterval(() => {
@@ -108,16 +143,160 @@
     return () => clearInterval(iv);
   });
 
+  // ── User settings & effective config ──────────────────────────────────────
+  let userSettings = $state<BlossomUserSettings>(
+    untrack(() => loadSettingsFromLocalStorage(config.appId ?? 'default')),
+  );
+  let settingsOpen = $state(false);
+
+  let effective = $derived.by(() =>
+    mergeWithSettings(
+      config.servers,
+      config.relayUrl,
+      config.visionEndpoint,
+      userSettings,
+      config.imageGenEndpoint,
+    ),
+  );
+
+  // Sync settings from relay when signer becomes available (once)
+  let settingsSynced = $state(false);
+  $effect(() => {
+    if (!signer || settingsSynced) return;
+    settingsSynced = true;
+    const urls = effective.relayUrls;
+    if (urls.length === 0) return;
+    signer.getPublicKey().then((pubkey) => {
+      fetchSettingsEvent(pubkey, urls).then((result) => {
+        if (!result) return;
+        const merged = mergeLocalAndRemote(userSettings, result.settings, result.createdAt);
+        userSettings = merged;
+        saveSettingsToLocalStorage(merged, config.appId ?? 'default');
+      }).catch(() => { /* non-fatal */ });
+    }).catch(() => { /* non-fatal */ });
+  });
+
+  function handleSettingsChanged(updated: BlossomUserSettings) {
+    userSettings = updated;
+  }
+
+  // ── NIP-46 Bunker session management ──────────────────────────────────────
+  let bunkerSession = $state.raw<BunkerSession | null>(null);
+
+  // ── Notify host when signer becomes available ─────────────────────────────
+  // Fires config.onSignerReady(pubkey) once when signer transitions from
+  // null to non-null. Resets if signer becomes null again (disconnect).
+  let signerReadyFired = $state(false);
+  $effect(() => {
+    if (signer && !signerReadyFired) {
+      signerReadyFired = true;
+      if (config.onSignerReady) {
+        signer.getPublicKey()
+          .then((pk) => config.onSignerReady?.(pk))
+          .catch(() => { /* non-fatal */ });
+      }
+    } else if (!signer) {
+      signerReadyFired = false;
+    }
+  });
+
+  function handleBunkerConnected(session: BunkerSession) {
+    bunkerSession = session;
+    signer = session.signer;
+
+    // Persist local key so we can auto-reconnect next time
+    const updated: BlossomUserSettings = {
+      ...userSettings,
+      bunkerLocalKey: session.localPrivateKeyHex,
+      updatedAt: Date.now(),
+    };
+    userSettings = updated;
+    saveSettingsToLocalStorage(updated, config.appId ?? 'default');
+  }
+
+  function handleBunkerDisconnect() {
+    bunkerSession?.disconnect();
+    bunkerSession = null;
+
+    // Clear bunker signer – fall back to NIP-07 or config.signer
+    signer = detectSigner();
+
+    // Remove persisted bunker key (but keep the URI for convenience)
+    const updated: BlossomUserSettings = {
+      ...userSettings,
+      bunkerLocalKey: undefined,
+      updatedAt: Date.now(),
+    };
+    userSettings = updated;
+    saveSettingsToLocalStorage(updated, config.appId ?? 'default');
+  }
+
+  // Auto-reconnect from persisted bunker credentials on mount
+  let bunkerAutoReconnected = $state(false);
+  $effect(() => {
+    if (bunkerAutoReconnected) return;
+    if (bunkerSession) return;            // already connected
+    if (config.signer) return;            // host-provided signer takes priority
+
+    const uri = userSettings.bunkerUri;
+    const key = userSettings.bunkerLocalKey;
+    if (!uri || !key) return;
+
+    bunkerAutoReconnected = true;
+
+    // Reconnect in background — don't block mount
+    connectBunker(uri, undefined, key)
+      .then((session) => {
+        // Only apply if nothing else has set a signer in the meantime
+        if (!signer || signer === detectSigner()) {
+          bunkerSession = session;
+          signer = session.signer;
+
+          // Explicitly reload gallery now that signer is available.
+          // The $effect-based reload is a backup but this ensures immediate load.
+          if (open) loadGalleryIfNeeded();
+        }
+      })
+      .catch(() => {
+        // Auto-reconnect failed silently – user can reconnect manually
+      });
+  });
+
   // ── Gallery state ─────────────────────────────────────────────────────────
   let items = $state<UploadHistoryItem[]>([]);
   let nip94Data = $state<Nip94FetchResult | null>(null);
   let galleryLoading = $state(false);
   let galleryError = $state('');
+  /** Tracks whether the last successful gallery load included a signer. */
+  let galleryLoadedWithSigner = $state(false);
+
+  // When signer becomes available (e.g. bunker auto-reconnect) and the dialog
+  // is open but gallery was previously loaded without a signer, reload.
+  $effect(() => {
+    if (signer && open && !galleryLoadedWithSigner && !galleryLoading) {
+      loadGalleryIfNeeded();
+    }
+  });
 
   // ── Vision config ─────────────────────────────────────────────────────────
   let visionOptions = $derived.by<VisionClientOptions | undefined>(() => {
-    const ep = config.visionEndpoint ? resolveVisionEndpoint(config.visionEndpoint) : null;
+    const ep = effective.visionEndpoint ? resolveVisionEndpoint(effective.visionEndpoint) : null;
     return ep ? { endpoint: ep } : undefined;
+  });
+
+  // ── Image generation endpoint ────────────────────────────────────────────
+  let resolvedImageGenEndpoint = $derived.by<string | undefined>(() => {
+    // Explicit imageGenEndpoint takes priority
+    const explicit = effective.imageGenEndpoint;
+    if (explicit) {
+      try { return resolveImageGenEndpoint(explicit); } catch { return undefined; }
+    }
+    // Fall back: derive from visionEndpoint (same server, /image-gen route)
+    const vision = effective.visionEndpoint;
+    if (vision) {
+      try { return resolveImageGenEndpoint(vision); } catch { return undefined; }
+    }
+    return undefined;
   });
 
   // ── Edit-metadata overlay ─────────────────────────────────────────────────
@@ -152,7 +331,7 @@
 
   // ── Gallery load ──────────────────────────────────────────────────────────
   async function loadGalleryIfNeeded() {
-    if (!config.relayUrl && config.servers.length === 0) return;
+    if (effective.relayUrls.length === 0 && effective.servers.length === 0) return;
     if (galleryLoading) return;
 
     galleryLoading = true;
@@ -162,8 +341,8 @@
       const resolvedSigner = signer;
 
       // Load bloblist from servers
-      if (config.servers.length > 0 && resolvedSigner) {
-        const blobResult = await listBlossomBlobs(resolvedSigner, config.servers);
+      if (effective.servers.length > 0 && resolvedSigner) {
+        const blobResult = await listBlossomBlobs(resolvedSigner, effective.servers);
         const now = new Date().toISOString();
         const blobItems: UploadHistoryItem[] = blobResult.blobs.map((b) => ({
           url: b.url,
@@ -188,14 +367,15 @@
         items = merged;
       }
 
-      // Load NIP-94 events from relay
-      if (config.relayUrl && resolvedSigner) {
-        nip94Data = await fetchNip94Events(resolvedSigner, [config.relayUrl]);
+      // Load NIP-94 events from relays
+      if (effective.relayUrls.length > 0 && resolvedSigner) {
+        nip94Data = await fetchNip94Events(resolvedSigner, effective.relayUrls);
       }
     } catch (err) {
       galleryError = err instanceof Error ? err.message : 'Mediathek konnte nicht geladen werden';
     } finally {
       galleryLoading = false;
+      if (signer) galleryLoadedWithSigner = true;
     }
   }
 
@@ -245,10 +425,10 @@
       }
 
       // 1) Delete all blobs from blossom servers
-      if (config.servers.length > 0) {
+      if (effective.servers.length > 0) {
         for (const hash of hashesToDelete) {
           try {
-            await deleteBlossomBlob(resolvedSigner, config.servers, hash);
+            await deleteBlossomBlob(resolvedSigner, effective.servers, hash);
           } catch {
             // Partial failure is acceptable – continue with remaining hashes
           }
@@ -262,10 +442,10 @@
           ? [nip94Event.eventId]
           : [];
 
-      if (config.relayUrl && eventIds.length) {
+      if (effective.relayUrls.length > 0 && eventIds.length) {
         await publishDeletionEvent(
           resolvedSigner,
-          config.relayUrl,
+          effective.relayUrls,
           eventIds,
           'Deleted via Blossom Media Widget',
         );
@@ -339,10 +519,10 @@
       const newTags = buildImageMetadataTags(uploadTags, metadata);
 
       // 1) Publish new NIP-94 kind 1063 event
-      if (config.relayUrl) {
+      if (effective.relayUrls.length > 0) {
         const result = await publishEvent(
           resolvedSigner,
-          config.relayUrl,
+          effective.relayUrls,
           metadata.description || '',
           newTags,
           1063,
@@ -356,7 +536,7 @@
           try {
             await publishDeletionEvent(
               resolvedSigner,
-              config.relayUrl,
+              effective.relayUrls,
               oldEventIds,
               'Replaced by updated NIP-94 event',
             );
@@ -460,13 +640,30 @@
   <div class="bm-dialog-inner" role="document">
     <!-- Header -->
     <header class="bm-header">
-      <h2 class="bm-title">Mediathek</h2>
-      <button
-        type="button"
-        class="bm-close"
-        aria-label="Schließen"
-        onclick={() => { open = false; onClose?.(); }}
-      >✕</button>
+      <h2 class="bm-title">Serverless Nostr Media</h2>
+      <div class="bm-header-actions">
+        <button
+          type="button"
+          class="bm-settings-btn"
+          class:active={settingsOpen}
+          aria-label="Einstellungen"
+          onclick={() => { settingsOpen = !settingsOpen; }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          {#if signer}
+            <span class="bm-signer-dot"></span>
+          {/if}
+        </button>
+        <button
+          type="button"
+          class="bm-close"
+          aria-label="Schließen"
+          onclick={() => { open = false; onClose?.(); }}
+        >✕</button>
+      </div>
     </header>
 
     <!-- Tab bar -->
@@ -487,7 +684,20 @@
 
     <!-- Content area -->
     <div class="bm-content">
-      {#if editItem}
+      {#if settingsOpen}
+        <!-- Settings overlay -->
+        <SettingsPanel
+          settings={userSettings}
+          {signer}
+          relayUrls={effective.relayUrls}
+          appId={config.appId ?? 'default'}
+          bunkerConnected={bunkerSession !== null}
+          onClose={() => { settingsOpen = false; }}
+          onSettingsChanged={handleSettingsChanged}
+          onBunkerConnected={handleBunkerConnected}
+          onBunkerDisconnect={handleBunkerDisconnect}
+        />
+      {:else if editItem}
         <!-- Edit-metadata overlay (shown on top, tabs stay mounted underneath) -->
         <div class="bm-edit-overlay">
           <div class="edit-overlay-header">
@@ -521,8 +731,8 @@
             {#if tab.builtin === 'upload'}
               <UploadTab
                 {signer}
-                servers={config.servers}
-                relayUrl={config.relayUrl}
+                servers={effective.servers}
+                relayUrls={effective.relayUrls}
                 features={config.features ?? {}}
                 {visionOptions}
                 onInserted={handleInserted}
@@ -534,8 +744,8 @@
                 loading={galleryLoading}
                 loadError={galleryError}
                 {signer}
-                servers={config.servers}
-                relayUrl={config.relayUrl}
+                servers={effective.servers}
+                relayUrls={effective.relayUrls}
                 features={config.features ?? {}}
                 {visionOptions}
                 targetElement={_targetElement}
@@ -543,6 +753,16 @@
                 onDelete={handleDelete}
                 onRefresh={loadGalleryIfNeeded}
                 onEditMetadata={config.features?.metadata !== false ? handleEditMetadata : undefined}
+              />
+            {:else if tab.builtin === 'imagegen' && resolvedImageGenEndpoint}
+              <ImageGenTab
+                {signer}
+                servers={effective.servers}
+                relayUrls={effective.relayUrls}
+                features={config.features ?? {}}
+                {visionOptions}
+                imageGenEndpoint={resolvedImageGenEndpoint}
+                onInserted={handleInserted}
               />
             {:else if tab.custom}
               <div
@@ -678,6 +898,45 @@
   .bm-close:hover {
     background: var(--bm-bg-hover);
     color: var(--bm-text);
+  }
+
+  /* ── Header actions (settings + close) ── */
+  .bm-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .bm-settings-btn {
+    position: relative;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--bm-text-subtle);
+    padding: 0.3rem;
+    border-radius: 4px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .bm-settings-btn:hover,
+  .bm-settings-btn.active {
+    background: var(--bm-bg-hover);
+    color: var(--bm-accent);
+  }
+
+  .bm-signer-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    border: 1.5px solid var(--bm-bg);
   }
 
   /* ── Tabs ── */

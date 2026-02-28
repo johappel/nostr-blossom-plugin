@@ -15,7 +15,7 @@
     loadError: string;
     signer: BlossomSigner | null;
     servers: string[];
-    relayUrl?: string;
+    relayUrls: string[];
     features: BlossomMediaFeatures;
     visionOptions?: VisionClientOptions;
     /** The host-page element that triggered the widget (if any) */
@@ -34,7 +34,7 @@
     loadError,
     signer: _signer,
     servers: _servers,
-    relayUrl: _relayUrl,
+    relayUrls: _relayUrls,
     features,
     visionOptions,
     targetElement,

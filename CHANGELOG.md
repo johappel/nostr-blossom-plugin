@@ -8,6 +8,41 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- **„Bild erstellen"-Tab im Media-Widget**: Neuer Builtin-Tab `imagegen` mit Prompt-Eingabe, KI-Bildgenerierung, Vorschau, Blossom-Upload und Inline-Metadaten/Publish. Wird automatisch angezeigt, wenn eine KI-Service-URL (`imageGenEndpoint` oder `visionEndpoint`) konfiguriert ist.
+- **`ImageGenTab.svelte`**: Vollständige State-Machine (idle → generating → preview → uploading → metadata → publishing → done/error) mit Cancel-Support und Retry.
+- **`POST /image-gen` Server-Route**: Neue Route in `apps/image-describer` für OpenAI-kompatible Bildgenerierungs-APIs (Ollama, ComfyUI, LocalAI, OpenRouter, DALL-E). Prompt-Validierung, Timeout, strukturierte Fehler.
+- **`core/imagegen.ts`**: Framework-agnostiges Client-Modul mit `fetchImageGeneration()` und `resolveImageGenEndpoint()`.
+- **`imageGenEndpoint` Config-Option**: Neues optionales Feld in `BlossomMediaConfig` und `BlossomUserSettings` für dedizierte Image-Gen-API-URL. Fällt auf `visionEndpoint` zurück.
+- **`imageGen` Feature-Flag**: Neues Feld in `BlossomMediaFeatures` zum expliziten Deaktivieren des Tabs.
+- **Image-Gen Env-Variablen**: `IMAGE_GEN_API_URL`, `IMAGE_GEN_API_KEY`, `IMAGE_GEN_MODEL`, `IMAGE_GEN_TIMEOUT_MS`, `IMAGE_GEN_DEFAULT_SIZE` für den Docker-Server.
+- **Ollama-Service-Block** in `docker-compose.yml` (auskommentiert, als Referenz).
+
+### Changed
+
+- **Multi-Relay Publishing**: `publishEvent()` und `publishDeletionEvent()` akzeptieren jetzt `relayUrls: string | string[]` und publizieren parallel an alle konfigurierten Relays. Pro Relay wird ein individuelles Ergebnis zurückgegeben (`PublishRelayResult`). Einzelne Relay-Ausfälle blockieren nicht mehr den gesamten Publish-Vorgang.
+- **`MergedConfig.relayUrls`**: Interne Config verwendet jetzt `relayUrls: string[]` statt `relayUrl?: string`. Alle User-Relays aus den Einstellungen werden berücksichtigt, nicht nur der erste Eintrag.
+
+### Fixed
+
+- **NIP-07 Poll bei Bunker-Credentials übersprungen**: Wenn gespeicherte Bunker-Credentials (`bunkerUri` + `bunkerLocalKey`) vorhanden sind, wird das 5-Sekunden-Polling für `window.nostr` übersprungen. Der Bunker-Auto-Reconnect übernimmt direkt — schnellerer Widget-Start.
+- **Alle konfigurierten Relays werden versucht**: NIP-94-Events und Löschungen werden jetzt an alle Relays gesendet, nicht nur an den ersten. Behebt das Problem, dass Events nicht ankamen, wenn ein einzelner Relay (z.B. `relay.damus.io`) ausfiel.
+- **Gallery-Reload nach Bunker-Reconnect**: Die Mediathek wird jetzt explizit neu geladen, sobald der Bunker-Signer verfügbar wird. Vorher blieb die Gallery leer, weil der initiale Ladevorgang ohne Signer stattfand und NIP-94-Events übersprungen wurden.
+- **Bookmarklet-Popup Signer-Status**: Statusanzeige aktualisiert sich jetzt korrekt von „Bunker-Verbindung wird hergestellt…" auf „Signer verbunden" via `onSignerReady`-Callback.
+
+### Added
+
+- **`onSignerReady` Callback**: Neues optionales Feld in `BlossomMediaConfig`. Wird aufgerufen, sobald ein Signer verfügbar wird (NIP-07, NIP-46 Bunker oder Host-Signer), mit dem Hex-Pubkey als Argument. Ermöglicht externen Status-Indikatoren (z.B. Bookmarklet-Statusleiste) die Signer-Verfügbarkeit zu erkennen.
+- **Settings-Panel im Widget**: Neuer User-Icon-Button im Header öffnet ein Einstellungs-Panel (Overlay-Pattern). Enthält Login-Hinweise (NIP-07 Extensions, NIP-46 Bunker), Profil-Anzeige (readonly), und Formulare für Blossom-Server, Nostr-Relays und KI-Service-URL.
+- **NIP-46 Remote Signer (Bunker)**: Bunker-URI-Eingabe im Settings-Panel ermöglicht Login über `bunker://`-URIs. Nutzt NDK (`@nostr-dev-kit/ndk`) intern per Dynamic Import. Bunker-Signer wird bevorzugt, wenn konfiguriert.
+- **NIP-46 Bunker-Persistenz**: Lokaler App-Schlüssel wird in `localStorage` gespeichert (`bunkerLocalKey`), damit die Bunker-Verbindung beim erneuten Öffnen des Widgets automatisch wiederhergestellt wird. Disconnect-Button zum manuellen Trennen.
+- **NIP-78 Settings-Sync**: User-Einstellungen werden als Kind-30078-Event (NIP-78 Application-specific data) auf dem konfigurierten Relay gespeichert und beim Öffnen des Widgets geladen. `localStorage` dient als primäre Persistenz, NIP-78 als Sync-Layer.
+- **`BlossomUserSettings`**: Neues Interface für persistierte User-Einstellungen (`bunkerUri`, `servers`, `relays`, `visionEndpoint`). Settings überschreiben die Host-Config als non-destructive Override-Layer.
+- **Profil-Fetch (`fetchProfile`)**: Liest Kind-0-Events (NIP-01 Metadata) und zeigt Name, Avatar und NIP-05 im Settings-Panel an.
+- **`appId` Config-Option**: Neues optionales Feld in `BlossomMediaConfig` für localStorage-Key-Scoping bei mehreren Widget-Instanzen.
+- **Signer-Status-Indikator**: Grüner Punkt am User-Icon zeigt an, ob ein Signer (NIP-07 oder NIP-46) aktiv ist.
+- **`@nostr-dev-kit/ndk`** als Dependency für NIP-46-Unterstützung.
+- Tests für `settings.ts` (localStorage, merge-Logik), `nip46.ts` (URI-Validierung), `profile.ts` (`shortenPubkey`).
+
 - **`@blossom/plugin/widget` — Embeddable Media Widget**: Neues Widget-Paket als einbettbares Script/ESM-Modul. Ein einziger `<script>`-Tag fügt der Hostseite eine vollständige Mediathek-Funktionalität hinzu (Upload + Gallery + Metadaten + KI-Vorschläge).
 - **`MediaWidget.svelte`**: Root-Komponente mit nativem `<dialog>` (Shadow DOM), Tab-Bar (Dateien hochladen / Mediathek / Custom Tabs), signer-Auflösung (config.signer → window.nostr) und Cross-Tab-Navigation für Metadaten-Bearbeitung.
 - **`UploadTab.svelte`**: Upload-Tab mit Drag-&-Drop-Zone, Fortschrittsanzeige, Preview-Generierung (Thumb 200px + Image 600px) und nahtlosem Übergang zu `MetadataSidebar` nach erfolgreichem Upload.

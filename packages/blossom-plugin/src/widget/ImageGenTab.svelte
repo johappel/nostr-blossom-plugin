@@ -3,6 +3,8 @@
   import type { ImageMetadataInput } from '../core/metadata';
   import type { InsertResult, BlossomMediaFeatures } from './types';
   import type { VisionClientOptions } from '../core/vision';
+  import type { ImageGenClientOptions } from '../core/imagegen';
+  import { fetchImageGeneration } from '../core/imagegen';
   import { createBlossomBridge } from '../core/simple-bridge';
   import {
     buildImageMetadataTags,
@@ -10,9 +12,7 @@
   } from '../core/metadata';
   import {
     createImagePreviewFile,
-    createPdfPreviewFile,
     previewFileBaseName,
-    normalizeMime,
   } from '../core/previews';
   import { publishEvent } from '../core/publish';
   import MetadataSidebar from './MetadataSidebar.svelte';
@@ -20,12 +20,13 @@
   const THUMB_MAX_DIM = 200;
   const IMAGE_MAX_DIM = 600;
 
-  interface UploadTabProps {
+  interface ImageGenTabProps {
     signer: BlossomSigner | null;
     servers: string[];
     relayUrls: string[];
     features: BlossomMediaFeatures;
     visionOptions?: VisionClientOptions;
+    imageGenEndpoint: string;
     onInserted: (result: InsertResult) => void;
   }
 
@@ -35,20 +36,23 @@
     relayUrls,
     features,
     visionOptions,
+    imageGenEndpoint,
     onInserted,
-  }: UploadTabProps = $props();
+  }: ImageGenTabProps = $props();
 
   type Phase =
     | { type: 'idle' }
-    | { type: 'uploading'; fileName: string; progress: number }
+    | { type: 'generating' }
+    | { type: 'preview'; imageDataUrl: string }
+    | { type: 'uploading'; imageDataUrl: string }
     | { type: 'metadata'; uploadResult: BlossomUploadResult; file: File; mime: string; uploadTags: string[][] }
     | { type: 'publishing' }
     | { type: 'done'; insertResult: InsertResult }
-    | { type: 'error'; message: string };
+    | { type: 'error'; message: string; canRetry?: boolean };
 
   let phase = $state<Phase>({ type: 'idle' });
-  let dragOver = $state(false);
-  let fileInputRef = $state<HTMLInputElement | null>(null);
+  let prompt = $state('');
+  let abortController: AbortController | null = null;
 
   function getTagValue(tags: string[][], name: string): string | undefined {
     return tags.find((t) => t[0] === name)?.[1];
@@ -60,31 +64,36 @@
     return [...filtered, ...previewTags];
   }
 
+  /**
+   * Convert a base64 data URL to a File object.
+   */
+  function dataUrlToFile(dataUrl: string, filename: string): File {
+    const [header, b64] = dataUrl.split(',');
+    const mime = header?.match(/data:([^;]+)/)?.[1] ?? 'image/png';
+    const binary = atob(b64 ?? '');
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new File([bytes], filename, { type: mime });
+  }
+
   async function buildPreviewTags(
     file: File,
-    mime: string,
     bridge: ReturnType<typeof createBlossomBridge>,
   ): Promise<string[][]> {
-    if (!mime.startsWith('image/') && mime !== 'application/pdf') return [];
-
     const baseName = previewFileBaseName(file);
-    const specs: Array<{ tagName: 'thumb' | 'image'; maxDim: number; suffix: string }> =
-      mime === 'application/pdf'
-        ? [{ tagName: 'thumb', maxDim: THUMB_MAX_DIM, suffix: 'thumb' }]
-        : [
-            { tagName: 'thumb', maxDim: THUMB_MAX_DIM, suffix: 'thumb' },
-            { tagName: 'image', maxDim: IMAGE_MAX_DIM, suffix: 'preview' },
-          ];
+    const specs: Array<{ tagName: 'thumb' | 'image'; maxDim: number; suffix: string }> = [
+      { tagName: 'thumb', maxDim: THUMB_MAX_DIM, suffix: 'thumb' },
+      { tagName: 'image', maxDim: IMAGE_MAX_DIM, suffix: 'preview' },
+    ];
 
     const tags: string[][] = [];
 
     for (const spec of specs) {
       try {
         const filename = `${baseName}-${spec.suffix}.webp`;
-        const previewFile =
-          mime === 'application/pdf'
-            ? await createPdfPreviewFile(file, spec.maxDim, filename)
-            : await createImagePreviewFile(file, spec.maxDim, filename);
+        const previewFile = await createImagePreviewFile(file, spec.maxDim, filename);
         const res = await bridge.uploadFile(previewFile);
         const previewUrl = getTagValue(res.tags.map((t) => [...t]), 'url');
         if (!previewUrl) continue;
@@ -98,7 +107,53 @@
     return tags;
   }
 
-  async function processFile(file: File) {
+  // ── Generate image ────────────────────────────────────────────────────────
+
+  async function handleGenerate() {
+    if (!prompt.trim()) return;
+
+    phase = { type: 'generating' };
+    abortController = new AbortController();
+
+    try {
+      const options: ImageGenClientOptions = { endpoint: imageGenEndpoint };
+      const result = await fetchImageGeneration(prompt.trim(), options, abortController.signal);
+      phase = { type: 'preview', imageDataUrl: result.image };
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        phase = { type: 'idle' };
+        return;
+      }
+      phase = {
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Bildgenerierung fehlgeschlagen.',
+        canRetry: true,
+      };
+    } finally {
+      abortController = null;
+    }
+  }
+
+  function handleCancel() {
+    abortController?.abort();
+    abortController = null;
+    phase = { type: 'idle' };
+  }
+
+  function handleRetryGenerate() {
+    handleGenerate();
+  }
+
+  function handleNewPrompt() {
+    prompt = '';
+    phase = { type: 'idle' };
+  }
+
+  // ── Upload generated image to Blossom ─────────────────────────────────────
+
+  async function handleUpload() {
+    if (phase.type !== 'preview') return;
+
     if (!signer) {
       phase = { type: 'error', message: 'Login erforderlich.' };
       return;
@@ -109,11 +164,14 @@
       return;
     }
 
-    phase = { type: 'uploading', fileName: file.name, progress: 0 };
+    const imageDataUrl = phase.imageDataUrl;
+    phase = { type: 'uploading', imageDataUrl };
 
     const bridge = createBlossomBridge({ servers, signer });
-    let uploadResult: BlossomUploadResult;
+    const timestamp = Date.now();
+    const file = dataUrlToFile(imageDataUrl, `ai-generated-${timestamp}.png`);
 
+    let uploadResult: BlossomUploadResult;
     try {
       uploadResult = await bridge.uploadFile(file);
     } catch (err) {
@@ -124,41 +182,27 @@
       return;
     }
 
-    const rawMime = getTagValue(uploadResult.tags.map((t) => [...t]), 'm') || file.type;
-    const mime = normalizeMime(rawMime);
     const uploadTags = uploadResult.tags.map((t) => [...t]);
 
-    // For non-media files just insert directly without metadata dialog
-    if (!mime.startsWith('image/') && mime !== 'application/pdf') {
-      const insertResult: InsertResult = {
-        url: uploadResult.url,
-        mimeType: mime,
-        sha256: getTagValue(uploadTags, 'x'),
-        tags: uploadTags,
-      };
-      phase = { type: 'done', insertResult };
-      onInserted(insertResult);
-      return;
-    }
-
-    // Build preview thumbnails (upload them too)
-    phase = { type: 'uploading', fileName: file.name, progress: 50 };
-    const previewTags = await buildPreviewTags(file, mime, bridge);
+    // Build preview thumbnails
+    const previewTags = await buildPreviewTags(file, bridge);
     const mergedTags = mergePreviewTags(uploadTags, previewTags);
 
     phase = {
       type: 'metadata',
       uploadResult,
       file,
-      mime,
+      mime: 'image/png',
       uploadTags: mergedTags,
     };
   }
 
+  // ── Metadata submit → Publish ─────────────────────────────────────────────
+
   async function handleMetadataSubmit(metadata: ImageMetadataInput) {
     if (phase.type !== 'metadata') return;
 
-    const { uploadResult, uploadTags, mime: savedMime } = phase;
+    const { uploadResult, uploadTags } = phase;
 
     if (!signer) {
       phase = { type: 'error', message: 'Signer verloren.' };
@@ -171,15 +215,9 @@
       const kind1063Tags = buildImageMetadataTags(uploadTags, metadata);
       const kind1Tags = buildKind1FallbackTags(uploadTags, metadata);
 
-      const publishedEventIds: string[] = [];
-
       if (relayUrls.length > 0) {
-        const res1063 = await publishEvent(signer, relayUrls, metadata.description, kind1063Tags, 1063);
-        const res1 = await publishEvent(signer, relayUrls, metadata.description, kind1Tags, 1);
-        const id1063 = (res1063.event as Record<string, unknown> | null)?.id;
-        const id1 = (res1.event as Record<string, unknown> | null)?.id;
-        if (typeof id1063 === 'string') publishedEventIds.push(id1063);
-        if (typeof id1 === 'string') publishedEventIds.push(id1);
+        await publishEvent(signer, relayUrls, metadata.description, kind1063Tags, 1063);
+        await publishEvent(signer, relayUrls, metadata.description, kind1Tags, 1);
       }
 
       const sha256 = getTagValue(uploadTags, 'x');
@@ -191,7 +229,7 @@
         url: uploadResult.url,
         thumbnailUrl: thumbUrl,
         previewUrl: previewUrl,
-        mimeType: savedMime,
+        mimeType: 'image/png',
         sha256,
         size: sizeStr ? Number(sizeStr) : undefined,
         description: metadata.description,
@@ -216,62 +254,84 @@
 
   function reset() {
     phase = { type: 'idle' };
-    dragOver = false;
+    // Keep prompt so user can iterate
   }
 
-  function openFilePicker() {
-    fileInputRef?.click();
-  }
-
-  function handleFileChange(e: Event) {
-    const file = (e.target as HTMLInputElement).files?.item(0);
-    if (file) processFile(file);
-  }
-
-  function handleDrop(e: DragEvent) {
-    e.preventDefault();
-    dragOver = false;
-    const file = e.dataTransfer?.files?.item(0);
-    if (file) processFile(file);
-  }
-
-  function handleDragOver(e: DragEvent) {
-    e.preventDefault();
-    dragOver = true;
+  function fullReset() {
+    prompt = '';
+    phase = { type: 'idle' };
   }
 </script>
 
-<div class="upload-tab">
+<div class="imagegen-tab">
   {#if phase.type === 'idle'}
-    <!-- Drop zone -->
-    <div
-      role="button"
-      tabindex="0"
-      class="dropzone"
-      class:hovering={dragOver}
-      ondrop={handleDrop}
-      ondragover={handleDragOver}
-      ondragleave={() => (dragOver = false)}
-      onclick={openFilePicker}
-      onkeydown={(e) => e.key === 'Enter' && openFilePicker()}
-    >
-      <span class="dz-icon">📤</span>
-      <p class="dz-label">Datei hierher ziehen oder klicken zum Auswählen</p>
-      <p class="dz-sub">Bilder, PDFs und andere Dateien werden unterstützt</p>
+    <!-- Prompt input -->
+    <div class="prompt-panel">
+      <label class="prompt-label" for="imagegen-prompt">
+        <span class="prompt-icon">🎨</span>
+        Beschreibe das Bild, das du erstellen möchtest
+      </label>
+      <textarea
+        id="imagegen-prompt"
+        class="prompt-input"
+        bind:value={prompt}
+        placeholder="z.B. Ein Sonnenuntergang über einem Ozean im Stil von Monet …"
+        rows="4"
+        maxlength="2000"
+        onkeydown={(e) => {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            handleGenerate();
+          }
+        }}
+      ></textarea>
+      <div class="prompt-footer">
+        <span class="char-count">{prompt.length} / 2000</span>
+        <button
+          type="button"
+          class="btn-primary"
+          disabled={!prompt.trim()}
+          onclick={handleGenerate}
+        >✨ Bild generieren</button>
+      </div>
+      <p class="prompt-hint">Strg+Enter zum Generieren</p>
     </div>
-    <input
-      bind:this={fileInputRef}
-      type="file"
-      class="hidden-input"
-      onchange={handleFileChange}
-    />
+
+  {:else if phase.type === 'generating'}
+    <!-- Generating spinner -->
+    <div class="progress-panel">
+      <div class="spinner"></div>
+      <p class="progress-label">Bild wird generiert…</p>
+      <p class="progress-sub">Das kann je nach Modell einige Sekunden bis Minuten dauern.</p>
+      <button type="button" class="btn-secondary" onclick={handleCancel}>Abbrechen</button>
+    </div>
+
+  {:else if phase.type === 'preview'}
+    <!-- Preview generated image -->
+    <div class="preview-panel">
+      <div class="preview-image-wrapper">
+        <img src={phase.imageDataUrl} alt="KI-generiertes Bild" class="preview-image" />
+      </div>
+      <div class="preview-prompt">
+        <strong>Prompt:</strong> {prompt}
+      </div>
+      <div class="preview-actions">
+        <button type="button" class="btn-secondary" onclick={handleRetryGenerate}>🔄 Nochmal</button>
+        <button type="button" class="btn-secondary" onclick={handleNewPrompt}>✏️ Neuer Prompt</button>
+        <button type="button" class="btn-primary" onclick={handleUpload}>⬆️ Hochladen & Verwenden</button>
+      </div>
+    </div>
 
   {:else if phase.type === 'uploading'}
+    <!-- Uploading -->
     <div class="progress-panel">
+      <div class="upload-preview-small">
+        <img src={phase.imageDataUrl} alt="Wird hochgeladen…" class="upload-thumb" />
+      </div>
       <div class="progress-icon">⬆️</div>
-      <p class="progress-label">Lade hoch: <strong>{phase.fileName}</strong></p>
+      <p class="progress-label">Lade hoch…</p>
       <div class="progress-bar" role="progressbar">
-        <div class="progress-fill" style="width: {phase.progress}%"></div>
+        <div class="progress-fill" style="width: 50%"></div>
       </div>
       <p class="signer-hint">
         Falls sich nichts tut: Deine Signer-Extension (nos2x, Alby …) wartet
@@ -289,6 +349,7 @@
         fileUrl={phase.uploadResult.url}
         mime={phase.mime}
         thumbnailUrl={phase.uploadTags.find((t) => t[0] === 'thumb')?.[1]}
+        initialMetadata={{ aiImageMode: 'generated', description: prompt }}
         mode="create"
         {visionOptions}
         showDelete={false}
@@ -310,24 +371,29 @@
   {:else if phase.type === 'done'}
     <div class="done-panel">
       <div class="done-icon">✅</div>
-      <p class="done-label">Datei erfolgreich hochgeladen!</p>
+      <p class="done-label">Bild erfolgreich erstellt und hochgeladen!</p>
       <p class="done-url">
         <a href={phase.insertResult.url} target="_blank" rel="noreferrer">{phase.insertResult.url}</a>
       </p>
-      <button type="button" class="btn-primary" onclick={reset}>Weitere Datei hochladen</button>
+      <button type="button" class="btn-primary" onclick={fullReset}>Neues Bild erstellen</button>
     </div>
 
   {:else if phase.type === 'error'}
     <div class="error-panel">
       <div class="error-icon">⚠️</div>
       <p class="error-msg">{phase.message}</p>
-      <button type="button" class="btn-secondary" onclick={reset}>Nochmal versuchen</button>
+      <div class="error-actions">
+        {#if phase.canRetry}
+          <button type="button" class="btn-primary" onclick={handleRetryGenerate}>Nochmal versuchen</button>
+        {/if}
+        <button type="button" class="btn-secondary" onclick={reset}>Zurück</button>
+      </div>
     </div>
   {/if}
 </div>
 
 <style>
-  .upload-tab {
+  .imagegen-tab {
     display: grid;
     height: 100%;
     padding: 0.75rem;
@@ -336,47 +402,98 @@
     overflow-y: auto;
   }
 
-  .hidden-input {
-    display: none;
-  }
-
-  /* ── Drop zone ── */
-  .dropzone {
-    border: 2px dashed var(--bm-dropzone-border, #c0bfff);
-    border-radius: 10px;
-    padding: 2.5rem 1.5rem;
-    text-align: center;
-    cursor: pointer;
-    background: var(--bm-dropzone-bg, #faf9ff);
-    transition: background 0.15s, border-color 0.15s;
+  /* ── Prompt panel ── */
+  .prompt-panel {
     display: grid;
-    gap: 0.35rem;
-    justify-items: center;
+    gap: 0.5rem;
   }
 
-  .dropzone.hovering {
-    background: var(--bm-accent-bg-subtle, #f0eeff);
+  .prompt-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .prompt-icon {
+    font-size: 1.2rem;
+  }
+
+  .prompt-input {
+    font: inherit;
+    font-size: 0.9rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--bm-input-border, #ccc);
+    border-radius: 6px;
+    background: var(--bm-input-bg, #fff);
+    color: var(--bm-text, #222);
+    resize: vertical;
+    min-height: 80px;
+    line-height: 1.5;
+  }
+
+  .prompt-input:focus {
+    outline: 2px solid var(--bm-accent, #6c63ff);
+    outline-offset: -1px;
     border-color: var(--bm-accent, #6c63ff);
   }
 
-  .dz-icon {
-    font-size: 2.5rem;
-    line-height: 1;
+  .prompt-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
 
-  .dz-label {
-    font-size: 0.95rem;
-    font-weight: 600;
-    margin: 0;
+  .char-count {
+    font-size: 0.75rem;
+    color: var(--bm-text-subtle, #888);
   }
 
-  .dz-sub {
-    font-size: 0.8rem;
+  .prompt-hint {
+    font-size: 0.75rem;
     color: var(--bm-text-subtle, #888);
     margin: 0;
+    text-align: right;
   }
 
-  /* ── Progress ── */
+  /* ── Preview panel ── */
+  .preview-panel {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .preview-image-wrapper {
+    display: flex;
+    justify-content: center;
+    background: var(--bm-bg-subtle, #f8f8f8);
+    border-radius: 8px;
+    overflow: hidden;
+    max-height: 500px;
+  }
+
+  .preview-image {
+    max-width: 100%;
+    max-height: 500px;
+    object-fit: contain;
+  }
+
+  .preview-prompt {
+    font-size: 0.8rem;
+    color: var(--bm-text-muted, #777);
+    padding: 0.4rem 0.6rem;
+    background: var(--bm-bg-subtle, #f8f8f8);
+    border-radius: 4px;
+    word-break: break-word;
+  }
+
+  .preview-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  /* ── Progress / spinner ── */
   .progress-panel {
     display: grid;
     justify-items: center;
@@ -385,12 +502,31 @@
     text-align: center;
   }
 
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--bm-border, #e8e8e8);
+    border-top-color: var(--bm-accent, #6c63ff);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
   .progress-icon {
     font-size: 2rem;
   }
 
   .progress-label {
     font-size: 0.9rem;
+    margin: 0;
+  }
+
+  .progress-sub {
+    font-size: 0.8rem;
+    color: var(--bm-text-subtle, #888);
     margin: 0;
   }
 
@@ -416,6 +552,18 @@
     margin: 0.5rem 0 0;
     max-width: 320px;
     line-height: 1.4;
+  }
+
+  .upload-preview-small {
+    display: flex;
+    justify-content: center;
+  }
+
+  .upload-thumb {
+    max-width: 120px;
+    max-height: 120px;
+    border-radius: 6px;
+    object-fit: contain;
   }
 
   /* ── Metadata panel ── */
@@ -494,6 +642,11 @@
     margin: 0;
   }
 
+  .error-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
   /* ── Buttons ── */
   .btn-primary {
     font: inherit;
@@ -507,8 +660,13 @@
     transition: background 0.12s;
   }
 
-  .btn-primary:hover {
+  .btn-primary:hover:not(:disabled) {
     background: var(--bm-accent-hover, #5a52d5);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .btn-secondary {

@@ -73,6 +73,8 @@ export interface BlossomMediaFeatures {
   upload?: boolean;
   /** Show the "Mediathek" gallery tab */
   gallery?: boolean;
+  /** Show the "Bild erstellen" image generation tab */
+  imageGen?: boolean;
   /** Show the AI description suggestion button in the metadata form */
   aiDescription?: boolean;
   /** Show the full metadata form (description, alt, author, license, …) */
@@ -116,6 +118,13 @@ export interface BlossomMediaConfig {
   targets?: string;
 
   /**
+   * Application ID used to scope user settings in localStorage.
+   * Defaults to `'default'`.  Use different IDs if multiple widget instances
+   * on the same page need independent settings.
+   */
+  appId?: string;
+
+  /**
    * List of Blossom server base URLs.
    * @example ['https://blossom.primal.net', 'https://nostr.download']
    */
@@ -148,6 +157,14 @@ export interface BlossomMediaConfig {
    * @example 'https://my-host.example/api/vision'
    */
   visionEndpoint?: string;
+
+  /**
+   * Base URL of the image generation API.
+   * Required to enable the "Bild erstellen" tab.
+   * Falls back to `visionEndpoint` (same server, `/image-gen` route) if not set.
+   * @example 'https://my-host.example/image-gen'
+   */
+  imageGenEndpoint?: string;
 
   /**
    * How the selected URL is written back to target elements.
@@ -186,6 +203,15 @@ export interface BlossomMediaConfig {
    * Called when an unrecoverable error occurs (upload failure, etc.).
    */
   onError?: (error: Error) => void;
+
+  /**
+   * Called when a signer becomes available (NIP-07 detected, NIP-46 bunker
+   * connected, or host-provided signer loaded). Useful for updating external
+   * status indicators (e.g. bookmarklet status bar).
+   *
+   * @param pubkey - The hex public key of the active signer.
+   */
+  onSignerReady?: (pubkey: string) => void;
 }
 
 // ─── Instance API ─────────────────────────────────────────────────────────────
@@ -199,8 +225,9 @@ export interface BlossomMediaInstance {
    * Programmatically open the media dialog.
    * @param targetElement - Optional: the element to insert the result into.
    *                        Overrides the element that was clicked.
+   * @param tab - Optional: tab to activate when opening (e.g. 'upload' or 'gallery').
    */
-  open: (targetElement?: HTMLElement) => void;
+  open: (targetElement?: HTMLElement, tab?: string) => void;
 
   /** Programmatically close the media dialog. */
   close: () => void;

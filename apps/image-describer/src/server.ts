@@ -8,6 +8,10 @@ type DescribeRequestBody = {
   imageUrl?: string;
 };
 
+type ImageGenRequestBody = {
+  prompt?: string;
+};
+
 const ALT_MAX_LENGTH = 140;
 
 function normalizeAltText(value: string) {
@@ -35,6 +39,12 @@ function readRuntimeConfig() {
     pdfMaxPages: Number(process.env.OPENROUTER_PDF_MAX_PAGES ?? 4),
     pdfTextMaxChars: Number(process.env.OPENROUTER_PDF_TEXT_MAX_CHARS ?? 4500),
     inlineOnly: process.env.OPENROUTER_VISION_INLINE_ONLY === 'true',
+    // Image generation settings
+    imageGenApiUrl: process.env.IMAGE_GEN_API_URL || 'http://localhost:11434/v1',
+    imageGenApiKey: process.env.IMAGE_GEN_API_KEY || '',
+    imageGenModel: process.env.IMAGE_GEN_MODEL || 'black-forest-labs/FLUX.1-schnell',
+    imageGenTimeoutMs: Number(process.env.IMAGE_GEN_TIMEOUT_MS ?? 60000),
+    imageGenDefaultSize: process.env.IMAGE_GEN_DEFAULT_SIZE || '1024x1024',
   };
 }
 
@@ -697,6 +707,166 @@ app.post<{ Body: DescribeRequestBody }>('/describe', async (request, reply) => {
     ...(typeof renderedPageCount === 'number' ? { renderedPageCount } : {}),
     ...(imageSourceWarning ? { warning: imageSourceWarning } : {}),
   });
+});
+
+// ─── Image Generation ─────────────────────────────────────────────────────────
+
+app.post<{ Body: ImageGenRequestBody }>('/image-gen', async (request, reply) => {
+  const config = readRuntimeConfig();
+  const prompt = request.body?.prompt?.trim();
+
+  if (!prompt) {
+    return reply.status(400).send({ error: 'prompt is required' });
+  }
+
+  if (prompt.length > 2000) {
+    return reply.status(400).send({ error: 'prompt must be 2000 characters or less' });
+  }
+
+  const apiUrl = config.imageGenApiUrl.replace(/\/$/, '');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (config.imageGenApiKey) {
+    headers['Authorization'] = `Bearer ${config.imageGenApiKey}`;
+  }
+
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), config.imageGenTimeoutMs);
+
+  try {
+    // Use OpenAI chat/completions with modalities:['image'] (OpenRouter style)
+    // Falls back to /images/generations for DALL-E-compatible APIs
+    const isOpenRouter = apiUrl.includes('openrouter.ai');
+    const endpoint = isOpenRouter
+      ? `${apiUrl}/chat/completions`
+      : `${apiUrl}/images/generations`;
+
+    const body = isOpenRouter
+      ? {
+          model: config.imageGenModel,
+          messages: [{ role: 'user', content: prompt }],
+          modalities: ['image'],
+        }
+      : {
+          model: config.imageGenModel,
+          prompt,
+          n: 1,
+          size: config.imageGenDefaultSize,
+          response_format: 'b64_json',
+        };
+
+    request.log.info({ endpoint, model: config.imageGenModel, promptLength: prompt.length }, 'image-gen: sending request');
+
+    const upstream = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!upstream.ok) {
+      const errorBody = await upstream.text().catch(() => '');
+      request.log.error({ status: upstream.status, errorBody: errorBody.slice(0, 1000) }, 'image-gen: upstream error');
+      let errorMessage = `Image generation failed (HTTP ${upstream.status})`;
+      try {
+        const parsed = JSON.parse(errorBody) as { error?: { message?: string; code?: number; metadata?: Record<string, unknown> } };
+        if (parsed.error?.message) {
+          errorMessage = parsed.error.message;
+        }
+        // Log full parsed error for debugging
+        request.log.error({ parsedError: parsed.error }, 'image-gen: parsed upstream error');
+      } catch {
+        if (errorBody) errorMessage += `: ${errorBody.slice(0, 500)}`;
+      }
+      return reply.status(upstream.status).send({ error: errorMessage });
+    }
+
+    const rawText = await upstream.text();
+    request.log.info({ responseLength: rawText.length }, 'image-gen: upstream response received');
+
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(rawText) as Record<string, unknown>;
+    } catch {
+      request.log.error({ rawText: rawText.slice(0, 500) }, 'image-gen: failed to parse JSON');
+      return reply.status(502).send({ error: 'Invalid JSON from upstream' });
+    }
+
+    // Check for error in 200 response (OpenRouter sometimes does this)
+    if (payload.error) {
+      const err = payload.error as { message?: string; code?: number };
+      request.log.error({ error: err }, 'image-gen: error in 200 response');
+      return reply.status(502).send({ error: err.message || 'Provider returned error' });
+    }
+
+    // ── OpenRouter format: choices[].message.images[].image_url.url ──
+    if (isOpenRouter) {
+      // Log the response structure (without the actual base64 data)
+      const choices = payload.choices as Array<{
+        message?: { content?: string; images?: Array<{ image_url?: { url?: string } }> };
+        finish_reason?: string;
+      }> | undefined;
+
+      request.log.info({
+        choiceCount: choices?.length,
+        finishReason: choices?.[0]?.finish_reason,
+        hasImages: !!choices?.[0]?.message?.images?.length,
+        hasContent: !!choices?.[0]?.message?.content,
+        imageCount: choices?.[0]?.message?.images?.length ?? 0,
+      }, 'image-gen: OpenRouter response structure');
+
+      const imageUrl = choices?.[0]?.message?.images?.[0]?.image_url?.url;
+      if (imageUrl) {
+        request.log.info({ imageUrlPrefix: imageUrl.slice(0, 40) }, 'image-gen: success');
+        return reply.send({ image: imageUrl });
+      }
+
+      // If no images, log the full response for debugging
+      request.log.error({ payload: JSON.stringify(payload).slice(0, 1000) }, 'image-gen: no image in OpenRouter response');
+      return reply.status(502).send({ error: 'No image data in OpenRouter response' });
+    }
+
+    // ── OpenAI / DALL-E format: data[].b64_json or data[].url ──
+    const data = (payload as { data?: Array<{ b64_json?: string; url?: string }> }).data;
+    const imageData = data?.[0];
+
+    if (!imageData) {
+      return reply.status(502).send({ error: 'No image data in response' });
+    }
+
+    if (imageData.b64_json) {
+      return reply.send({
+        image: `data:image/png;base64,${imageData.b64_json}`,
+      });
+    }
+
+    if (imageData.url) {
+      const imgResponse = await fetch(imageData.url);
+      if (!imgResponse.ok) {
+        return reply.status(502).send({ error: 'Failed to fetch generated image from URL' });
+      }
+      const buffer = Buffer.from(await imgResponse.arrayBuffer());
+      const contentType = imgResponse.headers.get('content-type') || 'image/png';
+      return reply.send({
+        image: `data:${contentType};base64,${buffer.toString('base64')}`,
+      });
+    }
+
+    return reply.status(502).send({ error: 'Response contained neither b64_json nor url' });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return reply.status(504).send({
+        error: `Image generation timed out after ${config.imageGenTimeoutMs}ms`,
+      });
+    }
+    return reply.status(500).send({
+      error: err instanceof Error ? err.message : 'Image generation failed',
+    });
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
 });
 
 const config = readRuntimeConfig();
