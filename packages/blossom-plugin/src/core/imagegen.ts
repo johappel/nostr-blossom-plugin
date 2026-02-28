@@ -109,6 +109,10 @@ export async function fetchImageGeneration(
     if (err instanceof Error && err.name === 'AbortError' && !signal?.aborted) {
       throw new Error(`Image generation timed out after ${timeoutMs}ms`);
     }
+    // Network error — Docker / AI service likely not running
+    if (err instanceof TypeError && /NetworkError|fetch|Failed to fetch|ECONNREFUSED/i.test(err.message)) {
+      throw new Error('KI-Service nicht erreichbar. Prüfe, ob die Docker-Instanz läuft.');
+    }
     throw err;
   } finally {
     clearTimeout(timeoutHandle);
