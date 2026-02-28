@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { WidgetContext, Nip94FileEvent } from '@blossom/plugin/plugin';
+  import { iconSync, iconGroups } from '@blossom/plugin/plugin';
   import { fetchMemberships } from './nostr/memberships';
   import { fetchCommunity } from './nostr/community';
   import { fetchCommunityMedia, parseShareEvent } from './nostr/community-media';
@@ -213,7 +214,7 @@
       disabled={loadingMemberships || loadingMedia}
       onclick={loadMemberships}
       title="Communities neu laden"
-    >🔄</button>
+    >{@html iconSync(16)}</button>
   </div>
 
   <!-- Community info bar -->
@@ -222,7 +223,7 @@
       {#if selectedCommunity.picture}
         <img class="community-avatar" src={selectedCommunity.picture} alt="" />
       {:else}
-        <span class="community-avatar community-avatar--placeholder">👥</span>
+        <span class="community-avatar community-avatar--placeholder">{@html iconGroups(24)}</span>
       {/if}
       <div class="community-details">
         <span class="community-name">{selectedCommunity.name ?? shortenPubkey(selectedCommunityPubkey ?? '')}</span>
@@ -369,6 +370,8 @@
     cursor: pointer;
     font-size: 1rem;
     color: var(--bm-text, #222);
+    display: inline-flex;
+    align-items: center;
   }
   .btn-refresh:disabled {
     opacity: 0.5;

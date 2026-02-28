@@ -12,6 +12,7 @@
 -->
 <script lang="ts">
   import type { WidgetContext } from '@blossom/plugin/plugin';
+  import { iconSchool, iconSync, iconTune, iconEdit } from '@blossom/plugin/plugin';
   import { untrack } from 'svelte';
   import { fetchUserAmbShares } from './nostr/fetch-shares';
   import type { AmbShareItem, SkosSelection } from './nostr/types';
@@ -145,7 +146,7 @@
         ← Zurück
       </button>
     {:else}
-      <span class="oer-tab-title">🎓 Meine OER-Shares</span>
+      <span class="oer-tab-title">{@html iconSchool(16, 'vertical-align: -2px; margin-right: 4px;')} Meine OER-Shares</span>
     {/if}
     <div class="oer-toolbar-actions">
       {#if !selectedItem}
@@ -156,7 +157,7 @@
           title="Aktualisieren"
           disabled={loading}
         >
-          🔄
+          {@html iconSync(18)}
         </button>
       {/if}
       <button
@@ -165,7 +166,7 @@
         onclick={() => (showSettings = !showSettings)}
         title="Einstellungen"
       >
-        ⚙️
+        {@html iconTune(18)}
       </button>
     </div>
   </div>
@@ -288,7 +289,7 @@
         class="oer-btn-edit oer-insert-btn"
         onclick={() => startEdit(selectedItem!)}
       >
-        ✏️ Bearbeiten
+        {@html iconEdit(14, 'vertical-align: -2px; margin-right: 4px;')} Bearbeiten
       </button>
     </div>
 
@@ -311,7 +312,9 @@
           {#if item.imageUrl}
             <img src={item.imageUrl} alt="" class="oer-card-img" />
           {:else}
-            <div class="oer-card-placeholder">🎓</div>
+            <div class="oer-card-placeholder">
+              {@html iconSchool(32)}
+            </div>
           {/if}
           <div class="oer-card-info">
             <span class="oer-card-name">{item.name || 'Unbenannt'}</span>
@@ -371,6 +374,9 @@
     padding: 0.2rem 0.3rem;
     border-radius: 4px;
     opacity: 0.7;
+    display: inline-flex;
+    align-items: center;
+    color: var(--bm-text, #222);
   }
   .oer-icon-btn:hover { opacity: 1; }
   .oer-icon-btn:disabled { opacity: 0.4; cursor: default; }

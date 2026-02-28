@@ -6,6 +6,14 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+### Changed
+
+- **Icons**: Alle Emoji-Icons durch Google Material SVG-Icons ersetzt (Tabs, Buttons, Statusanzeigen).
+  - Betrifft: MediaWidget Tab-Bar, UploadTab, ImageGenTab, GalleryTab Share-Popover, SettingsPanel Plugin-Liste, CommunityTab, OerSharesTab.
+  - Plugin-Icons (`tab-communikey`, `tab-oer-shares`) sind jetzt inline-SVG-Strings statt Emojis.
+  - Tab-Icons werden via `{@html}` gerendert für SVG-Unterstützung.
+  - Responsive: Tab-Labels werden unter 600px Breite ausgeblendet (nur Icons sichtbar).
+
 ### Added
 
 - **`packages/tab-oer-shares`**: OER-Shares TabPlugin für AMB-Metadaten und Edufeed-Integration (kind:30142).

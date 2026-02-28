@@ -18,6 +18,7 @@
     extractRelatedFromTags,
   } from '../core/pending-uploads';
   import MetadataSidebar from './MetadataSidebar.svelte';
+  import { iconUploadFile, iconPublic, iconCheck, iconWarning } from './icons';
 
   const THUMB_MAX_DIM = 200;
   const IMAGE_MAX_DIM = 600;
@@ -269,7 +270,7 @@
       onclick={openFilePicker}
       onkeydown={(e) => e.key === 'Enter' && openFilePicker()}
     >
-      <span class="dz-icon">📤</span>
+      <span class="dz-icon">{@html iconUploadFile(40)}</span>
       <p class="dz-label">Datei hierher ziehen oder klicken zum Auswählen</p>
       <p class="dz-sub">Bilder, PDFs und andere Dateien werden unterstützt</p>
     </div>
@@ -282,7 +283,7 @@
 
   {:else if phase.type === 'uploading'}
     <div class="progress-panel">
-      <div class="progress-icon">⬆️</div>
+      <div class="progress-icon">{@html iconUploadFile(32)}</div>
       <p class="progress-label">Lade hoch: <strong>{phase.fileName}</strong></p>
       <div class="progress-bar" role="progressbar">
         <div class="progress-fill" style="width: {phase.progress}%"></div>
@@ -314,7 +315,7 @@
 
   {:else if phase.type === 'publishing'}
     <div class="progress-panel">
-      <div class="progress-icon">📡</div>
+      <div class="progress-icon">{@html iconPublic(32)}</div>
       <p class="progress-label">Veröffentliche Metadaten…</p>
       <div class="progress-bar" role="progressbar">
         <div class="progress-fill" style="width: 70%"></div>
@@ -323,7 +324,7 @@
 
   {:else if phase.type === 'done'}
     <div class="done-panel">
-      <div class="done-icon">✅</div>
+      <div class="done-icon">{@html iconCheck(32)}</div>
       <p class="done-label">Datei erfolgreich hochgeladen!</p>
       <p class="done-url">
         <a href={phase.insertResult.url} target="_blank" rel="noreferrer">{phase.insertResult.url}</a>
@@ -333,7 +334,7 @@
 
   {:else if phase.type === 'error'}
     <div class="error-panel">
-      <div class="error-icon">⚠️</div>
+      <div class="error-icon">{@html iconWarning(32)}</div>
       <p class="error-msg">{phase.message}</p>
       <button type="button" class="btn-secondary" onclick={reset}>Nochmal versuchen</button>
     </div>

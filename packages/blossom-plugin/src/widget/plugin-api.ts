@@ -33,3 +33,18 @@ export type { PublishEventResult, PublishRelayResult } from '../core/publish';
 export { formatInsertResult } from '../core/format';
 export { publishEvent } from '../core/publish';
 export { fetchProfile, shortenPubkey } from '../core/profile';
+
+// ── Icons ────────────────────────────────────────────────────────────────────
+export {
+  iconUploadFile,
+  iconGallery,
+  iconAutoAwesome,
+  iconSync,
+  iconEdit,
+  iconTune,
+  iconCheck,
+  iconWarning,
+  iconPublic,
+  iconGroups,
+  iconSchool,
+} from './icons';

@@ -476,7 +476,7 @@
                             }
                           }}
                         >
-                          {#if target.icon}<span class="share-option-icon">{target.icon}</span>{/if}
+                          {#if target.icon}<span class="share-option-icon">{@html target.icon}</span>{/if}
                           <span>{sharingTargetId === target.id ? 'Wird geteilt…' : target.label}</span>
                         </button>
                       {/each}
@@ -996,5 +996,12 @@
   .share-option-icon {
     font-size: 1rem;
     line-height: 1;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .share-option-icon :global(svg) {
+    width: 18px;
+    height: 18px;
   }
 </style>

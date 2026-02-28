@@ -15,6 +15,7 @@
   } from '../core/previews';
   import { publishEvent } from '../core/publish';
   import MetadataSidebar from './MetadataSidebar.svelte';
+  import { iconAutoAwesome, iconSync, iconEdit, iconUploadFile, iconPublic, iconCheck, iconWarning } from './icons';
 
   const THUMB_MAX_DIM = 200;
   const IMAGE_MAX_DIM = 600;
@@ -265,7 +266,7 @@
     <!-- Prompt input -->
     <div class="prompt-panel">
       <label class="prompt-label" for="imagegen-prompt">
-        <span class="prompt-icon">🎨</span>
+        <span class="prompt-icon">{@html iconAutoAwesome(20)}</span>
         Beschreibe das Bild, das du erstellen möchtest
       </label>
       <textarea
@@ -289,7 +290,7 @@
           class="btn-primary"
           disabled={!prompt.trim()}
           onclick={handleGenerate}
-        >✨ Bild generieren</button>
+        >{@html iconAutoAwesome(16, 'vertical-align: -2px; margin-right: 4px;')} Bild generieren</button>
       </div>
       <p class="prompt-hint">Strg+Enter zum Generieren</p>
     </div>
@@ -313,9 +314,9 @@
         <strong>Prompt:</strong> {prompt}
       </div>
       <div class="preview-actions">
-        <button type="button" class="btn-secondary" onclick={handleRetryGenerate}>🔄 Nochmal</button>
-        <button type="button" class="btn-secondary" onclick={handleNewPrompt}>✏️ Neuer Prompt</button>
-        <button type="button" class="btn-primary" onclick={handleUpload}>⬆️ Hochladen & Verwenden</button>
+        <button type="button" class="btn-secondary" onclick={handleRetryGenerate}>{@html iconSync(14, 'vertical-align: -2px; margin-right: 2px;')} Nochmal</button>
+        <button type="button" class="btn-secondary" onclick={handleNewPrompt}>{@html iconEdit(14, 'vertical-align: -2px; margin-right: 2px;')} Neuer Prompt</button>
+        <button type="button" class="btn-primary" onclick={handleUpload}>{@html iconUploadFile(16, 'vertical-align: -2px; margin-right: 4px;')} Hochladen & Verwenden</button>
       </div>
     </div>
 
@@ -325,7 +326,7 @@
       <div class="upload-preview-small">
         <img src={phase.imageDataUrl} alt="Wird hochgeladen…" class="upload-thumb" />
       </div>
-      <div class="progress-icon">⬆️</div>
+      <div class="progress-icon">{@html iconUploadFile(32)}</div>
       <p class="progress-label">Lade hoch…</p>
       <div class="progress-bar" role="progressbar">
         <div class="progress-fill" style="width: 50%"></div>
@@ -358,7 +359,7 @@
 
   {:else if phase.type === 'publishing'}
     <div class="progress-panel">
-      <div class="progress-icon">📡</div>
+      <div class="progress-icon">{@html iconPublic(32)}</div>
       <p class="progress-label">Veröffentliche Metadaten…</p>
       <div class="progress-bar" role="progressbar">
         <div class="progress-fill" style="width: 70%"></div>
@@ -367,7 +368,7 @@
 
   {:else if phase.type === 'done'}
     <div class="done-panel">
-      <div class="done-icon">✅</div>
+      <div class="done-icon">{@html iconCheck(32)}</div>
       <p class="done-label">Bild erfolgreich erstellt und hochgeladen!</p>
       <p class="done-url">
         <a href={phase.insertResult.url} target="_blank" rel="noreferrer">{phase.insertResult.url}</a>
@@ -377,7 +378,7 @@
 
   {:else if phase.type === 'error'}
     <div class="error-panel">
-      <div class="error-icon">⚠️</div>
+      <div class="error-icon">{@html iconWarning(32)}</div>
       <p class="error-msg">{phase.message}</p>
       <div class="error-actions">
         {#if phase.canRetry}

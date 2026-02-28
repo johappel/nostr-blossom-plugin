@@ -22,6 +22,7 @@ import type {
   UploadHistoryItem,
   Nip94FileEvent,
 } from '@blossom/plugin/plugin';
+import { iconGroups } from '@blossom/plugin/plugin';
 import CommunityTab from './CommunityTab.svelte';
 import { fetchMemberships } from './nostr/memberships';
 import { fetchCommunity } from './nostr/community';
@@ -319,7 +320,7 @@ async function handleShare(
 export const communityTabPlugin: TabPlugin = {
   id: 'communikey',
   label: 'Community Media',
-  icon: '👥',
+  icon: iconGroups(),
   order: 50,
 
   // Svelte 5 component for the tab content
@@ -330,7 +331,7 @@ export const communityTabPlugin: TabPlugin = {
     {
       id: 'communikey-share',
       label: 'An Community teilen',
-      icon: '👥',
+      icon: iconGroups(),
       handler: handleShare,
     },
   ],

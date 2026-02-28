@@ -23,6 +23,7 @@ import type {
   UploadHistoryItem,
   Nip94FileEvent,
 } from '@blossom/plugin/plugin';
+import { iconSchool } from '@blossom/plugin/plugin';
 import { mount, unmount } from 'svelte';
 import OerSharesTab from './OerSharesTab.svelte';
 import OerShareForm from './OerShareForm.svelte';
@@ -90,7 +91,7 @@ async function handleShare(
 export const oerSharesPlugin: TabPlugin = {
   id: 'oer-shares',
   label: 'OER-Shares',
-  icon: '🎓',
+  icon: iconSchool(),
   order: 110,
   defaultDisabled: true,
 
@@ -102,7 +103,7 @@ export const oerSharesPlugin: TabPlugin = {
     {
       id: 'oer-edufeed-share',
       label: 'Im Edufeed teilen',
-      icon: '🎓',
+      icon: iconSchool(),
       handler: handleShare,
     },
   ],

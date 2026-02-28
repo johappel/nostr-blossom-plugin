@@ -36,6 +36,7 @@
   import ImageGenTab from './ImageGenTab.svelte';
   import MetadataSidebar from './MetadataSidebar.svelte';
   import SettingsPanel from './SettingsPanel.svelte';
+  import { iconUploadFile, iconGallery, iconAutoAwesome } from './icons';
 
   interface MediaWidgetProps {
     config: BlossomMediaConfig;
@@ -73,14 +74,14 @@
   let tabs = $derived.by((): TabDef[] => {
     const result: TabDef[] = [];
     if (config.features?.upload !== false) {
-      result.push({ id: 'upload', label: 'Dateien hochladen', order: 0, builtin: 'upload' });
+      result.push({ id: 'upload', label: 'Hochladen', icon: iconUploadFile(), order: 0, builtin: 'upload' });
     }
     if (config.features?.gallery !== false) {
-      result.push({ id: 'gallery', label: 'Mediathek', order: 10, builtin: 'gallery' });
+      result.push({ id: 'gallery', label: 'Mediathek', icon: iconGallery(), order: 10, builtin: 'gallery' });
     }
     // Show image gen tab when feature is not explicitly disabled AND an endpoint is available
     if (config.features?.imageGen !== false && resolvedImageGenEndpoint) {
-      result.push({ id: 'imagegen', label: 'Bild erstellen', order: 20, builtin: 'imagegen' });
+      result.push({ id: 'imagegen', label: 'Bild erstellen', icon: iconAutoAwesome(), order: 20, builtin: 'imagegen' });
     }
     // Legacy custom tabs (deprecated — use plugins instead)
     for (const ct of config.tabs ?? []) {
@@ -971,7 +972,7 @@
             class:active={activeTab === tab.id}
             aria-selected={activeTab === tab.id}
             onclick={() => { activeTab = tab.id; editItem = null; }}
-          >{#if tab.icon}<span class="bm-tab-icon">{tab.icon}</span>{/if}{tab.label}</button>
+          >{#if tab.icon}<span class="bm-tab-icon">{@html tab.icon}</span>{/if}<span class="bm-tab-label">{tab.label}</span></button>
         {/each}
       </div>
     {/if}
@@ -1362,6 +1363,32 @@
 
   .bm-tab-icon {
     margin-right: 0.35em;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    line-height: 0;
+  }
+
+  .bm-tab-icon :global(svg) {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .bm-tab-label {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 600px) {
+    .bm-tab {
+      padding: 0.6rem 0.6rem;
+    }
+    .bm-tab-label {
+      display: none;
+    }
+    .bm-tab-icon {
+      margin-right: 0;
+    }
   }
 
   /* ── Edit metadata overlay ── */

@@ -325,7 +325,7 @@
                 disabledPlugins = new Set(disabledPlugins);
               }}
             />
-            {#if plugin.icon}<span class="sp-plugin-icon">{plugin.icon}</span>{/if}
+            {#if plugin.icon}<span class="sp-plugin-icon">{@html plugin.icon}</span>{/if}
             <span class="sp-plugin-label">{plugin.label}</span>
           </label>
         {/each}
@@ -704,6 +704,13 @@
   .sp-plugin-icon {
     font-size: 1rem;
     line-height: 1;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .sp-plugin-icon :global(svg) {
+    width: 18px;
+    height: 18px;
   }
 
   .sp-plugin-label {
