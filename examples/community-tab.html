@@ -87,13 +87,15 @@
 <div class="demo-form">
   <label>
     Bild-URL Eingabe
-    <input type="text" id="imageUrl" data-blossom placeholder="URL wird hier eingefügt…" />
+    <input type="text" id="imageUrl" placeholder="URL wird hier eingefügt…" />
   </label>
 
-  <button class="open-btn" id="openBtn">🌸 Mediathek öffnen</button>
-  <button class="open-btn" id="openCommunityBtn" style="background: #4a9; margin-top: 0;">
-    👥 Community-Tab öffnen
-  </button>
+  <div style="display: flex; gap: 0.5rem;">
+    <button class="open-btn" id="openBtn">🌸 Mediathek</button>
+    <button class="open-btn" id="openCommunityBtn" style="background: #4a9;">
+      👥 Community-Tab
+    </button>
+  </div>
 </div>
 
 <div id="output">Warte auf Aktion…</div>
@@ -115,8 +117,8 @@
 
   const media = init({
     servers: ['https://blossom.primal.net', 'https://cdn.satellite.earth'],
-    relayUrls: ['wss://relay.damus.io', 'wss://nos.lol'],
-    visionEndpoint: 'http://localhost:8787/describe',
+    relayUrl: 'wss://relay.damus.io',
+    targets: '',  // Injector deaktivieren — wir nutzen manuelle Buttons
 
     // ← Hier wird das Community-Plugin registriert!
     plugins: [communityTabPlugin],
