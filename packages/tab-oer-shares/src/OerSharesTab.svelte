@@ -16,6 +16,7 @@
   import { fetchUserAmbShares } from './nostr/fetch-shares';
   import type { AmbShareItem, SkosSelection } from './nostr/types';
   import { loadConfig, saveConfig, type OerSharesConfig } from './config';
+  import OerShareForm from './OerShareForm.svelte';
 
   let { ctx }: { ctx: WidgetContext } = $props();
 
@@ -28,6 +29,23 @@
 
   // ── Config (persisted) ──
   let config = $state<OerSharesConfig>(loadConfig());
+
+  // ── Edit mode ──
+  let editingItem = $state<AmbShareItem | null>(null);
+
+  function startEdit(item: AmbShareItem) {
+    editingItem = item;
+  }
+
+  function closeEdit() {
+    editingItem = null;
+  }
+
+  function handleEditSaved() {
+    editingItem = null;
+    // Reload shares to reflect changes
+    loadShares();
+  }
 
   // ── Load shares ──
   async function loadShares() {
@@ -264,7 +282,27 @@
           URL übernehmen
         </button>
       {/if}
+
+      <button
+        type="button"
+        class="oer-btn-edit oer-insert-btn"
+        onclick={() => startEdit(selectedItem!)}
+      >
+        ✏️ Bearbeiten
+      </button>
     </div>
+
+  <!-- Edit overlay -->
+  {#if editingItem}
+    <OerShareForm
+      editItem={editingItem}
+      {ctx}
+      onclose={closeEdit}
+      onsaved={handleEditSaved}
+      relayUrl={config.ambRelayUrl}
+      vocabUrls={config.vocabUrls}
+    />
+  {/if}
   {:else}
     <!-- Grid view -->
     <div class="oer-grid">
@@ -479,6 +517,22 @@
   .oer-insert-btn {
     margin-top: 0.8rem;
     width: 100%;
+  }
+
+  .oer-btn-edit {
+    background: var(--bm-bg-subtle, #eee);
+    color: var(--bm-text, #222);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.45rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid var(--bm-input-border, #ccc);
+  }
+
+  .oer-btn-edit:hover {
+    background: var(--bm-input-border, #ddd);
   }
 
   /* ── Settings ── */

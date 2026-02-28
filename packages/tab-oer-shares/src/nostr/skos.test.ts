@@ -8,6 +8,17 @@ import { fetchSkosVocabulary, clearSkosCache } from './skos';
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
+// Mock the bundled-vocabs module so we can control inline fallback data
+vi.mock('./bundled-vocabs', () => ({
+  BUNDLED_VOCAB_DATA: {
+    audience: {
+      hasTopConcept: [
+        { id: 'bundled1', prefLabel: { de: 'Bundled Concept' } },
+      ],
+    },
+  } as Record<string, unknown>,
+}));
+
 beforeEach(() => {
   clearSkosCache();
   mockFetch.mockReset();
@@ -204,42 +215,35 @@ describe('fetchSkosVocabulary', () => {
     expect(concepts[0].prefLabel).toBe('Mitglied A');
   });
 
-  it('should fall back to bundled vocab when remote URL fails', async () => {
-    // First call: remote URL fails
+  it('should fall back to bundled inline data when remote URL fails', async () => {
+    // Remote URL fails
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 404,
       statusText: 'Not Found',
     });
-    // Second call: bundled fallback succeeds
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          hasTopConcept: [
-            { id: 'fallback1', prefLabel: { de: 'Bundled Concept' } },
-          ],
-        }),
-    });
 
     const concepts = await fetchSkosVocabulary(
       'https://remote.example.com/broken.json',
-      'audience', // vocabKey enables fallback to BUNDLED_VOCAB_PATHS.audience
+      'audience', // vocabKey enables fallback to BUNDLED_VOCAB_DATA.audience
     );
     expect(concepts).toHaveLength(1);
     expect(concepts[0].prefLabel).toBe('Bundled Concept');
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // Only one fetch attempt — the fallback uses inline data, no second fetch
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  it('should throw if both remote and fallback fail', async () => {
+  it('should throw if both remote and inline fallback fail', async () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 500,
       statusText: 'Internal Server Error',
     });
 
+    // vocabKey 'educationalLevel' is not in our mocked BUNDLED_VOCAB_DATA,
+    // so no inline fallback is available.
     await expect(
-      fetchSkosVocabulary('https://broken.example.com/vocab.json', 'audience'),
+      fetchSkosVocabulary('https://broken.example.com/vocab.json', 'educationalLevel'),
     ).rejects.toThrow('SKOS fetch failed: 500');
   });
 

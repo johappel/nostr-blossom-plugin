@@ -18,26 +18,73 @@
   import SkosSelector from './SkosSelector.svelte';
   import { mapNip94ToAmb } from './nostr/amb-tags';
   import { publishAmbEvent } from './nostr/publish-amb';
-  import type { AmbFormData, SkosSelection } from './nostr/types';
+  import type { AmbFormData, AmbShareItem, SkosSelection } from './nostr/types';
   import { DEFAULT_AMB_RELAY, DEFAULT_VOCAB_URLS } from './config';
 
   let {
     nip94,
+    editItem,
     ctx,
     onclose,
+    onsaved,
     relayUrl = DEFAULT_AMB_RELAY,
     vocabUrls = DEFAULT_VOCAB_URLS,
   }: {
-    nip94: Nip94FileEvent;
+    nip94?: Nip94FileEvent;
+    editItem?: AmbShareItem;
     ctx: WidgetContext;
     onclose: () => void;
+    onsaved?: () => void;
     relayUrl?: string;
     vocabUrls?: Record<string, string>;
   } = $props();
 
-  // ── Form state (pre-filled from NIP-94 — captured once on mount) ──
-  const initial = untrack(() => mapNip94ToAmb(nip94));
-  const isImage = untrack(() => nip94.mime?.startsWith('image/') ?? false);
+  const isEditMode = untrack(() => !!editItem);
+
+  // ── Form state (pre-filled from editItem or NIP-94 — captured once on mount) ──
+  const initial: AmbFormData = untrack(() => {
+    if (editItem) {
+      return {
+        name: editItem.name,
+        description: editItem.description,
+        keywords: editItem.keywords,
+        creatorName: editItem.creatorName ?? undefined,
+        licenseUrl: editItem.licenseId ?? undefined,
+        audience: editItem.audience,
+        educationalLevel: editItem.educationalLevel,
+        learningResourceType: editItem.learningResourceType,
+        about: editItem.about,
+        inLanguage: editItem.inLanguage ?? 'de',
+        isAccessibleForFree: editItem.isAccessibleForFree ?? true,
+        encodingUrl: editItem.encodingUrl,
+        imageUrl: editItem.imageUrl,
+      };
+    }
+    if (nip94) return mapNip94ToAmb(nip94);
+    return {
+      name: '', description: '', keywords: [],
+      audience: [], educationalLevel: [], learningResourceType: [], about: [],
+      inLanguage: 'de', isAccessibleForFree: true,
+    };
+  });
+
+  const isImage = untrack(() => {
+    if (editItem) return !!editItem.imageUrl;
+    return nip94?.mime?.startsWith('image/') ?? false;
+  });
+
+  // d-tag for addressable event replacement
+  const existingDTag = untrack(() => editItem?.dTag);
+
+  // Preview info
+  const previewImage = untrack(() => {
+    if (editItem) return editItem.imageUrl;
+    return nip94?.thumbUrl ?? nip94?.imageUrl;
+  });
+  const previewLabel = untrack(() => {
+    if (editItem) return editItem.name || editItem.encodingUrl;
+    return nip94?.content ?? nip94?.url;
+  });
 
   let name = $state(initial.name);
   let description = $state(initial.description);
@@ -47,17 +94,21 @@
   let inLanguage = $state(initial.inLanguage);
 
   let audience = $state<SkosSelection[]>(
-    isImage
-      ? [{ id: 'https://w3id.org/kim/lrmi-audience-role/general-public', prefLabel: 'Allgemeinheit' }]
-      : [],
+    initial.audience.length > 0
+      ? initial.audience
+      : isImage && !isEditMode
+        ? [{ id: 'https://w3id.org/kim/lrmi-audience-role/general-public', prefLabel: 'Allgemeinheit' }]
+        : [],
   );
-  let educationalLevel = $state<SkosSelection[]>([]);
+  let educationalLevel = $state<SkosSelection[]>(initial.educationalLevel);
   let learningResourceType = $state<SkosSelection[]>(
-    isImage
-      ? [{ id: 'https://vocabs.sodix.de/sodix/educational/learningresourcetype/BILD', prefLabel: 'Bild' }]
-      : [],
+    initial.learningResourceType.length > 0
+      ? initial.learningResourceType
+      : isImage && !isEditMode
+        ? [{ id: 'https://vocabs.sodix.de/sodix/educational/learningresourcetype/BILD', prefLabel: 'Bild' }]
+        : [],
   );
-  let about = $state<SkosSelection[]>([]);
+  let about = $state<SkosSelection[]>(initial.about);
 
   // ── UI state ──
   let submitting = $state(false);
@@ -133,14 +184,17 @@
     statusType = 'info';
 
     try {
-      const result = await publishAmbEvent(signer, formData, relayUrl);
+      const result = await publishAmbEvent(signer, formData, relayUrl, existingDTag);
       const anySuccess = result.relays.some((r) => r.ok);
 
       if (anySuccess) {
-        statusMessage = '✓ Erfolgreich im Edufeed geteilt!';
+        statusMessage = isEditMode ? '✓ Erfolgreich aktualisiert!' : '✓ Erfolgreich im Edufeed geteilt!';
         statusType = 'success';
         // Auto-close after short delay
-        setTimeout(() => onclose(), 1500);
+        setTimeout(() => {
+          onsaved?.();
+          onclose();
+        }, 1500);
       } else {
         const errors = result.relays
           .filter((r) => !r.ok)
@@ -171,19 +225,19 @@
   <div class="oer-form-dialog">
     <!-- Header -->
     <div class="oer-form-header">
-      <span class="oer-form-title">🎓 Im Edufeed teilen</span>
+      <span class="oer-form-title">{isEditMode ? '✏️ OER-Share bearbeiten' : '🎓 Im Edufeed teilen'}</span>
       <button type="button" class="oer-form-close" onclick={onclose}>&times;</button>
     </div>
 
     <!-- Preview -->
-    {#if nip94.thumbUrl || nip94.imageUrl}
+    {#if previewImage}
       <div class="oer-form-preview">
         <img
-          src={nip94.thumbUrl || nip94.imageUrl}
+          src={previewImage}
           alt=""
           class="oer-form-thumb"
         />
-        <span class="oer-form-filename">{nip94.content || nip94.url}</span>
+        <span class="oer-form-filename">{previewLabel}</span>
       </div>
     {/if}
 
@@ -318,7 +372,7 @@
           onclick={handleSubmit}
           disabled={submitting}
         >
-          {submitting ? 'Wird gesendet…' : 'Jetzt im Edufeed teilen'}
+          {submitting ? 'Wird gesendet…' : isEditMode ? 'Änderungen speichern' : 'Jetzt im Edufeed teilen'}
         </button>
       </div>
     </div>

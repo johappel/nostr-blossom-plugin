@@ -133,14 +133,16 @@ function appendConceptTags(
  *
  * @param form       - Validated form data
  * @param relayHint  - Optional relay hint for the creator p-tag
+ * @param dTagOverride - Use this d-tag instead of deriving from encodingUrl
  * @returns          Tag array ready for event signing
  */
 export function buildAmbEventTags(
   form: AmbFormData,
   relayHint = '',
+  dTagOverride?: string,
 ): string[][] {
-  // Use encodingUrl as stable d-tag identifier (allows replacement on re-share)
-  const dTag = form.encodingUrl ?? `oer-${Date.now()}`;
+  // Use override, then encodingUrl, then random fallback
+  const dTag = dTagOverride ?? form.encodingUrl ?? `oer-${Date.now()}`;
 
   const tags: string[][] = [];
 

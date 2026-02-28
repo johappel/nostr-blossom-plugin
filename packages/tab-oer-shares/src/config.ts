@@ -20,17 +20,6 @@ export const DEFAULT_VOCAB_URLS: Record<string, string> = {
   about: '/vocabs/schulfaecher.json',
 };
 
-/**
- * Bundled fallback paths — used when a user-configured remote URL fails.
- * These are always the local copies shipped with the plugin.
- */
-export const BUNDLED_VOCAB_PATHS: Record<string, string> = {
-  audience: '/vocabs/audience.json',
-  educationalLevel: '/vocabs/educationalLevel.json',
-  learningResourceType: '/vocabs/learningResourceType.json',
-  about: '/vocabs/schulfaecher.json',
-};
-
 /** localStorage key for persisted config overrides. */
 export const LS_CONFIG_KEY = 'blossom:oer-shares:config';
 

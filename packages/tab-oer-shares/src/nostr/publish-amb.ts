@@ -19,14 +19,16 @@ import { DEFAULT_AMB_RELAY } from '../config';
  * @param signer     - Nostr signer for signing the event
  * @param formData   - Validated AMB form data
  * @param relayUrl   - Override relay URL (default: wss://amb-relay.edufeed.org)
+ * @param dTag       - Override d-tag (for editing existing events)
  * @returns          Publish result with per-relay status
  */
 export async function publishAmbEvent(
   signer: BlossomSigner,
   formData: AmbFormData,
   relayUrl: string = DEFAULT_AMB_RELAY,
+  dTag?: string,
 ): Promise<PublishEventResult> {
-  const tags = buildAmbEventTags(formData, relayUrl);
+  const tags = buildAmbEventTags(formData, relayUrl, dTag);
   const content = formData.description; // content = description for client compat
 
   return publishEvent(signer, [relayUrl], content, tags, 30142);

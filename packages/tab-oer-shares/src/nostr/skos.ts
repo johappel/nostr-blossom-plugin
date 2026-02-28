@@ -12,7 +12,7 @@
  */
 
 import type { SkosConcept } from './types';
-import { BUNDLED_VOCAB_PATHS } from '../config';
+import { BUNDLED_VOCAB_DATA } from './bundled-vocabs';
 
 // ── In-memory cache (module closure) ─────────────────────────────────────────
 const _cache = new Map<string, SkosConcept[]>();
@@ -72,26 +72,41 @@ export async function fetchSkosVocabulary(
     _cache.set(url, concepts);
     return concepts;
   } catch (primaryError) {
-    // If a bundled fallback exists and is different from the URL we just tried,
-    // attempt loading it before giving up.
-    const fallbackPath =
-      vocabKey ? BUNDLED_VOCAB_PATHS[vocabKey] : undefined;
+    // If bundled inline data exists for this vocab key, parse it directly
+    // without any network request.
+    const inlineData =
+      vocabKey ? BUNDLED_VOCAB_DATA[vocabKey] : undefined;
 
-    if (fallbackPath && fallbackPath !== url) {
+    if (inlineData) {
       try {
-        const concepts = await fetchAndParse(fallbackPath);
+        const concepts = parseVocabData(inlineData as Record<string, unknown>);
         _cache.set(url, concepts); // Cache under the original key
         console.warn(
-          `[OER-Shares] Remote vocab failed (${url}), using bundled fallback.`,
+          `[OER-Shares] Remote vocab failed (${url}), using bundled inline data.`,
         );
         return concepts;
       } catch {
-        // Fallback also failed — throw the original error
+        // Inline parse also failed — throw the original error
       }
     }
 
     throw primaryError;
   }
+}
+
+/**
+ * Internal: parse already-loaded vocab JSON data into SkosConcept[]
+ * Used for inline-bundled vocabularies (no fetch required).
+ */
+function parseVocabData(json: Record<string, unknown>): SkosConcept[] {
+  const rawConcepts = extractTopConcepts(json);
+  if (!rawConcepts || rawConcepts.length === 0) {
+    throw new Error('Unexpected SKOS data: no hasTopConcept array (inline)');
+  }
+  return rawConcepts
+    .map(parseConcept)
+    .filter((c): c is SkosConcept => c !== null)
+    .sort((a, b) => a.prefLabel.localeCompare(b.prefLabel, 'de'));
 }
 
 /**
