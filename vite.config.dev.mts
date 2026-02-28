@@ -44,11 +44,20 @@ export default defineConfig({
       '@blossom/plugin/plugin': path.resolve(__dirname, 'packages/blossom-plugin/src/widget/plugin-api.ts'),
       '@blossom/plugin': path.resolve(__dirname, 'packages/blossom-plugin/src/index.ts'),
       '@blossom/tab-communikey': path.resolve(__dirname, 'packages/tab-communikey/src/index.ts'),
+      '@blossom/tab-oer-shares': path.resolve(__dirname, 'packages/tab-oer-shares/src/index.ts'),
     },
   },
 
   server: {
     port: 5188,
     open: '/examples/community-tab.html',
+
+    // Allow serving files from workspace packages
+    fs: {
+      allow: ['.'],
+    },
   },
+
+  // Serve /vocabs/ from tab-oer-shares/public during dev
+  publicDir: path.resolve(__dirname, 'packages/tab-oer-shares/public'),
 });

@@ -1,0 +1,38 @@
+{
+  "id": "https://w3id.org/kim/lrmi-audience-role/",
+  "type": "ConceptScheme",
+  "title": { "de": "Zielgruppe", "en": "Audience Role" },
+  "description": {
+    "de": "Zielgruppen für OER-Bildungsressourcen."
+  },
+  "hasTopConcept": [
+    {
+      "id": "https://w3id.org/kim/lrmi-audience-role/general-public",
+      "prefLabel": { "de": "Allgemeinheit", "en": "General Public" }
+    },
+    {
+      "id": "https://w3id.org/kim/lrmi-audience-role/learner",
+      "prefLabel": { "de": "Lernende", "en": "Learner" }
+    },
+    {
+      "id": "https://w3id.org/kim/lrmi-audience-role/teacher",
+      "prefLabel": { "de": "Lehrende", "en": "Teacher" }
+    },
+    {
+      "id": "https://w3id.org/kim/lrmi-audience-role/parent",
+      "prefLabel": { "de": "Eltern", "en": "Parent" }
+    },
+    {
+      "id": "https://w3id.org/kim/lrmi-audience-role/tutor",
+      "prefLabel": { "de": "Tutor", "en": "Tutor" }
+    },
+    {
+      "id": "https://w3id.org/kim/lrmi-audience-role/mentor",
+      "prefLabel": { "de": "Lernbegleitung", "en": "Mentor" }
+    },
+    {
+      "id": "https://w3id.org/kim/lrmi-audience-role/professional",
+      "prefLabel": { "de": "Fachleute", "en": "Professional/Practitioner" }
+    }
+  ]
+}

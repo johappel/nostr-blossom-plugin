@@ -259,6 +259,12 @@ export interface TabPlugin {
   /** Called when the widget is destroyed. Use for final cleanup. */
   onDestroy?: (ctx: WidgetContext) => void;
 
+  /**
+   * If `true`, this plugin is disabled by default when first seen.
+   * The user can still enable it in the Settings → Erweiterungen panel.
+   */
+  defaultDisabled?: boolean;
+
   // ── Share integration (optional) ─────────────────────────────────────
   /**
    * Share targets provided by this plugin.

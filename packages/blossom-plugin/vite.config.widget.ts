@@ -75,6 +75,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@blossom/tab-communikey': path.resolve(__dirname, '../tab-communikey/src/index.ts'),
+      '@blossom/tab-oer-shares': path.resolve(__dirname, '../tab-oer-shares/src/index.ts'),
       '@blossom/plugin/plugin': path.resolve(__dirname, 'src/widget/plugin-api.ts'),
     },
   },
