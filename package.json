@@ -8,6 +8,7 @@
     "build": "pnpm -r build",
     "build:widget": "pnpm --filter @blossom/plugin build:widget",
     "check": "pnpm typecheck",
+    "dev:community": "vite --config vite.config.dev.ts",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },
