@@ -78,12 +78,21 @@ export async function fetchVisionSuggestion(
 ): Promise<VisionSuggestResult> {
   const endpoint = resolveVisionEndpoint(options.endpoint);
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageUrl }),
-    signal,
-  });
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl }),
+      signal,
+    });
+  } catch (err) {
+    // Network error — Docker / AI service likely not running
+    if (err instanceof TypeError && /NetworkError|fetch|Failed to fetch|ECONNREFUSED/i.test((err as Error).message)) {
+      throw new Error('KI-Service nicht erreichbar. Prüfe, ob die Docker-Instanz läuft.');
+    }
+    throw err;
+  }
 
   const payload = (await response.json()) as VisionSuggestResult & { error?: string };
 
