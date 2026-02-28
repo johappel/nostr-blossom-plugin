@@ -2,6 +2,9 @@
 
 Monorepo für ein einbettbares Blossom-Media-Widget und Nostr-Upload-Plugin.
 
+<img width="1265" height="657" alt="grafik" src="https://github.com/user-attachments/assets/5fce3c17-a0a2-435d-9331-bb1787f46977" />
+
+
 ## Pakete / Apps
 
 | Pfad | Beschreibung |
