@@ -31,7 +31,7 @@
     /** Called when user wants to disconnect the bunker. */
     onBunkerDisconnect: () => void;
     /** Registered tab plugins (for enable/disable toggles). */
-    registeredPlugins?: { id: string; label: string; icon?: string }[];
+    registeredPlugins?: { id: string; label: string; icon?: string; defaultDisabled?: boolean }[];
   }
 
   let {
@@ -55,7 +55,17 @@
   let serversText = $state((_init.servers ?? []).join('\n'));
   let relaysText = $state((_init.relays ?? []).join('\n'));
   let visionEndpoint = $state(_init.visionEndpoint ?? '');
-  let disabledPlugins = $state<Set<string>>(new Set(_init.disabledPlugins ?? []));
+  // Seed default-disabled plugins the first time the user sees them.
+  // If settings already contain an explicit disabledPlugins array the user
+  // has saved before, we honour it.  Otherwise we pre-populate with
+  // plugins whose `defaultDisabled` flag is true.
+  const _savedDisabled = new Set(_init.disabledPlugins ?? []);
+  if (!_init.disabledPlugins) {
+    for (const p of untrack(() => registeredPlugins)) {
+      if (p.defaultDisabled) _savedDisabled.add(p.id);
+    }
+  }
+  let disabledPlugins = $state<Set<string>>(_savedDisabled);
 
   // ── Bunker connection state ────────────────────────────────────────────
   const _initBunkerConnected = untrack(() => bunkerConnected);
@@ -126,7 +136,7 @@
       relays: parseLines(relaysText),
       visionEndpoint: visionEndpoint.trim() || undefined,
       imageGenEndpoint: untrack(() => settings).imageGenEndpoint,  // preserve if set externally
-      disabledPlugins: disabledPlugins.size > 0 ? [...disabledPlugins] : undefined,
+      disabledPlugins: [...disabledPlugins],  // always persist (even empty) to distinguish from "never saved"
       updatedAt: Date.now(),
     };
 

@@ -68,8 +68,8 @@ export function init(config: BlossomMediaConfig): BlossomMediaInstance {
     }
   }
 
-  // ── Built-in OER-Shares tab (opt-in via features.oerShares = true) ─────
-  if (config.features?.oerShares === true) {
+  // ── Built-in OER-Shares tab (always registered, defaultDisabled) ──────
+  {
     const alreadyRegistered = (config.plugins ?? []).some(
       (p) => p.id === oerSharesPlugin.id,
     );

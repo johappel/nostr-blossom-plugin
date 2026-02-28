@@ -12,6 +12,7 @@
 -->
 <script lang="ts">
   import type { WidgetContext } from '@blossom/plugin/plugin';
+  import { untrack } from 'svelte';
   import { fetchUserAmbShares } from './nostr/fetch-shares';
   import type { AmbShareItem, SkosSelection } from './nostr/types';
   import { loadConfig, saveConfig, type OerSharesConfig } from './config';
@@ -84,12 +85,13 @@
     return concepts.map((c) => c.prefLabel).join(', ') || '—';
   }
 
-  // ── Settings ──
-  let settingsAbout = $state(config.vocabUrls.about ?? '');
-  let settingsAudience = $state(config.vocabUrls.audience ?? '');
-  let settingsEduLevel = $state(config.vocabUrls.educationalLevel ?? '');
-  let settingsLrt = $state(config.vocabUrls.learningResourceType ?? '');
-  let settingsRelay = $state(config.ambRelayUrl);
+  // ── Settings (captured once from config — user edits these fields) ──
+  const _initConfig = untrack(() => config);
+  let settingsAbout = $state(_initConfig.vocabUrls.about ?? '');
+  let settingsAudience = $state(_initConfig.vocabUrls.audience ?? '');
+  let settingsEduLevel = $state(_initConfig.vocabUrls.educationalLevel ?? '');
+  let settingsLrt = $state(_initConfig.vocabUrls.learningResourceType ?? '');
+  let settingsRelay = $state(_initConfig.ambRelayUrl);
 
   function saveSettings() {
     config = {

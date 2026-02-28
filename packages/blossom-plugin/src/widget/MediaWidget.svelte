@@ -86,8 +86,14 @@
     for (const ct of config.tabs ?? []) {
       result.push({ id: ct.id, label: ct.label, order: 100, custom: ct });
     }
-    // Tab plugins (skip user-disabled ones)
+    // Tab plugins (skip user-disabled ones + default-disabled on first run)
     const disabled = new Set(userSettings.disabledPlugins ?? []);
+    // If user has never saved settings, also disable defaultDisabled plugins
+    if (!userSettings.disabledPlugins) {
+      for (const p of config.plugins ?? []) {
+        if (p.defaultDisabled) disabled.add(p.id);
+      }
+    }
     for (const p of config.plugins ?? []) {
       if (!disabled.has(p.id)) {
         result.push({ id: p.id, label: p.label, icon: p.icon, order: p.order ?? 100, plugin: p });
@@ -100,6 +106,11 @@
   // ── Collect share targets from active plugins ─────────────────────────────
   let shareTargets = $derived.by((): ShareTarget[] => {
     const disabled = new Set(userSettings.disabledPlugins ?? []);
+    if (!userSettings.disabledPlugins) {
+      for (const p of config.plugins ?? []) {
+        if (p.defaultDisabled) disabled.add(p.id);
+      }
+    }
     return (config.plugins ?? [])
       .filter(p => !disabled.has(p.id))
       .flatMap(p => p.shareTargets ?? []);
@@ -975,7 +986,7 @@
           relayUrls={effective.relayUrls}
           appId={config.appId ?? 'default'}
           bunkerConnected={bunkerSession !== null}
-          registeredPlugins={(config.plugins ?? []).map(p => ({ id: p.id, label: p.label, icon: p.icon }))}
+          registeredPlugins={(config.plugins ?? []).map(p => ({ id: p.id, label: p.label, icon: p.icon, defaultDisabled: p.defaultDisabled }))}
           onClose={() => { settingsOpen = false; }}
           onSettingsChanged={handleSettingsChanged}
           onBunkerConnected={handleBunkerConnected}

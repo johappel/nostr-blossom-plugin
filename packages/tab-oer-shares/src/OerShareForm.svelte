@@ -13,6 +13,7 @@
     vocabUrls — Override vocabulary URLs
 -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { Nip94FileEvent, WidgetContext } from '@blossom/plugin/plugin';
   import SkosSelector from './SkosSelector.svelte';
   import { mapNip94ToAmb } from './nostr/amb-tags';
@@ -34,8 +35,9 @@
     vocabUrls?: Record<string, string>;
   } = $props();
 
-  // ── Form state (pre-filled from NIP-94) ──
-  const initial = mapNip94ToAmb(nip94);
+  // ── Form state (pre-filled from NIP-94 — captured once on mount) ──
+  const initial = untrack(() => mapNip94ToAmb(nip94));
+  const isImage = untrack(() => nip94.mime?.startsWith('image/') ?? false);
 
   let name = $state(initial.name);
   let description = $state(initial.description);
@@ -45,13 +47,13 @@
   let inLanguage = $state(initial.inLanguage);
 
   let audience = $state<SkosSelection[]>(
-    nip94.mime?.startsWith('image/')
+    isImage
       ? [{ id: 'https://w3id.org/kim/lrmi-audience-role/general-public', prefLabel: 'Allgemeinheit' }]
       : [],
   );
   let educationalLevel = $state<SkosSelection[]>([]);
   let learningResourceType = $state<SkosSelection[]>(
-    nip94.mime?.startsWith('image/')
+    isImage
       ? [{ id: 'https://vocabs.sodix.de/sodix/educational/learningresourcetype/BILD', prefLabel: 'Bild' }]
       : [],
   );
