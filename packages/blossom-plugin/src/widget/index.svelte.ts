@@ -116,7 +116,7 @@ export function init(config: BlossomMediaConfig): BlossomMediaInstance {
     requestedTab: undefined as string | undefined,
   });
 
-  const widgetProps: Record<string, unknown> = {
+  const widgetProps = {
     get config() { return config; },
     get open() { return _reactive.open; },
     set open(v: boolean) { _reactive.open = v; },

@@ -567,17 +567,17 @@
   .keyword-bar {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.3rem;
-    max-height: 5.4rem;
+    gap: 0.2rem;
+    max-height: 2.6rem;
     overflow-y: auto;
-    padding-right: 0.25rem;
+    padding-right: .25rem;
   }
 
   .keyword-tag {
     font: inherit;
     font-size: 0.75rem;
-    padding: 0.2rem 0.5rem;
-    border: 1px solid var(--bm-input-border, #bbb);
+    padding: 0.1rem 0.3rem;
+    border: 0px solid var(--bm-input-border, #bbb);
     border-radius: 99px;
     background: var(--bm-bg-subtle, #f5f5f5);
     cursor: pointer;
