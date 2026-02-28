@@ -6,7 +6,7 @@
  */
 
 /** Default AMB relay for Edufeed. */
-export const DEFAULT_AMB_RELAY = 'wss://relay-amb.edufeed.org';
+export const DEFAULT_AMB_RELAY = 'wss://amb-relay.edufeed.org';
 
 /** Default SKOS vocabulary URLs.
  *  All vocabs are bundled locally under /vocabs/ for reliability.

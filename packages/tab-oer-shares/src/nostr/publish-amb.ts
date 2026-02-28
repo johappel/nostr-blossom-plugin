@@ -18,7 +18,7 @@ import { DEFAULT_AMB_RELAY } from '../config';
  *
  * @param signer     - Nostr signer for signing the event
  * @param formData   - Validated AMB form data
- * @param relayUrl   - Override relay URL (default: wss://relay-amb.edufeed.org)
+ * @param relayUrl   - Override relay URL (default: wss://amb-relay.edufeed.org)
  * @returns          Publish result with per-relay status
  */
 export async function publishAmbEvent(

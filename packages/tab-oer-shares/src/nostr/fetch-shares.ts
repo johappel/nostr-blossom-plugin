@@ -84,7 +84,7 @@ function parseAmbEvent(event: Record<string, unknown>): AmbShareItem | null {
  * Fetch all AMB kind:30142 events for a given pubkey from the relay.
  *
  * @param pubkey    - Hex pubkey of the user
- * @param relayUrl  - AMB relay URL (default: wss://relay-amb.edufeed.org)
+ * @param relayUrl  - AMB relay URL (default: wss://amb-relay.edufeed.org)
  * @param timeoutMs - Connection/query timeout in ms (default: 10000)
  * @returns         Parsed AMB share items, newest first
  */

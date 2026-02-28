@@ -44,7 +44,7 @@ BlossomMedia.init({
    - Bildungsstufe (ISCED-basiert)
    - Ressourcentyp (HCRT)
    - Fach/Thema (Schulfächer, konfigurierbar)
-5. Klick auf "Jetzt im Edufeed teilen" → kind:30142 Event wird signiert und an `wss://relay-amb.edufeed.org` gesendet
+5. Klick auf "Jetzt im Edufeed teilen" → kind:30142 Event wird signiert und an `wss://amb-relay.edufeed.org` gesendet
 
 ### OER-Shares Tab
 
@@ -71,7 +71,7 @@ Vocabulary-URLs und Relay können im OER-Shares Tab unter "⚙️ Einstellungen"
 
 | Feld | Default |
 |---|---|
-| AMB Relay | `wss://relay-amb.edufeed.org` |
+| AMB Relay | `wss://amb-relay.edufeed.org` |
 | Zielgruppe | LRMI Audience Roles (SkoHub) |
 | Bildungsstufe | Educational Level (SkoHub) |
 | Ressourcentyp | HCRT (SkoHub) |
