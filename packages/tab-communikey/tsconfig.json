@@ -1,8 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "src",
+    "noEmit": true,
     "paths": {
       "@blossom/plugin/plugin": ["../blossom-plugin/src/widget/plugin-api"]
     }

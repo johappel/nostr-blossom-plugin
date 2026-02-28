@@ -660,12 +660,6 @@
     margin: 0.3rem 0 0 0;
   }
 
-  .sp-success {
-    font-size: 0.8rem;
-    color: var(--bm-accent);
-    margin: 0.3rem 0 0 0;
-  }
-
   .sp-footer-hint {
     font-size: 0.75rem;
     color: var(--bm-text-muted);
