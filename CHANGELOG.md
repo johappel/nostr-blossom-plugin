@@ -94,6 +94,7 @@ The format is based on Keep a Changelog.
 
 - **`docs/plugin-tabs.md`**: Plugin-Authoring-Guide mit API-Referenz, Quick-Start, Beispielen und Best Practices.
 - **`README.md` aktualisiert**: Veraltete Demo-/`pnpm start`-Hinweise entfernt, Bookmarklet/Examples ergänzt und GitHub-Pages-Startziel (`examples/simple-input.html`) dokumentiert.
+- **`integration.md` aktualisiert**: InsertMode-/Feature-Tabellen an aktuellen Widget-Stand angepasst (`markdown-desc`, `json`, `imageGen`, `community`, `plugins`) und Pages/Examples-Flow ergänzt.
 
 ### Deprecated
 

@@ -3,6 +3,12 @@
 Das Widget ist ein einbettbares Mediathek-Script (ähnlich dem WordPress Media Picker).
 Es scannt die Seite nach markierten Feldern, injiziert einen **🌸 Mediathek**-Button und öffnet bei Klick einen Dialog mit Upload- und Galerie-Tab.
 
+Für lokale Beispiele siehe:
+
+- `examples/simple-input.html` (Standard-Integration)
+- `examples/bookmarklet.html` (Standalone-Bookmarklet)
+- `examples/bookmarklet-popup.html` (Popup-Zielseite)
+
 ---
 
 ## Installation
@@ -46,6 +52,14 @@ pnpm --filter @blossom/plugin build:widget
 </script>
 ```
 
+### GitHub Pages (optional)
+
+Im Repository ist ein Workflow für GitHub Pages vorhanden:
+
+- `.github/workflows/deploy-pages.yml`
+
+Die Pages-Startseite leitet auf `examples/simple-input.html` weiter.
+
 **Variante C — ESM-Import** (für Build-Systeme wie Vite, Webpack):
 
 ```js
@@ -88,9 +102,10 @@ window.BlossomMedia.init({
 | `signer` | `BlossomSigner` | — | `window.nostr` | Nostr-Signer für Upload-Authentifizierung und Event-Publishing. Muss `getPublicKey()` und `signEvent()` implementieren. Fällt auf NIP-07 (`window.nostr`) zurück, wenn nicht angegeben. |
 | `relayUrl` | `string` | — | — | WebSocket-URL des Nostr-Relays. Wird für NIP-94 Kind-1063 Publikation und Galerie-Fetch benötigt. Ohne diese Option werden keine Events publiziert/geladen. |
 | `visionEndpoint` | `string` | — | — | Basis-URL des KI-Vision-Dienstes (`apps/image-describer`). Aktiviert den **KI-Vorschlag**-Button im Metadaten-Formular. Akzeptiert Bare-Host-URLs — `/describe` wird automatisch angehängt. |
-| `insertMode` | `InsertMode` | — | `'url'` | Steuert, wie die URL nach der Auswahl ins Zielfeld geschrieben wird. Mögliche Werte: `'url'`, `'markdown'`, `'html'`, `'nostr-tag'`. |
+| `insertMode` | `InsertMode` | — | `'url'` | Steuert, wie die URL nach der Auswahl ins Zielfeld geschrieben wird. Mögliche Werte: `'url'`, `'markdown'`, `'markdown-desc'`, `'html'`, `'nostr-tag'`, `'json'`. |
 | `features` | `BlossomMediaFeatures` | — | alle `true` | Feature-Flags zum Ein-/Ausblenden einzelner Widget-Bereiche. Siehe Tabelle unten. |
-| `tabs` | `CustomTab[]` | — | `[]` | Zusätzliche Custom-Tabs im Dialog. *Experimentell, noch nicht vollständig implementiert.* |
+| `tabs` | `CustomTab[]` | — | `[]` | Zusätzliche Custom-Tabs (Legacy). **Deprecated** — besser `plugins` nutzen. |
+| `plugins` | `TabPlugin[]` | — | `[]` | Modernes Tab-Plugin-System (Svelte/Vanilla), empfohlen für Erweiterungen. |
 | `onInsert` | `(result, targetEl) => void` | — | — | Callback nach „Übernehmen". Erhält das vollständige `InsertResult`-Objekt und das Ziel-DOM-Element. |
 | `onUpload` | `(tags, url) => void` | — | — | Callback direkt nach erfolgreichem Upload — vor dem Metadaten-Dialog. |
 | `onDelete` | `(url) => void` | — | — | Callback nach dem Löschen einer Datei. |
@@ -102,8 +117,10 @@ window.BlossomMedia.init({
 |---|---|
 | `'url'` | `https://cdn.example.com/image.webp` |
 | `'markdown'` | `![Alt-Text](https://cdn.example.com/image.webp)` |
+| `'markdown-desc'` | `Beschreibung` + Zeilenumbruch + `![Alt-Text](url)` |
 | `'html'` | `<img src="https://cdn.example.com/image.webp" alt="Alt-Text">` |
 | `'nostr-tag'` | NIP-94 `imeta`-Tag-String |
+| `'json'` | JSON mit URL + Metadaten |
 
 ### `BlossomMediaFeatures`
 
@@ -111,9 +128,11 @@ window.BlossomMedia.init({
 |---|:---:|---|
 | `upload` | `true` | Zeigt den Tab „Dateien hochladen" |
 | `gallery` | `true` | Zeigt den Tab „Mediathek" |
+| `imageGen` | `true` | Zeigt den Tab „Bild erstellen" (wenn Image-Gen-Endpoint verfügbar ist) |
 | `aiDescription` | `true` | Zeigt den KI-Vorschlag-Button im Metadaten-Formular (benötigt `visionEndpoint`) |
 | `metadata` | `true` | Zeigt das vollständige Metadaten-Formular (Beschreibung, Alt, Autor, Lizenz …) |
 | `deleteFiles` | `true` | Erlaubt das Löschen von Dateien aus der Galerie |
+| `community` | `true` | Zeigt den eingebauten Community-Tab (falls Plugin im Bundle aktiv) |
 
 ---
 
