@@ -74,11 +74,12 @@
     top: 0;
     right: 0;
     bottom: 0;
-    width: min(100%, 600px);
+    width: min(100%, 400px);
     z-index: 10;
-    background: var(--bm-bg, #fff);
+    background: var(--bm-bg-subtle, #f8f8f8);
     border-radius: 8px 0 0 8px;
     border-left: 1px solid var(--bm-border-muted, #eee);
+    box-shadow: -10px 0 24px rgba(0, 0, 0, 0.18);
     display: flex;
     flex-direction: column;
     padding: 0.5rem;

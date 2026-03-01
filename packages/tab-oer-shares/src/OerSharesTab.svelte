@@ -100,6 +100,21 @@
     });
   }
 
+  function shortenPubkey(pk: string): string {
+    if (!pk || pk.length < 16) return pk;
+    return `${pk.slice(0, 8)}…${pk.slice(-4)}`;
+  }
+
+  function getDisplayAuthor(item: AmbShareItem): string | undefined {
+    const creator = item.creatorName?.trim();
+    if (creator) return creator;
+    return item.pubkey ? shortenPubkey(item.pubkey) : undefined;
+  }
+
+  function getAltText(item: AmbShareItem): string | undefined {
+    return item.name?.trim() || undefined;
+  }
+
   function formatConcepts(concepts: SkosSelection[]): string {
     return concepts.map((c) => c.prefLabel).join(', ') || '—';
   }
@@ -156,7 +171,7 @@
       previewUrl: item.imageUrl,
       name: item.name || 'Unbenannt',
       description: item.description,
-      author: item.creatorName,
+      author: getDisplayAuthor(item),
       license: item.licenseId,
       mimeType: undefined,
       date: formatDate(item.createdAt),
@@ -266,13 +281,17 @@
 
             <!-- Base metadata -->
             <dl class="meta-list">
+              {#if getAltText(selectedItem)}
+                <dt>Alt-Text</dt>
+                <dd>{getAltText(selectedItem)}</dd>
+              {/if}
               {#if selectedItem.description}
                 <dt>Beschreibung</dt>
                 <dd>{selectedItem.description}</dd>
               {/if}
-              {#if selectedItem.creatorName}
+              {#if getDisplayAuthor(selectedItem)}
                 <dt>Autor</dt>
-                <dd>{selectedItem.creatorName}</dd>
+                <dd>{getDisplayAuthor(selectedItem)}</dd>
               {/if}
               {#if selectedItem.licenseId}
                 <dt>Lizenz</dt>
@@ -444,9 +463,12 @@
 
   .oer-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 140px));
     gap: 0.5rem;
     padding: 0.6rem;
+    align-content: start;
+    align-items: start;
+    justify-content: start;
     overflow-y: auto;
     height: 100%;
     box-sizing: border-box;

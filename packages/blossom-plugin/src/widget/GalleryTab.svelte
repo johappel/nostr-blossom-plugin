@@ -177,14 +177,18 @@
     return '';
   }
 
-  function formatDate(iso: string) {
+  function formatDate(iso: string, withTime = true) {
     try {
       return new Date(iso).toLocaleString('de-DE', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
+        ...(withTime
+          ? {
+              hour: '2-digit',
+              minute: '2-digit',
+            }
+          : {}),
       });
     } catch {
       return iso;
@@ -231,7 +235,7 @@
       license: item.metadata?.license,
       licenseLabel: item.metadata?.licenseLabel,
       mimeType: item.mime,
-      date: formatDate(item.createdAt),
+      date: formatDate(item.createdAt, false),
       keywords: item.metadata?.keywords,
       genre: item.metadata?.genre,
       sha256: item.sha256,
@@ -552,10 +556,12 @@
 
   .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 140px));
     gap: 0.5rem;
     padding: 0.6rem;
     align-content: start;
+    align-items: start;
+    justify-content: start;
     overflow-y: auto;
     height: 100%;
     box-sizing: border-box;

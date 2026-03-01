@@ -58,6 +58,18 @@
     return ev.content || altTag?.[1] || '';
   }
 
+  function extractAltFromNip94(ev: { tags: string[][] }): string | undefined {
+    return ev.tags.find(t => t[0] === 'alt')?.[1] || undefined;
+  }
+
+  function extractAuthorFromNip94(ev: { tags: string[][]; pubkey?: string }): string | undefined {
+    const authorTag = ev.tags.find(t => t[0] === 'author')?.[1];
+    if (authorTag) return authorTag;
+    const pTag = ev.tags.find(t => t[0] === 'p')?.[1];
+    if (pTag) return shortenPubkey(pTag);
+    return ev.pubkey ? shortenPubkey(ev.pubkey) : undefined;
+  }
+
   function extractLicenseFromNip94(ev: { tags: string[][] }): string | undefined {
     return ev.tags.find(t => t[0] === 'l')?.[1];
   }
@@ -82,12 +94,11 @@
       previewUrl: item.mime.startsWith('image/') ? item.url : undefined,
       name: item.description || '',
       description: item.description,
-      author: shortenPubkey(item.sharedBy),
+      author: nip94 ? extractAuthorFromNip94(nip94) : shortenPubkey(item.sharedBy),
       license: nip94 ? extractLicenseFromNip94(nip94) : undefined,
       mimeType: item.mime,
-      date: new Date(item.sharedAt * 1000).toLocaleString('de-DE', {
+      date: new Date(item.sharedAt * 1000).toLocaleDateString('de-DE', {
         day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
       }),
       keywords: kws.length ? kws : undefined,
       tags: nip94?.tags,
@@ -305,6 +316,16 @@
                 {/if}
                 {#if resolvedNip94.get(selectedMedia.originalEventId)}
                   {@const nip94 = resolvedNip94.get(selectedMedia.originalEventId)!}
+                  {@const altText = extractAltFromNip94(nip94)}
+                  {#if altText}
+                    <dt>Alt-Text</dt>
+                    <dd>{altText}</dd>
+                  {/if}
+                  {@const author = extractAuthorFromNip94(nip94)}
+                  {#if author}
+                    <dt>Autor</dt>
+                    <dd>{author}</dd>
+                  {/if}
                   {@const license = extractLicenseFromNip94(nip94)}
                   {#if license}
                     <dt>Lizenz</dt>
@@ -481,10 +502,12 @@
 
   .media-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 140px));
     gap: 0.5rem;
     padding: 0.6rem;
     align-content: start;
+    align-items: start;
+    justify-content: start;
     overflow-y: auto;
     height: 100%;
     box-sizing: border-box;
