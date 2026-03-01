@@ -781,6 +781,14 @@
 
   // ── Keyboard close ───────────────────────────────────────────────────────
   function handleKeydown(e: KeyboardEvent) {
+    if (e.defaultPrevented) return;
+
+    const hasOpenDetailDrawer = !!dialogEl?.querySelector('.media-sheet');
+    if (e.key === 'Escape' && hasOpenDetailDrawer) {
+      e.preventDefault();
+      return;
+    }
+
     if (e.key === 'Escape') {
       e.preventDefault();
       open = false;

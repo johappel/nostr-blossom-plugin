@@ -30,8 +30,29 @@
 
   let { open, onClose, children, toolbar }: MediaDetailSheetProps = $props();
 
+  $effect(() => {
+    if (!open) return;
+    if (typeof window === 'undefined') return;
+
+    const handleWindowKeydown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    };
+
+    window.addEventListener('keydown', handleWindowKeydown, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', handleWindowKeydown, { capture: true });
+    };
+  });
+
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onClose();
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    }
   }
 </script>
 

@@ -562,6 +562,8 @@
   .media-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 140px));
+    grid-auto-flow: row;
+    grid-auto-rows: max-content;
     gap: 0.5rem;
     padding: 0.6rem;
     align-content: start;

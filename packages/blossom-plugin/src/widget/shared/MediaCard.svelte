@@ -73,6 +73,7 @@
     font: inherit;
     transition: border-color 0.15s, box-shadow 0.15s;
     width: 100%;
+    min-height: 0;
   }
 
   .media-card:hover {
@@ -88,10 +89,17 @@
   .media-card-img-wrap {
     position: relative;
     width: 100%;
-    aspect-ratio: 4 / 3;
+    height: 105px;
     background: var(--bm-bg-subtle, #f5f5f5);
     overflow: hidden;
     flex-shrink: 0;
+  }
+
+  @supports (aspect-ratio: 4 / 3) {
+    .media-card-img-wrap {
+      height: auto;
+      aspect-ratio: 4 / 3;
+    }
   }
 
   .media-card-img {
