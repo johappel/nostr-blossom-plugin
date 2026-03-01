@@ -453,8 +453,8 @@
 
 <style>
   .gallery-tab {
-    display: grid;
-    grid-template-rows: auto auto 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 0.5rem;
     height: 100%;
     overflow: hidden;

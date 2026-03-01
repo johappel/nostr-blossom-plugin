@@ -1325,13 +1325,16 @@
   .bm-content {
     overflow: hidden;
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100%;
     min-height: 0;
   }
 
   .bm-tabs-content {
     display: grid;
     overflow: hidden;
+    grid-row: 2;
+    height: 100%;
     min-height: 0;
   }
 
@@ -1349,6 +1352,8 @@
   .bm-tab-panel:not([hidden]) {
     display: grid;
     overflow: hidden;
+    grid-template-rows: minmax(0, 1fr);
+    height: 100%;
   }
 
   .bm-custom-tab {
@@ -1358,6 +1363,7 @@
 
   .bm-plugin-tab {
     /* Plugin tabs get the same layout as custom tabs */
+    height: 100%;
     min-height: 0;
   }
 

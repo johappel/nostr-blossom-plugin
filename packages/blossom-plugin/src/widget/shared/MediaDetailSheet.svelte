@@ -1,8 +1,8 @@
 <!--
-  MediaDetailSheet — Full-screen overlay sheet showing detail for a selected item.
+  MediaDetailSheet — Right-side overlay sheet showing detail for a selected item.
 
-  Opens as an absolute overlay over the parent container (the tab grid area)
-  and animates in with a subtle fade + slide-up. Intended for use in all three
+  Opens as an absolute overlay aligned to the right over the parent container
+  and animates in with a subtle fade + slide-in from the right. Intended for use in all three
   media tabs (Gallery, Community, OER-Shares) as a replacement for the
   previous desktop sidebar.
 
@@ -71,10 +71,14 @@
 <style>
   .media-sheet {
     position: absolute;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(100%, 600px);
     z-index: 10;
     background: var(--bm-bg, #fff);
-    border-radius: 8px;
+    border-radius: 8px 0 0 8px;
+    border-left: 1px solid var(--bm-border-muted, #eee);
     display: flex;
     flex-direction: column;
     padding: 0.5rem;
@@ -85,11 +89,11 @@
   @keyframes sheet-in {
     from {
       opacity: 0;
-      transform: translateY(6px);
+      transform: translateX(16px);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateX(0);
     }
   }
 
