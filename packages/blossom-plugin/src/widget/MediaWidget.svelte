@@ -199,21 +199,43 @@
     ),
   );
 
+  let settingsReloading = $state(false);
+
+  async function syncSettingsFromRelay() {
+    const resolvedSigner = signer;
+    if (!resolvedSigner) return;
+
+    const urls = effective.relayUrls;
+    if (urls.length === 0) return;
+
+    try {
+      const pubkey = await resolvedSigner.getPublicKey();
+      const result = await fetchSettingsEvent(pubkey, urls);
+      if (!result) return;
+      const merged = mergeLocalAndRemote(userSettings, result.settings, result.createdAt);
+      userSettings = merged;
+      saveSettingsToLocalStorage(merged, config.appId ?? 'default');
+    } catch {
+      // non-fatal
+    }
+  }
+
+  async function handleReloadSettingsFromRelay() {
+    if (settingsReloading) return;
+    settingsReloading = true;
+    try {
+      await syncSettingsFromRelay();
+    } finally {
+      settingsReloading = false;
+    }
+  }
+
   // Sync settings from relay when signer becomes available (once)
   let settingsSynced = $state(false);
   $effect(() => {
     if (!signer || settingsSynced) return;
     settingsSynced = true;
-    const urls = effective.relayUrls;
-    if (urls.length === 0) return;
-    signer.getPublicKey().then((pubkey) => {
-      fetchSettingsEvent(pubkey, urls).then((result) => {
-        if (!result) return;
-        const merged = mergeLocalAndRemote(userSettings, result.settings, result.createdAt);
-        userSettings = merged;
-        saveSettingsToLocalStorage(merged, config.appId ?? 'default');
-      }).catch(() => { /* non-fatal */ });
-    }).catch(() => { /* non-fatal */ });
+    void syncSettingsFromRelay();
   });
 
   function handleSettingsChanged(updated: BlossomUserSettings) {
@@ -998,6 +1020,8 @@
           registeredPlugins={(config.plugins ?? []).map(p => ({ id: p.id, label: p.label, icon: p.icon, defaultDisabled: p.defaultDisabled }))}
           onClose={() => { settingsOpen = false; }}
           onSettingsChanged={handleSettingsChanged}
+          onReloadSettings={handleReloadSettingsFromRelay}
+          reloadingSettings={settingsReloading}
           onBunkerConnected={handleBunkerConnected}
           onBunkerDisconnect={handleBunkerDisconnect}
         />

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { iconSync } from './icons';
   import type { BlossomSigner } from '../core/types';
   import type { BlossomUserSettings } from '../core/settings';
   import type { NostrProfile } from '../core/profile';
@@ -32,6 +33,10 @@
     onBunkerDisconnect: () => void;
     /** Registered tab plugins (for enable/disable toggles). */
     registeredPlugins?: { id: string; label: string; icon?: string; defaultDisabled?: boolean }[];
+    /** Manual NIP-78 reload from relay. */
+    onReloadSettings?: () => Promise<void> | void;
+    /** Whether settings reload is currently running. */
+    reloadingSettings?: boolean;
   }
 
   let {
@@ -45,6 +50,8 @@
     onBunkerConnected,
     onBunkerDisconnect,
     registeredPlugins = [],
+    onReloadSettings,
+    reloadingSettings = false,
   }: SettingsPanelProps = $props();
 
   // ── Form state (initialised from current settings snapshot) ──────────
@@ -165,6 +172,18 @@
   <div class="sp-back-row">
     <button type="button" class="sp-btn-back" onclick={onClose}>← Zurück</button>
     <span class="sp-title">Einstellungen</span>
+    <div class="sp-back-actions">
+      <button
+        type="button"
+        class="sp-btn-sync"
+        title="Vom Relay neu laden"
+        aria-label="Vom Relay neu laden"
+        disabled={reloadingSettings || !onReloadSettings || !signer || relayUrls.length === 0}
+        onclick={() => { void onReloadSettings?.(); }}
+      >
+        {@html iconSync(16)}
+      </button>
+    </div>
   </div>
 
   <!-- ─── Auth info section ─── -->
@@ -401,6 +420,36 @@
     font-weight: 700;
     font-size: 0.95rem;
     color: var(--bm-text);
+  }
+
+  .sp-back-actions {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .sp-btn-sync {
+    font: inherit;
+    width: 1.9rem;
+    height: 1.9rem;
+    padding: 0;
+    border-radius: 4px;
+    border: 1px solid var(--bm-input-border);
+    background: var(--bm-bg-subtle);
+    color: var(--bm-text);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sp-btn-sync:hover:not(:disabled) {
+    background: var(--bm-bg-hover);
+  }
+
+  .sp-btn-sync:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* ── Sections ── */
