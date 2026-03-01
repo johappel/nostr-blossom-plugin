@@ -16,6 +16,17 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- **Einheitliches Grid-UI** (`MediaCard`, `MediaDetailSheet`, `MediaToolbar`): Neue geteilte Svelte-Komponenten unter `packages/blossom-plugin/src/widget/shared/`, exportiert über `@blossom/plugin/plugin`.
+  - `MediaCard.svelte`: 4:3-Karte mit Thumbnail, Name, Datum und optionalem Badge-Overlay — ersetzt alle Tab-spezifischen `thumb-btn`/`oer-card` Buttons.
+  - `MediaDetailSheet.svelte`: Vollbild-Overlay (Svelte 5-Snippets `children` + `toolbar`) mit Fade+Slide-Animation, Escape-Handler und eingebautem Schließen-Button — ersetzt feste Seitenleisten und Vollansicht in OerSharesTab.
+  - `MediaToolbar.svelte`: Unterleiste mit Formatauswahl, Einfügen/Kopieren, Teilen, Bearbeiten und Löschen — ersetzt alle inline-Toolbars in den Tabs.
+- **`InsertMode` `'markdown-desc'`**: Neues Ausgabeformat fügt Beschreibung als eigene Zeile vor dem Markdown-Bild ein (`description\n![name](url)\nautor · [license](url)`).
+- **`MediaDisplayItem`**: Einheitliches Display-Interface für alle drei Tabs (Gallery, Community, OER-Shares) mit Badge- und ExtraFields-Unterstützung.
+- **GalleryTab-Refactoring**: Sheet-Overlay ersetzt die feste 280px-Sidebar; `MediaCard` Grid-Items.
+- **CommunityTab-Refactoring**: Gemeinsame Komponenten; erweiterte NIP-94-Extraktion (Lizenz `l`, Keywords `t`); vollständige Metadaten im Detail-Sheet.
+- **OerSharesTab-Refactoring**: Sheet-Overlay mit expandierbarer SKOS-Sektion (pädagogische Metadaten); Format-Auswahl in der Toolbar; kein Vollansicht-Seitenwechsel mehr.
+- **vitest** (`tab-communikey`): `@sveltejs/vite-plugin-svelte` in `vitest.config.ts` ergänzt.
+
 - **`packages/tab-oer-shares`**: OER-Shares TabPlugin für AMB-Metadaten und Edufeed-Integration (kind:30142).
   - „Im Edufeed teilen" ShareTarget in der Gallery-Sidebar mit AMB-Metadaten-Formular.
   - NIP-94 → AMB Auto-Mapping (alt→name, summary→description, author, license, keywords).

@@ -435,8 +435,7 @@
             {:else}
               <MediaToolbar
                 item={toDisplayItem(selectedItem)}
-                insertModes={['url', 'markdown', 'markdown-desc', 'html', 'nostr-tag', 'json']}
-                targetElement={targetElement ?? null}
+                insertModes={['url', 'markdown', 'markdown-desc']}
                 shareTargets={shareTargets}
                 nip94Event={nip94Data?.byUrl?.get(selectedItem.url) ?? null}
                 widgetContext={widgetContext ?? null}
@@ -553,11 +552,13 @@
 
   .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-    gap: 0.4rem;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.5rem;
+    padding: 0.6rem;
     align-content: start;
     overflow-y: auto;
     height: 100%;
+    box-sizing: border-box;
   }
 
   .sidebar-preview {

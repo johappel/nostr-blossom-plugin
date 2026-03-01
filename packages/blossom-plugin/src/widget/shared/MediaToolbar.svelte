@@ -25,6 +25,7 @@
   import type { MediaDisplayItem, InsertResult, InsertMode, ShareTarget, WidgetContext } from '../types';
   import type { Nip94FileEvent } from '../../core/nip94';
   import { formatInsertResult, INSERT_MODE_LABELS } from '../../core/format';
+  import { untrack } from 'svelte';
 
   interface MediaToolbarProps {
     item: MediaDisplayItem;
@@ -51,7 +52,7 @@
   }: MediaToolbarProps = $props();
 
   // ── State ───────────────────────────────────────────────────────────────────
-  let insertMode = $state<InsertMode>(insertModes[0] ?? 'url');
+  let insertMode = $state<InsertMode>(untrack(() => insertModes[0]) ?? 'url');
   let sharePopoverOpen = $state(false);
   let sharingTargetId = $state<string | null>(null);
 

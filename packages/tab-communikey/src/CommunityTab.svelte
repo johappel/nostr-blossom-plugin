@@ -333,9 +333,7 @@
               <MediaToolbar
                 item={toDisplayItem(selectedMedia)}
                 insertModes={['url', 'markdown', 'markdown-desc']}
-                targetElement={ctx.targetElement}
                 shareTargets={[]}
-                nip94Event={resolvedNip94.get(selectedMedia.originalEventId) ?? null}
                 widgetContext={ctx}
                 onInsert={(result) => { ctx.insert(result); selectedMediaUrl = null; }}
                 onDelete={null}
@@ -483,11 +481,13 @@
 
   .media-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-    gap: 0.4rem;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.5rem;
+    padding: 0.6rem;
     align-content: start;
     overflow-y: auto;
     height: 100%;
+    box-sizing: border-box;
   }
 
   .sidebar-preview {
@@ -534,12 +534,6 @@
   @container (max-width: 500px) {
     .community-grid-wrapper {
       flex-direction: column;
-    }
-    .sidebar-panel {
-      width: auto;
-      border-left: none;
-      border-top: 1px solid var(--bm-border-muted, #eee);
-      max-height: 50%;
     }
   }
 </style>

@@ -332,7 +332,6 @@
             <MediaToolbar
               item={toDisplayItem(selectedItem)}
               insertModes={['url', 'markdown', 'markdown-desc']}
-              targetElement={ctx.targetElement}
               shareTargets={[]}
               nip94Event={null}
               widgetContext={ctx}
@@ -386,10 +385,6 @@
   .oer-toolbar-actions {
     display: flex;
     gap: 0.3rem;
-  }
-
-  .oer-back-btn {
-    display: none; /* removed — sheet replaces view-switch */
   }
 
   .oer-icon-btn {
@@ -449,7 +444,7 @@
 
   .oer-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     gap: 0.5rem;
     padding: 0.6rem;
     overflow-y: auto;
@@ -514,11 +509,6 @@
 
   .oer-skos-section[open] > summary {
     margin-bottom: 0.4rem;
-  }
-
-  /* ── Detail ── */
-  .oer-detail {
-    display: none; /* replaced by MediaDetailSheet */
   }
 
   /* ── Settings ── */

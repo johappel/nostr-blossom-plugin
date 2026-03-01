@@ -41,6 +41,7 @@
     class="media-sheet"
     role="dialog"
     aria-modal="true"
+    tabindex="-1"
     onkeydown={handleKeydown}
   >
     <button
