@@ -20,6 +20,9 @@ The format is based on Keep a Changelog.
   - **CommunityTab** folgt jetzt dem Aufbau „Aktuelle Community + Dropdown“ → Suche → Grid, mit vereinheitlichten Abständen/Paddings.
   - **OerSharesTab** nutzt einen Community-ähnlichen Header mit Edufeed-Logo + „Meine Shares“, Settings-Icon rechts und ohne Header-Border.
   - Einheitlicher vertikaler Rhythmus in beiden Tabs (Header, Suchleiste, Grid).
+- **Examples / Deployment**:
+  - `examples/simple-input.html` enthält jetzt einen Hinweis auf den Standalone-Betrieb per Bookmarklet inkl. Link auf `examples/bookmarklet.html`.
+  - GitHub-Pages-Workflow hinzugefügt, der das Widget baut und `examples/simple-input.html` als Zielseite ausliefert.
 
 ### Added
 
@@ -90,6 +93,7 @@ The format is based on Keep a Changelog.
 ### Docs
 
 - **`docs/plugin-tabs.md`**: Plugin-Authoring-Guide mit API-Referenz, Quick-Start, Beispielen und Best Practices.
+- **`README.md` aktualisiert**: Veraltete Demo-/`pnpm start`-Hinweise entfernt, Bookmarklet/Examples ergänzt und GitHub-Pages-Startziel (`examples/simple-input.html`) dokumentiert.
 
 ### Deprecated
 

@@ -24,6 +24,18 @@ pnpm build:widget   # baut dist/widget/blossom-media.{iife,esm}.js
 
 Dann direkt `examples/simple-input.html` im Browser öffnen.
 
+## Beispiele
+
+- `examples/simple-input.html` — Standard-Host-Integration mit `data-blossom`
+- `examples/bookmarklet.html` — Bookmarklet-Setup für Standalone-Nutzung
+- `examples/bookmarklet-popup.html` — Popup-Seite für den Bookmarklet-Flow
+- `examples/community-tab.html` — Community-Tab Demo
+
+### GitHub Pages
+
+Für GitHub Pages ist ein Workflow vorhanden: `.github/workflows/deploy-pages.yml`.
+Die Startseite leitet auf `examples/simple-input.html` weiter.
+
 ## Widget einbetten
 
 ### Variante A — Auto-Init (kein JS nötig)
@@ -194,25 +206,6 @@ await uploadAndInsertBlossomMedia(editor, async () => ({
 - KI-Service Setup & Deployment: [`docs/ai-service.md`](docs/ai-service.md)
 - Einbettungsbeispiele: [`examples/`](examples/)
 
-
-## Demo `.env` konfigurieren
-
-Die Demo nutzt Vision-Beschreibung ausschließlich über den externen `image-describer` Service.
-
-```powershell
-Copy-Item apps/demo/.env.example apps/demo/.env
-```
-
-In `apps/demo/.env` muss gesetzt sein:
-
-- `VITE_IMAGE_DESCRIBER_URL=http://localhost:8787`
-
-Start dann am besten gezielt die Demo:
-
-```bash
-pnpm --filter demo dev
-```
-
 ## Image Describer als Docker-Service
 
 Die KI-Logik läuft als separater Fastify-Service mit zwei Endpunkten:
@@ -248,31 +241,16 @@ Service starten:
 docker compose up -d image-describer
 ```
 
-Demo auf Service zeigen (`apps/demo/.env`):
+Widget-Konfiguration für lokalen Service:
 
-- `VITE_IMAGE_DESCRIBER_URL=http://localhost:8787`
-
-Dann ruft die Demo `POST /describe` und `POST /image-gen` auf dem Container auf.
+- `visionEndpoint: 'http://localhost:8787'`
+- optional `imageGenEndpoint: 'http://localhost:8787'`
 
 ## Fokus: Unknown Client Integration
 
 - Kurzleitfaden für die minimale Host-Integration: [docs/simple-integration.md](docs/simple-integration.md)
 - Reduzierte Copy/Paste-Beispiele: [docs/examples/README.md](docs/examples/README.md)
 - Dist-Integrationsleitfaden pro Bereich: [docs/dist/README.md](docs/dist/README.md)
-
-## Produktion lokal starten
-
-```bash
-pnpm build
-pnpm start
-```
-
-## Skripte
-
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm build`
-- `pnpm start`
 
 ## Plugin Usage
 
@@ -377,12 +355,11 @@ Hinweis: Bei `image/*` wird ein Image-Node eingefügt, sonst ein normaler URL-Te
   - `signer: BlossomSigner` (`getPublicKey` + `signEvent`, auth-agnostisch)
   - `expiresIn?: number`
 
-### NIP-46 (Demo)
+### NIP-46
 
-- Die Demo nutzt NDK für NIP-46-Sessions und Signierung.
-- Das Plugin selbst bleibt auth-unabhängig und erwartet nur das `BlossomSigner`-Interface.
-- Dadurch funktioniert Upload-Signierung gleich für NIP-07 und NIP-46.
-- Nach Bild-Uploads fragt die Demo Metadaten ab und publiziert diese als kind `1063` plus kind `1` Fallback.
+- Das Widget unterstützt NIP-46 (Bunker) im Settings-Panel.
+- Das Plugin bleibt auth-unabhängig und erwartet nur das `BlossomSigner`-Interface.
+- Upload-Signierung funktioniert damit für NIP-07 und NIP-46.
 - Rückgabe:
   - `tags: [string, string, ...string[]][]`
   - `url: string`
