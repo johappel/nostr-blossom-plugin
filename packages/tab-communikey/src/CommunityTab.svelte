@@ -72,8 +72,20 @@
     return ev.pubkey ? shortenPubkey(ev.pubkey) : undefined;
   }
 
-  function extractLicenseFromNip94(ev: { tags: string[][] }): string | undefined {
-    return ev.tags.find(t => t[0] === 'l')?.[1];
+  function extractLicenseFromNip94(ev: { tags: string[][] }): { license?: string; licenseLabel?: string } {
+    const licenseTag = ev.tags.find(t => t[0] === 'license');
+    if (licenseTag) {
+      return {
+        license: licenseTag[1] || undefined,
+        licenseLabel: licenseTag[2] || undefined,
+      };
+    }
+
+    const lTag = ev.tags.find(t => t[0] === 'l');
+    return {
+      license: lTag?.[1] || undefined,
+      licenseLabel: lTag?.[2] || undefined,
+    };
   }
 
   function extractKeywordsFromNip94(ev: { tags: string[][] }): string[] {
@@ -89,6 +101,7 @@
   function toDisplayItem(item: typeof enrichedMedia[number]): MediaDisplayItem {
     const nip94 = resolvedNip94.get(item.originalEventId);
     const kws = nip94 ? extractKeywordsFromNip94(nip94) : [];
+    const lic = nip94 ? extractLicenseFromNip94(nip94) : {};
     return {
       id: item.url,
       url: item.url,
@@ -97,7 +110,8 @@
       name: item.description || '',
       description: item.description,
       author: nip94 ? extractAuthorFromNip94(nip94) : shortenPubkey(item.sharedBy),
-      license: nip94 ? extractLicenseFromNip94(nip94) : undefined,
+      license: lic.license,
+      licenseLabel: lic.licenseLabel,
       mimeType: item.mime,
       date: new Date(item.sharedAt * 1000).toLocaleDateString('de-DE', {
         day: '2-digit', month: '2-digit', year: 'numeric',
@@ -363,10 +377,10 @@
                     <dt>Autor</dt>
                     <dd>{author}</dd>
                   {/if}
-                  {@const license = extractLicenseFromNip94(nip94)}
-                  {#if license}
+                  {@const licenseInfo = extractLicenseFromNip94(nip94)}
+                  {#if licenseInfo.license || licenseInfo.licenseLabel}
                     <dt>Lizenz</dt>
-                    <dd>{license}</dd>
+                    <dd>{licenseInfo.licenseLabel && licenseInfo.license ? `${licenseInfo.licenseLabel} (${licenseInfo.license})` : (licenseInfo.licenseLabel ?? licenseInfo.license)}</dd>
                   {/if}
                   {@const kws = extractKeywordsFromNip94(nip94)}
                   {#if kws.length}
