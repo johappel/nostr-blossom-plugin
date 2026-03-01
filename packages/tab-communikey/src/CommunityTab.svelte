@@ -1,9 +1,10 @@
 <script lang="ts">
-  import type { WidgetContext, Nip94FileEvent } from '@blossom/plugin/plugin';
-  import { iconSync, iconGroups } from '@blossom/plugin/plugin';
+  import type { WidgetContext, Nip94FileEvent, MediaDisplayItem } from '@blossom/plugin/plugin';
+  import { iconSync, MediaCard, MediaDetailSheet, MediaGridSearchBar, MediaToolbar } from '@blossom/plugin/plugin';
   import { fetchMemberships } from './nostr/memberships';
   import { fetchCommunity } from './nostr/community';
   import { fetchCommunityMedia, parseShareEvent } from './nostr/community-media';
+  import { publishCommunityShareDeletion } from './nostr/delete';
   import type { CommunityInfo, CommunityMembership, CommunityMediaItem } from './nostr/types';
 
   interface CommunityTabProps {
@@ -24,9 +25,11 @@
 
   let loadingMemberships = $state(false);
   let loadingMedia = $state(false);
+  let deletingShare = $state(false);
   let error = $state('');
 
   let selectedMediaUrl = $state<string | null>(null);
+  let filterQuery = $state('');
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const STORAGE_KEY = 'communikey-last-community';
@@ -58,9 +61,66 @@
     return ev.content || altTag?.[1] || '';
   }
 
+  function extractAltFromNip94(ev: { tags: string[][] }): string | undefined {
+    return ev.tags.find(t => t[0] === 'alt')?.[1] || undefined;
+  }
+
+  function extractAuthorFromNip94(ev: { tags: string[][]; pubkey?: string }): string | undefined {
+    const authorTag = ev.tags.find(t => t[0] === 'author')?.[1];
+    if (authorTag) return authorTag;
+    const pTag = ev.tags.find(t => t[0] === 'p')?.[1];
+    if (pTag) return shortenPubkey(pTag);
+    return ev.pubkey ? shortenPubkey(ev.pubkey) : undefined;
+  }
+
+  function extractLicenseFromNip94(ev: { tags: string[][] }): { license?: string; licenseLabel?: string } {
+    const licenseTag = ev.tags.find(t => t[0] === 'license');
+    if (licenseTag) {
+      return {
+        license: licenseTag[1] || undefined,
+        licenseLabel: licenseTag[2] || undefined,
+      };
+    }
+
+    const lTag = ev.tags.find(t => t[0] === 'l');
+    return {
+      license: lTag?.[1] || undefined,
+      licenseLabel: lTag?.[2] || undefined,
+    };
+  }
+
+  function extractKeywordsFromNip94(ev: { tags: string[][] }): string[] {
+    return ev.tags.filter(t => t[0] === 't').map(t => t[1]).filter(Boolean);
+  }
+
   function shortenPubkey(pk: string): string {
     if (!pk || pk.length < 16) return pk;
     return `${pk.slice(0, 8)}…${pk.slice(-4)}`;
+  }
+
+  /** Convert enriched community media item → unified MediaDisplayItem for shared components. */
+  function toDisplayItem(item: typeof enrichedMedia[number]): MediaDisplayItem {
+    const nip94 = resolvedNip94.get(item.originalEventId);
+    const kws = nip94 ? extractKeywordsFromNip94(nip94) : [];
+    const lic = nip94 ? extractLicenseFromNip94(nip94) : {};
+    return {
+      id: item.url,
+      url: item.url,
+      thumbnailUrl: item.thumbUrl || (item.mime.startsWith('image/') ? item.url : undefined),
+      previewUrl: item.mime.startsWith('image/') ? item.url : undefined,
+      name: item.description || '',
+      description: item.description,
+      author: nip94 ? extractAuthorFromNip94(nip94) : shortenPubkey(item.sharedBy),
+      license: lic.license,
+      licenseLabel: lic.licenseLabel,
+      mimeType: item.mime,
+      date: new Date(item.sharedAt * 1000).toLocaleDateString('de-DE', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+      }),
+      keywords: kws.length ? kws : undefined,
+      tags: nip94?.tags,
+      badge: { text: shortenPubkey(item.sharedBy), title: `Geteilt von ${item.sharedBy}` },
+    };
   }
 
   // ── Selected community info ────────────────────────────────────────────────
@@ -88,8 +148,40 @@
       .filter((x): x is NonNullable<typeof x> => x !== null);
   });
 
+  let filteredMedia = $derived.by(() => {
+    const query = filterQuery.trim().toLowerCase();
+    if (!query) return enrichedMedia;
+
+    const terms = query.split(/[,\s]+/).filter(Boolean);
+
+    return enrichedMedia.filter((item) => {
+      const nip94 = resolvedNip94.get(item.originalEventId);
+      const alt = nip94 ? extractAltFromNip94(nip94) ?? '' : '';
+      const author = nip94 ? extractAuthorFromNip94(nip94) ?? '' : '';
+      const licenseInfo = nip94 ? extractLicenseFromNip94(nip94) : {};
+      const keywords = nip94 ? extractKeywordsFromNip94(nip94) : [];
+
+      const haystack = [
+        item.description,
+        item.mime,
+        item.url,
+        item.sharedBy,
+        alt,
+        author,
+        licenseInfo.licenseLabel,
+        licenseInfo.license,
+        ...keywords,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return terms.every((term) => haystack.includes(term));
+    });
+  });
+
   let selectedMedia = $derived(
-    selectedMediaUrl ? enrichedMedia.find(m => m.url === selectedMediaUrl) ?? null : null,
+    selectedMediaUrl ? filteredMedia.find(m => m.url === selectedMediaUrl) ?? null : null,
   );
 
   // ── Load memberships ──────────────────────────────────────────────────────
@@ -172,17 +264,6 @@
     }
   });
 
-  // ── Handle "Übernehmen" ───────────────────────────────────────────────────
-  function handleInsert() {
-    if (!selectedMedia) return;
-    ctx.insert({
-      url: selectedMedia.url,
-      mimeType: selectedMedia.mime,
-      description: selectedMedia.description,
-      tags: [],
-    });
-  }
-
   // ── Initial load on mount ─────────────────────────────────────────────────
   $effect(() => {
     // Load memberships once when signer becomes available
@@ -190,49 +271,70 @@
       loadMemberships();
     }
   });
+
+  async function deleteSelectedShare() {
+    if (deletingShare || !selectedMedia) return;
+
+    const signer = ctx.signer;
+    if (!signer) {
+      error = 'Kein Signer verfügbar. Bitte zuerst anmelden.';
+      return;
+    }
+
+    const confirmed = confirm('Diesen Community-Share wirklich löschen?');
+    if (!confirmed) return;
+
+    const relayUrls = [...new Set([
+      ...(selectedCommunity?.relays ?? []),
+      ...ctx.relayUrls,
+    ])].filter(Boolean);
+
+    deletingShare = true;
+    try {
+      await publishCommunityShareDeletion(
+        signer,
+        selectedMedia.shareEventId,
+        relayUrls,
+      );
+      selectedMediaUrl = null;
+      await loadCommunityMedia();
+    } catch (err) {
+      const e = err instanceof Error ? err : new Error(String(err));
+      error = `Fehler beim Löschen des Community-Shares: ${e.message}`;
+      ctx.reportError(e);
+    } finally {
+      deletingShare = false;
+    }
+  }
 </script>
 
 <div class="community-tab">
   <!-- Community selector -->
-  <div class="community-toolbar">
-    {#if memberships.length > 0}
-      <select
-        class="community-select"
-        bind:value={selectedCommunityPubkey}
-      >
-        {#each memberships as m (m.communityPubkey)}
-          {@const info = communities.get(m.communityPubkey)}
-          <option value={m.communityPubkey}>
-            {info?.name ?? shortenPubkey(m.communityPubkey)}
-          </option>
-        {/each}
-      </select>
-    {/if}
-    <button
-      type="button"
-      class="btn-refresh"
-      disabled={loadingMemberships || loadingMedia}
-      onclick={loadMemberships}
-      title="Communities neu laden"
-    >{@html iconSync(16)}</button>
-  </div>
-
-  <!-- Community info bar -->
-  {#if selectedCommunity}
-    <div class="community-info">
-      {#if selectedCommunity.picture}
-        <img class="community-avatar" src={selectedCommunity.picture} alt="" />
-      {:else}
-        <span class="community-avatar community-avatar--placeholder">{@html iconGroups(24)}</span>
+  <div class="community-header-row">
+    <span class="community-label">Aktuelle Community</span>
+    <div class="community-controls">
+      {#if memberships.length > 0}
+        <select
+          class="community-select"
+          bind:value={selectedCommunityPubkey}
+        >
+          {#each memberships as m (m.communityPubkey)}
+            {@const info = communities.get(m.communityPubkey)}
+            <option value={m.communityPubkey}>
+              {info?.name ?? shortenPubkey(m.communityPubkey)}
+            </option>
+          {/each}
+        </select>
       {/if}
-      <div class="community-details">
-        <span class="community-name">{selectedCommunity.name ?? shortenPubkey(selectedCommunityPubkey ?? '')}</span>
-        <span class="community-meta">
-          {selectedCommunity.relays.length} Relay{selectedCommunity.relays.length !== 1 ? 's' : ''} · {enrichedMedia.length} Medien
-        </span>
-      </div>
+      <button
+        type="button"
+        class="btn-refresh"
+        disabled={loadingMemberships || loadingMedia}
+        onclick={loadMemberships}
+        title="Communities neu laden"
+      >{@html iconSync(16)}</button>
     </div>
-  {/if}
+  </div>
 
   <!-- Content area -->
   <div class="community-content">
@@ -255,80 +357,98 @@
         Noch keine Medien in dieser Community geteilt.
       </div>
     {:else}
-      <div class="community-grid-wrapper">
-        <!-- Media grid -->
-        <div class="media-grid">
-          {#each enrichedMedia as item (item.shareEventId)}
-            {@const isImage = item.mime.startsWith('image/')}
-            <button
-              type="button"
-              class="thumb-btn"
-              class:selected={selectedMediaUrl === item.url}
-              onclick={() => { selectedMediaUrl = selectedMediaUrl === item.url ? null : item.url; }}
-              title={item.description || item.url}
-            >
-              {#if isImage}
-                <img
-                  src={item.thumbUrl}
-                  alt={item.description}
-                  class="thumb-img"
-                  loading="lazy"
-                />
-              {:else}
-                <div class="thumb-file">
-                  <span class="thumb-file-icon">📄</span>
-                  <span class="thumb-file-mime">{item.mime || '?'}</span>
-                </div>
-              {/if}
-              <span class="shared-by-badge" title="Geteilt von {shortenPubkey(item.sharedBy)}">
-                {shortenPubkey(item.sharedBy)}
-              </span>
-            </button>
-          {/each}
+      <MediaGridSearchBar
+        bind:value={filterQuery}
+        placeholder="Suchen: Schlagwort, Beschreibung, Autor, Typ…"
+        loading={loadingMedia}
+        onRefresh={loadCommunityMedia}
+        refreshTitle="Community-Medien neu laden"
+      />
+
+      {#if filteredMedia.length === 0}
+        <div class="community-status">
+          Keine Treffer für die Suche.
         </div>
-
-        <!-- Sidebar for selected item -->
-        {#if selectedMedia}
-          <div class="sidebar-panel">
-            <div class="sidebar-scroll">
-              {#if selectedMedia.mime.startsWith('image/')}
-                <img class="sidebar-preview" src={selectedMedia.url} alt={selectedMedia.description} />
-              {/if}
-
-              <div class="sidebar-meta">
-                {#if selectedMedia.description}
-                  <div class="meta-row">
-                    <span class="meta-label">Beschreibung</span>
-                    <span class="meta-value">{selectedMedia.description}</span>
-                  </div>
-                {/if}
-                <div class="meta-row">
-                  <span class="meta-label">Typ</span>
-                  <span class="meta-value">{selectedMedia.mime || 'Unbekannt'}</span>
-                </div>
-                <div class="meta-row">
-                  <span class="meta-label">Geteilt von</span>
-                  <span class="meta-value">{shortenPubkey(selectedMedia.sharedBy)}</span>
-                </div>
-                <div class="meta-row">
-                  <span class="meta-label">Datum</span>
-                  <span class="meta-value">{new Date(selectedMedia.sharedAt * 1000).toLocaleDateString()}</span>
-                </div>
-                <div class="meta-row">
-                  <span class="meta-label">URL</span>
-                  <a class="meta-link" href={selectedMedia.url} target="_blank" rel="noopener">{selectedMedia.url}</a>
-                </div>
-              </div>
-            </div>
-
-            <div class="sidebar-toolbar">
-              <button type="button" class="btn-primary" onclick={handleInsert}>
-                ✓ Übernehmen
-              </button>
-            </div>
+      {:else}
+        <div class="community-grid-wrapper">
+          <!-- Media grid -->
+          <div class="media-grid">
+            {#each filteredMedia as item (item.shareEventId)}
+              <MediaCard
+                item={toDisplayItem(item)}
+                selected={selectedMediaUrl === item.url}
+                onclick={() => { selectedMediaUrl = selectedMediaUrl === item.url ? null : item.url; }}
+              />
+            {/each}
           </div>
-        {/if}
-      </div>
+
+          <!-- Detail sheet (overlay) -->
+          <MediaDetailSheet
+            open={!!selectedMedia}
+            onClose={() => { selectedMediaUrl = null; }}
+          >
+            {#snippet children()}
+              {#if selectedMedia}
+                {#if selectedMedia.mime.startsWith('image/')}
+                  <img class="sidebar-preview" src={selectedMedia.url} alt={selectedMedia.description} />
+                {/if}
+                <dl class="meta-list">
+                  {#if selectedMedia.description}
+                    <dt>Beschreibung</dt>
+                    <dd>{selectedMedia.description}</dd>
+                  {/if}
+                  {#if resolvedNip94.get(selectedMedia.originalEventId)}
+                    {@const nip94 = resolvedNip94.get(selectedMedia.originalEventId)!}
+                    {@const altText = extractAltFromNip94(nip94)}
+                    {#if altText}
+                      <dt>Alt-Text</dt>
+                      <dd>{altText}</dd>
+                    {/if}
+                    {@const author = extractAuthorFromNip94(nip94)}
+                    {#if author}
+                      <dt>Autor</dt>
+                      <dd>{author}</dd>
+                    {/if}
+                    {@const licenseInfo = extractLicenseFromNip94(nip94)}
+                    {#if licenseInfo.license || licenseInfo.licenseLabel}
+                      <dt>Lizenz</dt>
+                      <dd>{licenseInfo.licenseLabel && licenseInfo.license ? `${licenseInfo.licenseLabel} (${licenseInfo.license})` : (licenseInfo.licenseLabel ?? licenseInfo.license)}</dd>
+                    {/if}
+                    {@const kws = extractKeywordsFromNip94(nip94)}
+                    {#if kws.length}
+                      <dt>Keywords</dt>
+                      <dd>{kws.join(', ')}</dd>
+                    {/if}
+                  {/if}
+                  <dt>Geteilt von</dt>
+                  <dd>{shortenPubkey(selectedMedia.sharedBy)}</dd>
+                  <dt>Typ</dt>
+                  <dd>{selectedMedia.mime || 'Unbekannt'}</dd>
+                  <dt>Datum</dt>
+                  <dd>{new Date(selectedMedia.sharedAt * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</dd>
+                  <dt>URL</dt>
+                  <dd><a class="meta-url" href={selectedMedia.url} target="_blank" rel="noopener">{selectedMedia.url}</a></dd>
+                </dl>
+              {/if}
+            {/snippet}
+
+            {#snippet toolbar()}
+              {#if selectedMedia}
+                <MediaToolbar
+                  item={toDisplayItem(selectedMedia)}
+                  insertModes={['url', 'markdown', 'markdown-desc']}
+                  shareTargets={[]}
+                  widgetContext={ctx}
+                  onInsert={(result) => { ctx.insert(result); selectedMediaUrl = null; }}
+                  deleting={deletingShare}
+                  onDelete={() => { void deleteSelectedShare(); }}
+                  onEdit={null}
+                />
+              {/if}
+            {/snippet}
+          </MediaDetailSheet>
+        </div>
+      {/if}
     {/if}
   </div>
 </div>
@@ -337,14 +457,29 @@
   .community-tab {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.6rem;
     height: 100%;
     overflow: hidden;
-    padding: 0.5rem;
+    padding: 0.6rem;
     box-sizing: border-box;
   }
 
-  .community-toolbar {
+  .community-header-row {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+  }
+
+  .community-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--bm-text-muted, #888);
+    white-space: nowrap;
+  }
+
+  .community-controls {
+    flex: 1;
+    min-width: 0;
     display: flex;
     gap: 0.5rem;
     align-items: center;
@@ -352,6 +487,7 @@
 
   .community-select {
     flex: 1;
+    min-width: 0;
     font: inherit;
     font-size: 0.85rem;
     padding: 0.4rem 0.6rem;
@@ -378,55 +514,12 @@
     cursor: not-allowed;
   }
 
-  .community-info {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.4rem 0.5rem;
-    background: var(--bm-bg-subtle, #f8f8f8);
-    border-radius: 6px;
-    border: 1px solid var(--bm-border-muted, #eee);
-  }
-
-  .community-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-  .community-avatar--placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    background: var(--bm-bg-muted, #e8e8e8);
-  }
-
-  .community-details {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-    min-width: 0;
-  }
-
-  .community-name {
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: var(--bm-text, #222);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .community-meta {
-    font-size: 0.72rem;
-    color: var(--bm-text-muted, #888);
-  }
-
   .community-content {
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
     overflow: hidden;
   }
 
@@ -460,174 +553,71 @@
   }
 
   .community-grid-wrapper {
-    display: flex;
-    height: 100%;
+    position: relative;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
   }
 
   .media-grid {
-    flex: 1;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-    gap: 0.4rem;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 140px));
+    grid-auto-flow: row;
+    grid-auto-rows: max-content;
+    gap: 0.5rem;
+    padding: 0.6rem;
     align-content: start;
+    align-items: start;
+    justify-content: start;
     overflow-y: auto;
-    padding-right: 0.25rem;
-  }
-
-  .thumb-btn {
-    position: relative;
-    aspect-ratio: 1;
-    border: 2px solid transparent;
-    border-radius: 6px;
-    padding: 0;
-    background: var(--bm-bg-subtle, #f5f5f5);
-    cursor: pointer;
-    overflow: hidden;
-    transition: border-color 0.12s;
-  }
-  .thumb-btn:hover {
-    border-color: var(--bm-accent, #6c63ff);
-  }
-  .thumb-btn.selected {
-    border-color: var(--bm-accent, #6c63ff);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--bm-accent, #6c63ff) 30%, transparent);
-  }
-
-  .thumb-img {
-    width: 100%;
     height: 100%;
-    object-fit: cover;
-  }
-
-  .thumb-file {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    gap: 0.2rem;
-  }
-  .thumb-file-icon { font-size: 1.5rem; }
-  .thumb-file-mime {
-    font-size: 0.6rem;
-    color: var(--bm-text-muted, #888);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-    padding: 0 2px;
-  }
-
-  .shared-by-badge {
-    position: absolute;
-    bottom: 2px;
-    left: 2px;
-    right: 2px;
-    background: rgba(0,0,0,0.6);
-    color: #fff;
-    font-size: 0.55rem;
-    padding: 1px 3px;
-    border-radius: 3px;
-    text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sidebar-panel {
-    width: 280px;
-    flex-shrink: 0;
-    border-left: 1px solid var(--bm-border-muted, #eee);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .sidebar-scroll {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0.5rem;
+    box-sizing: border-box;
   }
 
   .sidebar-preview {
     width: 100%;
-    max-height: 200px;
+    max-height: 240px;
     object-fit: contain;
     border-radius: 6px;
     background: var(--bm-bg-subtle, #f8f8f8);
-    margin-bottom: 0.5rem;
   }
 
-  .sidebar-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+  .meta-list {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.2rem 0.5rem;
+    font-size: 0.8rem;
+    margin: 0;
   }
 
-  .meta-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-  }
-
-  .meta-label {
-    font-size: 0.7rem;
+  .meta-list dt {
     font-weight: 600;
-    color: var(--bm-text-muted, #888);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+    color: var(--bm-text-muted, #777);
+    white-space: nowrap;
+    align-self: start;
+    padding-top: 2px;
   }
 
-  .meta-value {
-    font-size: 0.82rem;
-    color: var(--bm-text, #222);
+  .meta-list dd {
+    margin: 0;
     word-break: break-word;
   }
 
-  .meta-link {
-    font-size: 0.78rem;
+  .meta-url {
     color: var(--bm-accent, #6c63ff);
     text-decoration: none;
+    font-size: 0.75rem;
     word-break: break-all;
   }
-  .meta-link:hover {
+
+  .meta-url:hover {
     text-decoration: underline;
-  }
-
-  .sidebar-toolbar {
-    padding: 0.5rem;
-    border-top: 1px solid var(--bm-border-muted, #eee);
-    display: flex;
-    gap: 0.4rem;
-  }
-
-  .btn-primary {
-    flex: 1;
-    font: inherit;
-    font-size: 0.82rem;
-    font-weight: 600;
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 6px;
-    background: var(--bm-accent, #6c63ff);
-    color: #fff;
-    cursor: pointer;
-    transition: background 0.12s;
-  }
-  .btn-primary:hover {
-    background: var(--bm-accent-hover, #5a52d5);
   }
 
   /* ── Responsive: stack layout on small widths ── */
   @container (max-width: 500px) {
     .community-grid-wrapper {
       flex-direction: column;
-    }
-    .sidebar-panel {
-      width: auto;
-      border-left: none;
-      border-top: 1px solid var(--bm-border-muted, #eee);
-      max-height: 50%;
     }
   }
 </style>

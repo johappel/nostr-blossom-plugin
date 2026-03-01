@@ -11,19 +11,24 @@
     ctx — WidgetContext from the media widget
 -->
 <script lang="ts">
-  import type { WidgetContext } from '@blossom/plugin/plugin';
-  import { iconSchool, iconSync, iconTune, iconEdit } from '@blossom/plugin/plugin';
+  import type { WidgetContext, MediaDisplayItem } from '@blossom/plugin/plugin';
+  import { iconTune, MediaCard, MediaDetailSheet, MediaGridSearchBar, MediaToolbar } from '@blossom/plugin/plugin';
   import { untrack } from 'svelte';
   import { fetchUserAmbShares } from './nostr/fetch-shares';
+  import { publishAmbShareDeletion } from './nostr/delete';
   import type { AmbShareItem, SkosSelection } from './nostr/types';
   import { loadConfig, saveConfig, type OerSharesConfig } from './config';
   import OerShareForm from './OerShareForm.svelte';
 
   let { ctx }: { ctx: WidgetContext } = $props();
 
+  const EDUFEED_LOGO_URL = 'https://blossom.edufeed.org/924b425d644d5543fdf613122de39f680bf4704348caaa4b5f46d10fa7d493f6.webp';
+
   // ── State ──
   let shares = $state<AmbShareItem[]>([]);
+  let filterQuery = $state('');
   let loading = $state(false);
+  let deletingShare = $state(false);
   let error = $state<string | null>(null);
   let selectedItem = $state<AmbShareItem | null>(null);
   let showSettings = $state(false);
@@ -100,6 +105,21 @@
     });
   }
 
+  function shortenPubkey(pk: string): string {
+    if (!pk || pk.length < 16) return pk;
+    return `${pk.slice(0, 8)}…${pk.slice(-4)}`;
+  }
+
+  function getDisplayAuthor(item: AmbShareItem): string | undefined {
+    const creator = item.creatorName?.trim();
+    if (creator) return creator;
+    return item.pubkey ? shortenPubkey(item.pubkey) : undefined;
+  }
+
+  function getAltText(item: AmbShareItem): string | undefined {
+    return item.name?.trim() || undefined;
+  }
+
   function formatConcepts(concepts: SkosSelection[]): string {
     return concepts.map((c) => c.prefLabel).join(', ') || '—';
   }
@@ -133,33 +153,107 @@
       thumbnailUrl: item.imageUrl,
       description: item.description,
       alt: item.name,
-      tags: [], // We don't have raw tags in shareItem
+      tags: [],
     });
   }
+
+  async function deleteSelectedShare() {
+    if (deletingShare || !selectedItem) return;
+
+    const signer = ctx.signer;
+    if (!signer) {
+      error = 'Bitte zuerst anmelden, um OER-Shares zu löschen.';
+      return;
+    }
+
+    const confirmed = confirm('Diesen OER-Share wirklich löschen?');
+    if (!confirmed) return;
+
+    deletingShare = true;
+    try {
+      await publishAmbShareDeletion(
+        signer,
+        selectedItem.eventId,
+        config.ambRelayUrl,
+      );
+      selectedItem = null;
+      await loadShares();
+    } catch (err) {
+      const e = err instanceof Error ? err : new Error(String(err));
+      error = `Fehler beim Löschen des OER-Shares: ${e.message}`;
+      ctx.reportError(e);
+    } finally {
+      deletingShare = false;
+    }
+  }
+
+  /** Convert AmbShareItem → unified MediaDisplayItem for shared grid/sheet components. */
+  function toDisplayItem(item: AmbShareItem): MediaDisplayItem {
+    if (!item.encodingUrl) {
+      return {
+        id: item.eventId,
+        url: '',
+        thumbnailUrl: item.imageUrl,
+        name: item.name || 'Unbenannt',
+        date: formatDate(item.createdAt),
+        tags: [],
+      };
+    }
+    return {
+      id: item.eventId,
+      url: item.encodingUrl,
+      thumbnailUrl: item.imageUrl,
+      previewUrl: item.imageUrl,
+      name: item.name || 'Unbenannt',
+      description: item.description,
+      author: getDisplayAuthor(item),
+      license: item.licenseId,
+      mimeType: undefined,
+      date: formatDate(item.createdAt),
+      keywords: item.keywords.length ? item.keywords : undefined,
+      tags: [],
+    };
+  }
+
+  const filteredShares = $derived.by(() => {
+    const query = filterQuery.trim().toLowerCase();
+    if (!query) return shares;
+
+    const terms = query.split(/[,\s]+/).filter(Boolean);
+
+    return shares.filter((item) => {
+      const haystack = [
+        item.name,
+        item.description,
+        item.encodingUrl,
+        item.imageUrl,
+        item.licenseId,
+        item.creatorName,
+        item.pubkey,
+        item.keywords.join(' '),
+        item.about.map((x) => x.prefLabel).join(' '),
+        item.audience.map((x) => x.prefLabel).join(' '),
+        item.educationalLevel.map((x) => x.prefLabel).join(' '),
+        item.learningResourceType.map((x) => x.prefLabel).join(' '),
+        item.inLanguage,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return terms.every((term) => haystack.includes(term));
+    });
+  });
 </script>
 
 <div class="oer-tab">
   <!-- Toolbar -->
   <div class="oer-toolbar">
-    {#if selectedItem}
-      <button type="button" class="oer-back-btn" onclick={backToList}>
-        ← Zurück
-      </button>
-    {:else}
-      <span class="oer-tab-title">{@html iconSchool(16, 'vertical-align: -2px; margin-right: 4px;')} Meine OER-Shares</span>
-    {/if}
+    <div class="oer-header-brand">
+      <img class="oer-header-logo" src={EDUFEED_LOGO_URL} alt="Edufeed" />
+      <span class="oer-tab-title">Meine Shares bei Edufeed</span>
+    </div>
     <div class="oer-toolbar-actions">
-      {#if !selectedItem}
-        <button
-          type="button"
-          class="oer-icon-btn"
-          onclick={() => loadShares()}
-          title="Aktualisieren"
-          disabled={loading}
-        >
-          {@html iconSync(18)}
-        </button>
-      {/if}
       <button
         type="button"
         class="oer-icon-btn"
@@ -218,82 +312,131 @@
       <span class="oer-spinner"></span>
       <span>Lade OER-Shares…</span>
     </div>
-  {:else if error && !selectedItem && shares.length === 0}
+  {:else if error && shares.length === 0}
     <div class="oer-center oer-muted">{error}</div>
-  {:else if selectedItem}
-    <!-- Detail view -->
-    <div class="oer-detail">
-      {#if selectedItem.imageUrl}
-        <img src={selectedItem.imageUrl} alt="" class="oer-detail-image" />
+  {:else}
+    <MediaGridSearchBar
+      bind:value={filterQuery}
+      placeholder="Suchen: Schlagwort, Beschreibung, Autor, Fach…"
+      loading={loading}
+      onRefresh={loadShares}
+      refreshTitle="OER-Shares neu laden"
+    />
+
+    <!-- Grid + detail overlay -->
+    <div class="oer-grid-wrapper">
+      {#if filteredShares.length === 0}
+        <div class="oer-center oer-muted">Keine Treffer für die Suche.</div>
+      {:else}
+        <div class="oer-grid">
+          {#each filteredShares as item (item.eventId)}
+            <MediaCard
+              item={toDisplayItem(item)}
+              selected={selectedItem?.eventId === item.eventId}
+              onclick={() => { selectedItem = selectedItem?.eventId === item.eventId ? null : item; }}
+            />
+          {/each}
+        </div>
       {/if}
 
-      <dl class="oer-meta-list">
-        <dt>Name</dt>
-        <dd>{selectedItem.name || '—'}</dd>
-
-        <dt>Beschreibung</dt>
-        <dd>{selectedItem.description || '—'}</dd>
-
-        <dt>Schlagworte</dt>
-        <dd>{selectedItem.keywords.join(', ') || '—'}</dd>
-
-        <dt>Autor</dt>
-        <dd>{selectedItem.creatorName || '(Nostr-Profil)'}</dd>
-
-        <dt>Lizenz</dt>
-        <dd>{selectedItem.licenseId || '—'}</dd>
-
-        <dt>Sprache</dt>
-        <dd>{selectedItem.inLanguage || '—'}</dd>
-
-        <dt>Zielgruppe</dt>
-        <dd>{formatConcepts(selectedItem.audience)}</dd>
-
-        <dt>Bildungsstufe</dt>
-        <dd>{formatConcepts(selectedItem.educationalLevel)}</dd>
-
-        <dt>Ressourcentyp</dt>
-        <dd>{formatConcepts(selectedItem.learningResourceType)}</dd>
-
-        <dt>Fach / Thema</dt>
-        <dd>{formatConcepts(selectedItem.about)}</dd>
-
-        <dt>Kostenlos zugänglich</dt>
-        <dd>{selectedItem.isAccessibleForFree ? 'Ja' : 'Nein'}</dd>
-
-        <dt>Geteilt am</dt>
-        <dd>{formatDate(selectedItem.createdAt)}</dd>
-
-        {#if selectedItem.encodingUrl}
-          <dt>URL</dt>
-          <dd class="oer-url-cell">
-            <a href={selectedItem.encodingUrl} target="_blank" rel="noopener">
-              {selectedItem.encodingUrl}
-            </a>
-          </dd>
-        {/if}
-      </dl>
-
-      {#if selectedItem.encodingUrl}
-        <button
-          type="button"
-          class="oer-btn-submit oer-insert-btn"
-          onclick={() => handleInsert(selectedItem!)}
-        >
-          URL übernehmen
-        </button>
-      {/if}
-
-      <button
-        type="button"
-        class="oer-btn-edit oer-insert-btn"
-        onclick={() => startEdit(selectedItem!)}
+      <!-- Detail sheet (overlay) -->
+      <MediaDetailSheet
+        open={!!selectedItem}
+        onClose={() => { selectedItem = null; }}
       >
-        {@html iconEdit(14, 'vertical-align: -2px; margin-right: 4px;')} Bearbeiten
-      </button>
-    </div>
+        {#snippet children()}
+          {#if selectedItem}
+            {#if selectedItem.imageUrl}
+              <img class="sidebar-preview" src={selectedItem.imageUrl} alt="" />
+            {/if}
 
-  <!-- Edit overlay -->
+            <!-- Base metadata -->
+            <dl class="meta-list">
+              {#if getAltText(selectedItem)}
+                <dt>Alt-Text</dt>
+                <dd>{getAltText(selectedItem)}</dd>
+              {/if}
+              {#if selectedItem.description}
+                <dt>Beschreibung</dt>
+                <dd>{selectedItem.description}</dd>
+              {/if}
+              {#if getDisplayAuthor(selectedItem)}
+                <dt>Autor</dt>
+                <dd>{getDisplayAuthor(selectedItem)}</dd>
+              {/if}
+              {#if selectedItem.licenseId}
+                <dt>Lizenz</dt>
+                <dd>{selectedItem.licenseId}</dd>
+              {/if}
+              {#if selectedItem.keywords.length}
+                <dt>Schlagworte</dt>
+                <dd>{selectedItem.keywords.join(', ')}</dd>
+              {/if}
+              <dt>Geteilt am</dt>
+              <dd>{formatDate(selectedItem.createdAt)}</dd>
+              {#if selectedItem.encodingUrl}
+                <dt>URL</dt>
+                <dd>
+                  <a class="meta-url" href={selectedItem.encodingUrl} target="_blank" rel="noopener">
+                    {selectedItem.encodingUrl}
+                  </a>
+                </dd>
+              {/if}
+            </dl>
+
+            <!-- Expandable SKOS section -->
+            {#if selectedItem.audience.length || selectedItem.educationalLevel.length || selectedItem.learningResourceType.length || selectedItem.about.length || selectedItem.inLanguage}
+              <details class="oer-skos-section">
+                <summary>Pädagogische Metadaten</summary>
+                <dl class="meta-list">
+                  {#if selectedItem.inLanguage}
+                    <dt>Sprache</dt>
+                    <dd>{selectedItem.inLanguage}</dd>
+                  {/if}
+                  {#if selectedItem.audience.length}
+                    <dt>Zielgruppe</dt>
+                    <dd>{formatConcepts(selectedItem.audience)}</dd>
+                  {/if}
+                  {#if selectedItem.educationalLevel.length}
+                    <dt>Bildungsstufe</dt>
+                    <dd>{formatConcepts(selectedItem.educationalLevel)}</dd>
+                  {/if}
+                  {#if selectedItem.learningResourceType.length}
+                    <dt>Ressourcentyp</dt>
+                    <dd>{formatConcepts(selectedItem.learningResourceType)}</dd>
+                  {/if}
+                  {#if selectedItem.about.length}
+                    <dt>Fach / Thema</dt>
+                    <dd>{formatConcepts(selectedItem.about)}</dd>
+                  {/if}
+                  <dt>Kostenlos zugänglich</dt>
+                  <dd>{selectedItem.isAccessibleForFree ? 'Ja' : 'Nein'}</dd>
+                </dl>
+              </details>
+            {/if}
+          {/if}
+        {/snippet}
+
+        {#snippet toolbar()}
+          {#if selectedItem && selectedItem.encodingUrl}
+            <MediaToolbar
+              item={toDisplayItem(selectedItem)}
+              insertModes={['url', 'markdown', 'markdown-desc']}
+              shareTargets={[]}
+              nip94Event={null}
+              widgetContext={ctx}
+              onInsert={(result) => { ctx.insert(result); selectedItem = null; }}
+              deleting={deletingShare}
+              onDelete={() => { void deleteSelectedShare(); }}
+              onEdit={() => startEdit(selectedItem!)}
+            />
+          {/if}
+        {/snippet}
+      </MediaDetailSheet>
+    </div>
+  {/if}
+
+  <!-- Edit overlay (shown above everything) -->
   {#if editingItem}
     <OerShareForm
       editItem={editingItem}
@@ -304,34 +447,17 @@
       vocabUrls={config.vocabUrls}
     />
   {/if}
-  {:else}
-    <!-- Grid view -->
-    <div class="oer-grid">
-      {#each shares as item (item.eventId)}
-        <button type="button" class="oer-card" onclick={() => selectItem(item)}>
-          {#if item.imageUrl}
-            <img src={item.imageUrl} alt="" class="oer-card-img" />
-          {:else}
-            <div class="oer-card-placeholder">
-              {@html iconSchool(32)}
-            </div>
-          {/if}
-          <div class="oer-card-info">
-            <span class="oer-card-name">{item.name || 'Unbenannt'}</span>
-            <span class="oer-card-date">{formatDate(item.createdAt)}</span>
-          </div>
-        </button>
-      {/each}
-    </div>
-  {/if}
 </div>
 
 <style>
   .oer-tab {
     display: flex;
     flex-direction: column;
+    gap: 0.6rem;
     height: 100%;
     overflow: hidden;
+    padding: 0.6rem;
+    box-sizing: border-box;
   }
 
   /* ── Toolbar ── */
@@ -339,31 +465,38 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.5rem 0.8rem;
-    border-bottom: 1px solid var(--bm-input-border, #eee);
+    gap: 0.6rem;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .oer-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .oer-header-logo {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
     flex-shrink: 0;
   }
 
   .oer-tab-title {
-    font-weight: 700;
-    font-size: 0.9rem;
+    font-weight: 600;
+    font-size: 0.85rem;
     color: var(--bm-text, #222);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .oer-toolbar-actions {
     display: flex;
     gap: 0.3rem;
-  }
-
-  .oer-back-btn {
-    background: none;
-    border: none;
-    font: inherit;
-    font-size: 0.82rem;
-    color: var(--bm-accent, #6c63ff);
-    cursor: pointer;
-    padding: 0.2rem 0;
-    font-weight: 600;
   }
 
   .oer-icon-btn {
@@ -413,132 +546,86 @@
     to { transform: rotate(360deg); }
   }
 
-  /* ── Grid ── */
+  /* ── Grid wrapper + grid ── */
+  .oer-grid-wrapper {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .oer-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 140px));
+    grid-auto-flow: row;
+    grid-auto-rows: max-content;
     gap: 0.5rem;
     padding: 0.6rem;
+    align-content: start;
+    align-items: start;
+    justify-content: start;
     overflow-y: auto;
-    flex: 1;
+    height: 100%;
+    box-sizing: border-box;
   }
 
-  .oer-card {
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--bm-input-border, #ddd);
-    border-radius: 8px;
-    overflow: hidden;
-    cursor: pointer;
-    background: var(--bm-bg, #fff);
-    text-align: left;
-    padding: 0;
-    font: inherit;
-    transition: box-shadow 0.15s;
-  }
-  .oer-card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  }
-
-  .oer-card-img {
+  /* ── Detail sheet content ── */
+  .sidebar-preview {
     width: 100%;
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
-  }
-
-  .oer-card-placeholder {
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2rem;
-    background: var(--bm-bg-subtle, #f5f5f5);
-  }
-
-  .oer-card-info {
-    padding: 0.4rem 0.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-  }
-
-  .oer-card-name {
-    font-size: 0.76rem;
-    font-weight: 600;
-    color: var(--bm-text, #222);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .oer-card-date {
-    font-size: 0.68rem;
-    color: var(--bm-text-muted, #999);
-  }
-
-  /* ── Detail ── */
-  .oer-detail {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0.8rem;
-  }
-
-  .oer-detail-image {
-    width: 100%;
-    max-height: 200px;
+    max-height: 240px;
     object-fit: contain;
     border-radius: 8px;
-    margin-bottom: 0.8rem;
     background: var(--bm-bg-subtle, #f8f8f8);
   }
 
-  .oer-meta-list {
+  .meta-list {
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 0.25rem 0.8rem;
+    gap: 0.2rem 0.5rem;
     font-size: 0.8rem;
     margin: 0;
   }
 
-  .oer-meta-list dt {
+  .meta-list dt {
     font-weight: 600;
     color: var(--bm-text-muted, #666);
     white-space: nowrap;
+    align-self: start;
+    padding-top: 2px;
   }
 
-  .oer-meta-list dd {
+  .meta-list dd {
     margin: 0;
     color: var(--bm-text, #222);
     word-break: break-word;
   }
 
-  .oer-url-cell a {
+  .meta-url {
     color: var(--bm-accent, #6c63ff);
     text-decoration: none;
     font-size: 0.75rem;
-  }
-  .oer-url-cell a:hover { text-decoration: underline; }
-
-  .oer-insert-btn {
-    margin-top: 0.8rem;
-    width: 100%;
+    word-break: break-all;
   }
 
-  .oer-btn-edit {
-    background: var(--bm-bg-subtle, #eee);
-    color: var(--bm-text, #222);
-    font: inherit;
-    font-size: 0.82rem;
+  .meta-url:hover {
+    text-decoration: underline;
+  }
+
+  .oer-skos-section {
+    margin-top: 0.5rem;
+  }
+
+  .oer-skos-section > summary {
+    font-size: 0.78rem;
     font-weight: 600;
-    padding: 0.45rem 1rem;
-    border-radius: 6px;
+    color: var(--bm-text-muted, #777);
     cursor: pointer;
-    border: 1px solid var(--bm-input-border, #ccc);
+    padding: 0.3rem 0;
+    user-select: none;
   }
 
-  .oer-btn-edit:hover {
-    background: var(--bm-input-border, #ddd);
+  .oer-skos-section[open] > summary {
+    margin-bottom: 0.4rem;
   }
 
   /* ── Settings ── */

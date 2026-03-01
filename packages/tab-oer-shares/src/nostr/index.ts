@@ -1,6 +1,7 @@
 export { fetchSkosVocabulary, clearSkosCache, isVocabCached } from './skos';
 export { mapNip94ToAmb, buildAmbEventTags } from './amb-tags';
 export { publishAmbEvent } from './publish-amb';
+export { publishAmbShareDeletion } from './delete';
 export { fetchUserAmbShares } from './fetch-shares';
 export type {
   SkosConcept,

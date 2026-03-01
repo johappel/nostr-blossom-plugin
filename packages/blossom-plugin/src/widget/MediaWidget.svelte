@@ -199,21 +199,43 @@
     ),
   );
 
+  let settingsReloading = $state(false);
+
+  async function syncSettingsFromRelay() {
+    const resolvedSigner = signer;
+    if (!resolvedSigner) return;
+
+    const urls = effective.relayUrls;
+    if (urls.length === 0) return;
+
+    try {
+      const pubkey = await resolvedSigner.getPublicKey();
+      const result = await fetchSettingsEvent(pubkey, urls);
+      if (!result) return;
+      const merged = mergeLocalAndRemote(userSettings, result.settings, result.createdAt);
+      userSettings = merged;
+      saveSettingsToLocalStorage(merged, config.appId ?? 'default');
+    } catch {
+      // non-fatal
+    }
+  }
+
+  async function handleReloadSettingsFromRelay() {
+    if (settingsReloading) return;
+    settingsReloading = true;
+    try {
+      await syncSettingsFromRelay();
+    } finally {
+      settingsReloading = false;
+    }
+  }
+
   // Sync settings from relay when signer becomes available (once)
   let settingsSynced = $state(false);
   $effect(() => {
     if (!signer || settingsSynced) return;
     settingsSynced = true;
-    const urls = effective.relayUrls;
-    if (urls.length === 0) return;
-    signer.getPublicKey().then((pubkey) => {
-      fetchSettingsEvent(pubkey, urls).then((result) => {
-        if (!result) return;
-        const merged = mergeLocalAndRemote(userSettings, result.settings, result.createdAt);
-        userSettings = merged;
-        saveSettingsToLocalStorage(merged, config.appId ?? 'default');
-      }).catch(() => { /* non-fatal */ });
-    }).catch(() => { /* non-fatal */ });
+    void syncSettingsFromRelay();
   });
 
   function handleSettingsChanged(updated: BlossomUserSettings) {
@@ -781,6 +803,14 @@
 
   // ── Keyboard close ───────────────────────────────────────────────────────
   function handleKeydown(e: KeyboardEvent) {
+    if (e.defaultPrevented) return;
+
+    const hasOpenDetailDrawer = !!dialogEl?.querySelector('.media-sheet');
+    if (e.key === 'Escape' && hasOpenDetailDrawer) {
+      e.preventDefault();
+      return;
+    }
+
     if (e.key === 'Escape') {
       e.preventDefault();
       open = false;
@@ -962,7 +992,7 @@
     </header>
 
     <!-- Tab bar -->
-    {#if tabs.length > 1}
+    {#if !settingsOpen && tabs.length > 1}
       <div class="bm-tabs" role="tablist">
         {#each tabs as tab}
           <button
@@ -990,6 +1020,8 @@
           registeredPlugins={(config.plugins ?? []).map(p => ({ id: p.id, label: p.label, icon: p.icon, defaultDisabled: p.defaultDisabled }))}
           onClose={() => { settingsOpen = false; }}
           onSettingsChanged={handleSettingsChanged}
+          onReloadSettings={handleReloadSettingsFromRelay}
+          reloadingSettings={settingsReloading}
           onBunkerConnected={handleBunkerConnected}
           onBunkerDisconnect={handleBunkerDisconnect}
         />
@@ -1066,7 +1098,7 @@
       {/if}
 
       <!-- Tabs always stay mounted so selection state is preserved -->
-      <div class="bm-tabs-content" hidden={!!editItem || pendingRecoveryActive}>
+      <div class="bm-tabs-content" hidden={settingsOpen || !!editItem || pendingRecoveryActive}>
         {#each tabs as tab}
           <div
             class="bm-tab-panel"
@@ -1325,13 +1357,16 @@
   .bm-content {
     overflow: hidden;
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100%;
     min-height: 0;
   }
 
   .bm-tabs-content {
     display: grid;
     overflow: hidden;
+    grid-row: 2;
+    height: 100%;
     min-height: 0;
   }
 
@@ -1349,6 +1384,8 @@
   .bm-tab-panel:not([hidden]) {
     display: grid;
     overflow: hidden;
+    grid-template-rows: minmax(0, 1fr);
+    height: 100%;
   }
 
   .bm-custom-tab {
@@ -1358,6 +1395,7 @@
 
   .bm-plugin-tab {
     /* Plugin tabs get the same layout as custom tabs */
+    height: 100%;
     min-height: 0;
   }
 

@@ -20,6 +20,7 @@ export type {
   InsertMode,
   BlossomMediaFeatures,
   CustomTab,
+  MediaDisplayItem,
 } from './types';
 
 export type { BlossomSigner } from '../core/types';
@@ -30,9 +31,15 @@ export type { NostrProfile } from '../core/profile';
 export type { PublishEventResult, PublishRelayResult } from '../core/publish';
 
 // ── Utilities useful for plugin authors ──────────────────────────────────────
-export { formatInsertResult } from '../core/format';
+export { formatInsertResult, INSERT_MODE_LABELS } from '../core/format';
 export { publishEvent } from '../core/publish';
 export { fetchProfile, shortenPubkey } from '../core/profile';
+
+// ── Shared UI components ─────────────────────────────────────────────────────
+export { default as MediaCard } from './shared/MediaCard.svelte';
+export { default as MediaDetailSheet } from './shared/MediaDetailSheet.svelte';
+export { default as MediaGridSearchBar } from './shared/MediaGridSearchBar.svelte';
+export { default as MediaToolbar } from './shared/MediaToolbar.svelte';
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 export {
