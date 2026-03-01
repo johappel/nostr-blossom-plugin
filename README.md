@@ -24,6 +24,19 @@ pnpm build:widget   # baut dist/widget/blossom-media.{iife,esm}.js
 
 Dann direkt `examples/simple-input.html` im Browser öffnen.
 
+## 📖 Neu hier? Anfänger-Leitfaden
+
+**Neu in Nostr oder Blossom?** Lesen Sie zuerst:
+
+→ **[Anfänger-FAQ](docs/beginner-faq.md)** — Umfassender Leitfaden für Nostr-Anfänger
+
+Dieses Dokument erklärt in einfacher Sprache:
+- Was ist Nostr und Blossom?
+- Wie unterscheidet sich das von WordPress/anderen CMS?
+- Welche zusätzlichen Funktionen bietet es?
+- Wie funktioniert der Signer (Authentifizierung)?
+- Praktische Fehlersuche und Tips
+
 ## Beispiele
 
 - `examples/simple-input.html` — Standard-Host-Integration mit `data-blossom`

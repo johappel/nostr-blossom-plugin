@@ -6,6 +6,10 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+### Docs
+
+- **Anfänger-Dokumentation:** Neues Dokument `docs/beginner-faq.md` — Umfassender FAQ-Leitfaden für Nostr- und Blossom-Anfänger mit ELI5-Erklärungen, praktischen Szenarien und Troubleshooting. Deckt ab: Nostr-Basics, Blossom vs. S3/WordPress, Dezentralisierung, NIP-94, Signer (NIP-07/NIP-46), Metadaten-Management, Galerie-Abruf, KI-Features, und häufige Fehler.
+
 ### Changed
 
 - **Icons**: Alle Emoji-Icons durch Google Material SVG-Icons ersetzt (Tabs, Buttons, Statusanzeigen).
