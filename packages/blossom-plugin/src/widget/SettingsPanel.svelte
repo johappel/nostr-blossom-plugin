@@ -370,10 +370,15 @@
 
   /* ── Back row ── */
   .sp-back-row {
+    position: sticky;
+    top: -1rem;
+    z-index: 2;
     display: flex;
     align-items: center;
     gap: 1rem;
+    padding-top: 0.5rem;
     padding-bottom: 0.5rem;
+    background: var(--bm-bg);
     border-bottom: 1px solid var(--bm-border-muted);
   }
 

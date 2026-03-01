@@ -970,7 +970,7 @@
     </header>
 
     <!-- Tab bar -->
-    {#if tabs.length > 1}
+    {#if !settingsOpen && tabs.length > 1}
       <div class="bm-tabs" role="tablist">
         {#each tabs as tab}
           <button
@@ -1074,7 +1074,7 @@
       {/if}
 
       <!-- Tabs always stay mounted so selection state is preserved -->
-      <div class="bm-tabs-content" hidden={!!editItem || pendingRecoveryActive}>
+      <div class="bm-tabs-content" hidden={settingsOpen || !!editItem || pendingRecoveryActive}>
         {#each tabs as tab}
           <div
             class="bm-tab-panel"
