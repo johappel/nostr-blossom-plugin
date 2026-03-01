@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { WidgetContext, Nip94FileEvent, MediaDisplayItem } from '@blossom/plugin/plugin';
-  import { iconSync, iconGroups, MediaCard, MediaDetailSheet, MediaGridSearchBar, MediaToolbar } from '@blossom/plugin/plugin';
+  import { iconSync, MediaCard, MediaDetailSheet, MediaGridSearchBar, MediaToolbar } from '@blossom/plugin/plugin';
   import { fetchMemberships } from './nostr/memberships';
   import { fetchCommunity } from './nostr/community';
   import { fetchCommunityMedia, parseShareEvent } from './nostr/community-media';
@@ -310,45 +310,31 @@
 
 <div class="community-tab">
   <!-- Community selector -->
-  <div class="community-toolbar">
-    {#if memberships.length > 0}
-      <select
-        class="community-select"
-        bind:value={selectedCommunityPubkey}
-      >
-        {#each memberships as m (m.communityPubkey)}
-          {@const info = communities.get(m.communityPubkey)}
-          <option value={m.communityPubkey}>
-            {info?.name ?? shortenPubkey(m.communityPubkey)}
-          </option>
-        {/each}
-      </select>
-    {/if}
-    <button
-      type="button"
-      class="btn-refresh"
-      disabled={loadingMemberships || loadingMedia}
-      onclick={loadMemberships}
-      title="Communities neu laden"
-    >{@html iconSync(16)}</button>
-  </div>
-
-  <!-- Community info bar -->
-  {#if selectedCommunity}
-    <div class="community-info">
-      {#if selectedCommunity.picture}
-        <img class="community-avatar" src={selectedCommunity.picture} alt="" />
-      {:else}
-        <span class="community-avatar community-avatar--placeholder">{@html iconGroups(24)}</span>
+  <div class="community-header-row">
+    <span class="community-label">Aktuelle Community</span>
+    <div class="community-controls">
+      {#if memberships.length > 0}
+        <select
+          class="community-select"
+          bind:value={selectedCommunityPubkey}
+        >
+          {#each memberships as m (m.communityPubkey)}
+            {@const info = communities.get(m.communityPubkey)}
+            <option value={m.communityPubkey}>
+              {info?.name ?? shortenPubkey(m.communityPubkey)}
+            </option>
+          {/each}
+        </select>
       {/if}
-      <div class="community-details">
-        <span class="community-name">{selectedCommunity.name ?? shortenPubkey(selectedCommunityPubkey ?? '')}</span>
-        <span class="community-meta">
-          {selectedCommunity.relays.length} Relay{selectedCommunity.relays.length !== 1 ? 's' : ''} · {enrichedMedia.length} Medien
-        </span>
-      </div>
+      <button
+        type="button"
+        class="btn-refresh"
+        disabled={loadingMemberships || loadingMedia}
+        onclick={loadMemberships}
+        title="Communities neu laden"
+      >{@html iconSync(16)}</button>
     </div>
-  {/if}
+  </div>
 
   <!-- Content area -->
   <div class="community-content">
@@ -471,14 +457,29 @@
   .community-tab {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.6rem;
     height: 100%;
     overflow: hidden;
-    padding: 0.5rem;
+    padding: 0.6rem;
     box-sizing: border-box;
   }
 
-  .community-toolbar {
+  .community-header-row {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+  }
+
+  .community-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--bm-text-muted, #888);
+    white-space: nowrap;
+  }
+
+  .community-controls {
+    flex: 1;
+    min-width: 0;
     display: flex;
     gap: 0.5rem;
     align-items: center;
@@ -486,6 +487,7 @@
 
   .community-select {
     flex: 1;
+    min-width: 0;
     font: inherit;
     font-size: 0.85rem;
     padding: 0.4rem 0.6rem;
@@ -512,55 +514,12 @@
     cursor: not-allowed;
   }
 
-  .community-info {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.4rem 0.5rem;
-    background: var(--bm-bg-subtle, #f8f8f8);
-    border-radius: 6px;
-    border: 1px solid var(--bm-border-muted, #eee);
-  }
-
-  .community-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-  .community-avatar--placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    background: var(--bm-bg-muted, #e8e8e8);
-  }
-
-  .community-details {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-    min-width: 0;
-  }
-
-  .community-name {
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: var(--bm-text, #222);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .community-meta {
-    font-size: 0.72rem;
-    color: var(--bm-text-muted, #888);
-  }
-
   .community-content {
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
     overflow: hidden;
   }
 
@@ -595,7 +554,8 @@
 
   .community-grid-wrapper {
     position: relative;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
   }
 

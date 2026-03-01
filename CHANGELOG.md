@@ -16,6 +16,10 @@ The format is based on Keep a Changelog.
 - **Einheitliche Search/Filter-Leiste für Media-Grids**: Neue Shared-Komponente `MediaGridSearchBar` (inkl. `iconSync`) für Gallery, Community und OER.
   - Konsistentes Suchverhalten mit Mehrfachbegriffen (Whitespace/Komma) und Trefferanzeige „Keine Treffer für die Suche.“.
   - Duplizierte tab-spezifische Refresh-/Search-UI in Gallery und OER entfernt.
+- **Header-/Layout-Harmonisierung (Community + OER)**:
+  - **CommunityTab** folgt jetzt dem Aufbau „Aktuelle Community + Dropdown“ → Suche → Grid, mit vereinheitlichten Abständen/Paddings.
+  - **OerSharesTab** nutzt einen Community-ähnlichen Header mit Edufeed-Logo + „Meine Shares“, Settings-Icon rechts und ohne Header-Border.
+  - Einheitlicher vertikaler Rhythmus in beiden Tabs (Header, Suchleiste, Grid).
 
 ### Added
 

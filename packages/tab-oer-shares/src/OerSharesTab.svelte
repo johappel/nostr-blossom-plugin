@@ -12,7 +12,7 @@
 -->
 <script lang="ts">
   import type { WidgetContext, MediaDisplayItem } from '@blossom/plugin/plugin';
-  import { iconSchool, iconTune, MediaCard, MediaDetailSheet, MediaGridSearchBar, MediaToolbar } from '@blossom/plugin/plugin';
+  import { iconTune, MediaCard, MediaDetailSheet, MediaGridSearchBar, MediaToolbar } from '@blossom/plugin/plugin';
   import { untrack } from 'svelte';
   import { fetchUserAmbShares } from './nostr/fetch-shares';
   import { publishAmbShareDeletion } from './nostr/delete';
@@ -21,6 +21,8 @@
   import OerShareForm from './OerShareForm.svelte';
 
   let { ctx }: { ctx: WidgetContext } = $props();
+
+  const EDUFEED_LOGO_URL = 'https://blossom.edufeed.org/924b425d644d5543fdf613122de39f680bf4704348caaa4b5f46d10fa7d493f6.webp';
 
   // ── State ──
   let shares = $state<AmbShareItem[]>([]);
@@ -247,7 +249,10 @@
 <div class="oer-tab">
   <!-- Toolbar -->
   <div class="oer-toolbar">
-    <span class="oer-tab-title">{@html iconSchool(16, 'vertical-align: -2px; margin-right: 4px;')} Meine OER-Shares</span>
+    <div class="oer-header-brand">
+      <img class="oer-header-logo" src={EDUFEED_LOGO_URL} alt="Edufeed" />
+      <span class="oer-tab-title">Meine Shares bei Edufeed</span>
+    </div>
     <div class="oer-toolbar-actions">
       <button
         type="button"
@@ -448,8 +453,11 @@
   .oer-tab {
     display: flex;
     flex-direction: column;
+    gap: 0.6rem;
     height: 100%;
     overflow: hidden;
+    padding: 0.6rem;
+    box-sizing: border-box;
   }
 
   /* ── Toolbar ── */
@@ -457,15 +465,33 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.5rem 0.8rem;
-    border-bottom: 1px solid var(--bm-input-border, #eee);
+    gap: 0.6rem;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .oer-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .oer-header-logo {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
     flex-shrink: 0;
   }
 
   .oer-tab-title {
-    font-weight: 700;
-    font-size: 0.9rem;
+    font-weight: 600;
+    font-size: 0.85rem;
     color: var(--bm-text, #222);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .oer-toolbar-actions {
