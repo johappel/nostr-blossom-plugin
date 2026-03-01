@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { WidgetContext, Nip94FileEvent, MediaDisplayItem } from '@blossom/plugin/plugin';
-  import { iconSync, iconGroups, MediaCard, MediaDetailSheet, MediaToolbar } from '@blossom/plugin/plugin';
+  import { iconSync, iconGroups, MediaCard, MediaDetailSheet, MediaGridSearchBar, MediaToolbar } from '@blossom/plugin/plugin';
   import { fetchMemberships } from './nostr/memberships';
   import { fetchCommunity } from './nostr/community';
   import { fetchCommunityMedia, parseShareEvent } from './nostr/community-media';
@@ -29,6 +29,7 @@
   let error = $state('');
 
   let selectedMediaUrl = $state<string | null>(null);
+  let filterQuery = $state('');
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const STORAGE_KEY = 'communikey-last-community';
@@ -147,8 +148,40 @@
       .filter((x): x is NonNullable<typeof x> => x !== null);
   });
 
+  let filteredMedia = $derived.by(() => {
+    const query = filterQuery.trim().toLowerCase();
+    if (!query) return enrichedMedia;
+
+    const terms = query.split(/[,\s]+/).filter(Boolean);
+
+    return enrichedMedia.filter((item) => {
+      const nip94 = resolvedNip94.get(item.originalEventId);
+      const alt = nip94 ? extractAltFromNip94(nip94) ?? '' : '';
+      const author = nip94 ? extractAuthorFromNip94(nip94) ?? '' : '';
+      const licenseInfo = nip94 ? extractLicenseFromNip94(nip94) : {};
+      const keywords = nip94 ? extractKeywordsFromNip94(nip94) : [];
+
+      const haystack = [
+        item.description,
+        item.mime,
+        item.url,
+        item.sharedBy,
+        alt,
+        author,
+        licenseInfo.licenseLabel,
+        licenseInfo.license,
+        ...keywords,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return terms.every((term) => haystack.includes(term));
+    });
+  });
+
   let selectedMedia = $derived(
-    selectedMediaUrl ? enrichedMedia.find(m => m.url === selectedMediaUrl) ?? null : null,
+    selectedMediaUrl ? filteredMedia.find(m => m.url === selectedMediaUrl) ?? null : null,
   );
 
   // ── Load memberships ──────────────────────────────────────────────────────
@@ -338,84 +371,98 @@
         Noch keine Medien in dieser Community geteilt.
       </div>
     {:else}
-      <div class="community-grid-wrapper">
-        <!-- Media grid -->
-        <div class="media-grid">
-          {#each enrichedMedia as item (item.shareEventId)}
-            <MediaCard
-              item={toDisplayItem(item)}
-              selected={selectedMediaUrl === item.url}
-              onclick={() => { selectedMediaUrl = selectedMediaUrl === item.url ? null : item.url; }}
-            />
-          {/each}
+      <MediaGridSearchBar
+        bind:value={filterQuery}
+        placeholder="Suchen: Schlagwort, Beschreibung, Autor, Typ…"
+        loading={loadingMedia}
+        onRefresh={loadCommunityMedia}
+        refreshTitle="Community-Medien neu laden"
+      />
+
+      {#if filteredMedia.length === 0}
+        <div class="community-status">
+          Keine Treffer für die Suche.
         </div>
-
-        <!-- Detail sheet (overlay) -->
-        <MediaDetailSheet
-          open={!!selectedMedia}
-          onClose={() => { selectedMediaUrl = null; }}
-        >
-          {#snippet children()}
-            {#if selectedMedia}
-              {#if selectedMedia.mime.startsWith('image/')}
-                <img class="sidebar-preview" src={selectedMedia.url} alt={selectedMedia.description} />
-              {/if}
-              <dl class="meta-list">
-                {#if selectedMedia.description}
-                  <dt>Beschreibung</dt>
-                  <dd>{selectedMedia.description}</dd>
-                {/if}
-                {#if resolvedNip94.get(selectedMedia.originalEventId)}
-                  {@const nip94 = resolvedNip94.get(selectedMedia.originalEventId)!}
-                  {@const altText = extractAltFromNip94(nip94)}
-                  {#if altText}
-                    <dt>Alt-Text</dt>
-                    <dd>{altText}</dd>
-                  {/if}
-                  {@const author = extractAuthorFromNip94(nip94)}
-                  {#if author}
-                    <dt>Autor</dt>
-                    <dd>{author}</dd>
-                  {/if}
-                  {@const licenseInfo = extractLicenseFromNip94(nip94)}
-                  {#if licenseInfo.license || licenseInfo.licenseLabel}
-                    <dt>Lizenz</dt>
-                    <dd>{licenseInfo.licenseLabel && licenseInfo.license ? `${licenseInfo.licenseLabel} (${licenseInfo.license})` : (licenseInfo.licenseLabel ?? licenseInfo.license)}</dd>
-                  {/if}
-                  {@const kws = extractKeywordsFromNip94(nip94)}
-                  {#if kws.length}
-                    <dt>Keywords</dt>
-                    <dd>{kws.join(', ')}</dd>
-                  {/if}
-                {/if}
-                <dt>Geteilt von</dt>
-                <dd>{shortenPubkey(selectedMedia.sharedBy)}</dd>
-                <dt>Typ</dt>
-                <dd>{selectedMedia.mime || 'Unbekannt'}</dd>
-                <dt>Datum</dt>
-                <dd>{new Date(selectedMedia.sharedAt * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</dd>
-                <dt>URL</dt>
-                <dd><a class="meta-url" href={selectedMedia.url} target="_blank" rel="noopener">{selectedMedia.url}</a></dd>
-              </dl>
-            {/if}
-          {/snippet}
-
-          {#snippet toolbar()}
-            {#if selectedMedia}
-              <MediaToolbar
-                item={toDisplayItem(selectedMedia)}
-                insertModes={['url', 'markdown', 'markdown-desc']}
-                shareTargets={[]}
-                widgetContext={ctx}
-                onInsert={(result) => { ctx.insert(result); selectedMediaUrl = null; }}
-                deleting={deletingShare}
-                onDelete={() => { void deleteSelectedShare(); }}
-                onEdit={null}
+      {:else}
+        <div class="community-grid-wrapper">
+          <!-- Media grid -->
+          <div class="media-grid">
+            {#each filteredMedia as item (item.shareEventId)}
+              <MediaCard
+                item={toDisplayItem(item)}
+                selected={selectedMediaUrl === item.url}
+                onclick={() => { selectedMediaUrl = selectedMediaUrl === item.url ? null : item.url; }}
               />
-            {/if}
-          {/snippet}
-        </MediaDetailSheet>
-      </div>
+            {/each}
+          </div>
+
+          <!-- Detail sheet (overlay) -->
+          <MediaDetailSheet
+            open={!!selectedMedia}
+            onClose={() => { selectedMediaUrl = null; }}
+          >
+            {#snippet children()}
+              {#if selectedMedia}
+                {#if selectedMedia.mime.startsWith('image/')}
+                  <img class="sidebar-preview" src={selectedMedia.url} alt={selectedMedia.description} />
+                {/if}
+                <dl class="meta-list">
+                  {#if selectedMedia.description}
+                    <dt>Beschreibung</dt>
+                    <dd>{selectedMedia.description}</dd>
+                  {/if}
+                  {#if resolvedNip94.get(selectedMedia.originalEventId)}
+                    {@const nip94 = resolvedNip94.get(selectedMedia.originalEventId)!}
+                    {@const altText = extractAltFromNip94(nip94)}
+                    {#if altText}
+                      <dt>Alt-Text</dt>
+                      <dd>{altText}</dd>
+                    {/if}
+                    {@const author = extractAuthorFromNip94(nip94)}
+                    {#if author}
+                      <dt>Autor</dt>
+                      <dd>{author}</dd>
+                    {/if}
+                    {@const licenseInfo = extractLicenseFromNip94(nip94)}
+                    {#if licenseInfo.license || licenseInfo.licenseLabel}
+                      <dt>Lizenz</dt>
+                      <dd>{licenseInfo.licenseLabel && licenseInfo.license ? `${licenseInfo.licenseLabel} (${licenseInfo.license})` : (licenseInfo.licenseLabel ?? licenseInfo.license)}</dd>
+                    {/if}
+                    {@const kws = extractKeywordsFromNip94(nip94)}
+                    {#if kws.length}
+                      <dt>Keywords</dt>
+                      <dd>{kws.join(', ')}</dd>
+                    {/if}
+                  {/if}
+                  <dt>Geteilt von</dt>
+                  <dd>{shortenPubkey(selectedMedia.sharedBy)}</dd>
+                  <dt>Typ</dt>
+                  <dd>{selectedMedia.mime || 'Unbekannt'}</dd>
+                  <dt>Datum</dt>
+                  <dd>{new Date(selectedMedia.sharedAt * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</dd>
+                  <dt>URL</dt>
+                  <dd><a class="meta-url" href={selectedMedia.url} target="_blank" rel="noopener">{selectedMedia.url}</a></dd>
+                </dl>
+              {/if}
+            {/snippet}
+
+            {#snippet toolbar()}
+              {#if selectedMedia}
+                <MediaToolbar
+                  item={toDisplayItem(selectedMedia)}
+                  insertModes={['url', 'markdown', 'markdown-desc']}
+                  shareTargets={[]}
+                  widgetContext={ctx}
+                  onInsert={(result) => { ctx.insert(result); selectedMediaUrl = null; }}
+                  deleting={deletingShare}
+                  onDelete={() => { void deleteSelectedShare(); }}
+                  onEdit={null}
+                />
+              {/if}
+            {/snippet}
+          </MediaDetailSheet>
+        </div>
+      {/if}
     {/if}
   </div>
 </div>

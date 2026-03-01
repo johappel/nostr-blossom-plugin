@@ -38,6 +38,7 @@ export { fetchProfile, shortenPubkey } from '../core/profile';
 // ── Shared UI components ─────────────────────────────────────────────────────
 export { default as MediaCard } from './shared/MediaCard.svelte';
 export { default as MediaDetailSheet } from './shared/MediaDetailSheet.svelte';
+export { default as MediaGridSearchBar } from './shared/MediaGridSearchBar.svelte';
 export { default as MediaToolbar } from './shared/MediaToolbar.svelte';
 
 // ── Icons ────────────────────────────────────────────────────────────────────

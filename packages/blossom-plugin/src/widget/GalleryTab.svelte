@@ -8,6 +8,7 @@
   import MetadataSidebar from './MetadataSidebar.svelte';
   import MediaCard from './shared/MediaCard.svelte';
   import MediaDetailSheet from './shared/MediaDetailSheet.svelte';
+  import MediaGridSearchBar from './shared/MediaGridSearchBar.svelte';
   import MediaToolbar from './shared/MediaToolbar.svelte';
 
   interface GalleryTabProps {
@@ -275,23 +276,13 @@
 </script>
 
 <div class="gallery-tab">
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <input
-      class="search-input"
-      placeholder="Suchen: Schlagwort, Beschreibung, Autor, Typ…"
-      bind:value={filterQuery}
-    />
-    <button
-      type="button"
-      class="btn-refresh"
-      onclick={onRefresh}
-      disabled={loading}
-      title="Mediathek neu laden"
-    >
-      {loading ? '…' : '↺'}
-    </button>
-  </div>
+  <MediaGridSearchBar
+    bind:value={filterQuery}
+    placeholder="Suchen: Schlagwort, Beschreibung, Autor, Typ…"
+    loading={loading}
+    onRefresh={onRefresh}
+    refreshTitle="Mediathek neu laden"
+  />
 
   {#if filteredKeywords.length > 0}
     <div class="keyword-bar">
@@ -464,43 +455,6 @@
     overflow: hidden;
     padding: 0.5rem;
     box-sizing: border-box;
-  }
-
-  .toolbar {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-  }
-
-  .search-input {
-    flex: 1;
-    font: inherit;
-    font-size: 0.875rem;
-    padding: 0.4rem 0.6rem;
-    border: 1px solid var(--bm-input-border, #ccc);
-    border-radius: 4px;
-    background: var(--bm-input-bg, #fff);
-    color: var(--bm-text, #222);
-  }
-
-  .search-input::placeholder {
-    color: var(--bm-text-subtle, #888);
-  }
-
-  .btn-refresh {
-    font: inherit;
-    padding: 0.4rem 0.7rem;
-    border: 1px solid var(--bm-input-border, #ccc);
-    border-radius: 4px;
-    background: var(--bm-bg-subtle, #f5f5f5);
-    cursor: pointer;
-    font-size: 1rem;
-    color: var(--bm-text, #222);
-  }
-
-  .btn-refresh:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 
   .keyword-bar {

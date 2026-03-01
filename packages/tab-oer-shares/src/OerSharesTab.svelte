@@ -12,7 +12,7 @@
 -->
 <script lang="ts">
   import type { WidgetContext, MediaDisplayItem } from '@blossom/plugin/plugin';
-  import { iconSchool, iconSync, iconTune, MediaCard, MediaDetailSheet, MediaToolbar } from '@blossom/plugin/plugin';
+  import { iconSchool, iconTune, MediaCard, MediaDetailSheet, MediaGridSearchBar, MediaToolbar } from '@blossom/plugin/plugin';
   import { untrack } from 'svelte';
   import { fetchUserAmbShares } from './nostr/fetch-shares';
   import { publishAmbShareDeletion } from './nostr/delete';
@@ -24,6 +24,7 @@
 
   // ── State ──
   let shares = $state<AmbShareItem[]>([]);
+  let filterQuery = $state('');
   let loading = $state(false);
   let deletingShare = $state(false);
   let error = $state<string | null>(null);
@@ -211,6 +212,36 @@
       tags: [],
     };
   }
+
+  const filteredShares = $derived.by(() => {
+    const query = filterQuery.trim().toLowerCase();
+    if (!query) return shares;
+
+    const terms = query.split(/[,\s]+/).filter(Boolean);
+
+    return shares.filter((item) => {
+      const haystack = [
+        item.name,
+        item.description,
+        item.encodingUrl,
+        item.imageUrl,
+        item.licenseId,
+        item.creatorName,
+        item.pubkey,
+        item.keywords.join(' '),
+        item.about.map((x) => x.prefLabel).join(' '),
+        item.audience.map((x) => x.prefLabel).join(' '),
+        item.educationalLevel.map((x) => x.prefLabel).join(' '),
+        item.learningResourceType.map((x) => x.prefLabel).join(' '),
+        item.inLanguage,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return terms.every((term) => haystack.includes(term));
+    });
+  });
 </script>
 
 <div class="oer-tab">
@@ -218,15 +249,6 @@
   <div class="oer-toolbar">
     <span class="oer-tab-title">{@html iconSchool(16, 'vertical-align: -2px; margin-right: 4px;')} Meine OER-Shares</span>
     <div class="oer-toolbar-actions">
-      <button
-        type="button"
-        class="oer-icon-btn"
-        onclick={() => loadShares()}
-        title="Aktualisieren"
-        disabled={loading}
-      >
-        {@html iconSync(18)}
-      </button>
       <button
         type="button"
         class="oer-icon-btn"
@@ -288,17 +310,29 @@
   {:else if error && shares.length === 0}
     <div class="oer-center oer-muted">{error}</div>
   {:else}
+    <MediaGridSearchBar
+      bind:value={filterQuery}
+      placeholder="Suchen: Schlagwort, Beschreibung, Autor, Fach…"
+      loading={loading}
+      onRefresh={loadShares}
+      refreshTitle="OER-Shares neu laden"
+    />
+
     <!-- Grid + detail overlay -->
     <div class="oer-grid-wrapper">
-      <div class="oer-grid">
-        {#each shares as item (item.eventId)}
-          <MediaCard
-            item={toDisplayItem(item)}
-            selected={selectedItem?.eventId === item.eventId}
-            onclick={() => { selectedItem = selectedItem?.eventId === item.eventId ? null : item; }}
-          />
-        {/each}
-      </div>
+      {#if filteredShares.length === 0}
+        <div class="oer-center oer-muted">Keine Treffer für die Suche.</div>
+      {:else}
+        <div class="oer-grid">
+          {#each filteredShares as item (item.eventId)}
+            <MediaCard
+              item={toDisplayItem(item)}
+              selected={selectedItem?.eventId === item.eventId}
+              onclick={() => { selectedItem = selectedItem?.eventId === item.eventId ? null : item; }}
+            />
+          {/each}
+        </div>
+      {/if}
 
       <!-- Detail sheet (overlay) -->
       <MediaDetailSheet
