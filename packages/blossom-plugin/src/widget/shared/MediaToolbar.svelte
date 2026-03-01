@@ -36,6 +36,7 @@
     widgetContext?: WidgetContext | null;
     onInsert: (result: InsertResult) => void;
     onDelete?: (() => void) | null;
+    deleting?: boolean;
     onEdit?: (() => void) | null;
   }
 
@@ -48,6 +49,7 @@
     widgetContext = null,
     onInsert,
     onDelete = null,
+    deleting = false,
     onEdit = null,
   }: MediaToolbarProps = $props();
 
@@ -178,12 +180,17 @@
       type="button"
       class="btn-icon btn-icon--danger"
       onclick={onDelete}
-      title="Datei löschen"
-      aria-label="Datei löschen"
+      disabled={deleting}
+      title={deleting ? 'Löschen läuft…' : 'Datei löschen'}
+      aria-label={deleting ? 'Löschen läuft' : 'Datei löschen'}
     >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-      </svg>
+      {#if deleting}
+        <span aria-hidden="true">…</span>
+      {:else}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+        </svg>
+      {/if}
     </button>
   {/if}
 
@@ -253,6 +260,11 @@
   .btn-icon:hover {
     background: var(--bm-accent-bg-subtle, #f0eeff);
     color: var(--bm-accent, #6c63ff);
+  }
+
+  .btn-icon:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
   .btn-icon--danger:hover {

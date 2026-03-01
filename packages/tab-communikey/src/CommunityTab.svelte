@@ -4,6 +4,7 @@
   import { fetchMemberships } from './nostr/memberships';
   import { fetchCommunity } from './nostr/community';
   import { fetchCommunityMedia, parseShareEvent } from './nostr/community-media';
+  import { publishCommunityShareDeletion } from './nostr/delete';
   import type { CommunityInfo, CommunityMembership, CommunityMediaItem } from './nostr/types';
 
   interface CommunityTabProps {
@@ -24,6 +25,7 @@
 
   let loadingMemberships = $state(false);
   let loadingMedia = $state(false);
+  let deletingShare = $state(false);
   let error = $state('');
 
   let selectedMediaUrl = $state<string | null>(null);
@@ -222,6 +224,41 @@
       loadMemberships();
     }
   });
+
+  async function deleteSelectedShare() {
+    if (deletingShare || !selectedMedia) return;
+
+    const signer = ctx.signer;
+    if (!signer) {
+      error = 'Kein Signer verfügbar. Bitte zuerst anmelden.';
+      return;
+    }
+
+    const confirmed = confirm('Diesen Community-Share wirklich löschen?');
+    if (!confirmed) return;
+
+    const relayUrls = [...new Set([
+      ...(selectedCommunity?.relays ?? []),
+      ...ctx.relayUrls,
+    ])].filter(Boolean);
+
+    deletingShare = true;
+    try {
+      await publishCommunityShareDeletion(
+        signer,
+        selectedMedia.shareEventId,
+        relayUrls,
+      );
+      selectedMediaUrl = null;
+      await loadCommunityMedia();
+    } catch (err) {
+      const e = err instanceof Error ? err : new Error(String(err));
+      error = `Fehler beim Löschen des Community-Shares: ${e.message}`;
+      ctx.reportError(e);
+    } finally {
+      deletingShare = false;
+    }
+  }
 </script>
 
 <div class="community-tab">
@@ -357,7 +394,8 @@
                 shareTargets={[]}
                 widgetContext={ctx}
                 onInsert={(result) => { ctx.insert(result); selectedMediaUrl = null; }}
-                onDelete={null}
+                deleting={deletingShare}
+                onDelete={() => { void deleteSelectedShare(); }}
                 onEdit={null}
               />
             {/if}

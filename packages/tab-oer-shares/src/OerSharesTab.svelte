@@ -15,6 +15,7 @@
   import { iconSchool, iconSync, iconTune, MediaCard, MediaDetailSheet, MediaToolbar } from '@blossom/plugin/plugin';
   import { untrack } from 'svelte';
   import { fetchUserAmbShares } from './nostr/fetch-shares';
+  import { publishAmbShareDeletion } from './nostr/delete';
   import type { AmbShareItem, SkosSelection } from './nostr/types';
   import { loadConfig, saveConfig, type OerSharesConfig } from './config';
   import OerShareForm from './OerShareForm.svelte';
@@ -24,6 +25,7 @@
   // ── State ──
   let shares = $state<AmbShareItem[]>([]);
   let loading = $state(false);
+  let deletingShare = $state(false);
   let error = $state<string | null>(null);
   let selectedItem = $state<AmbShareItem | null>(null);
   let showSettings = $state(false);
@@ -150,6 +152,36 @@
       alt: item.name,
       tags: [],
     });
+  }
+
+  async function deleteSelectedShare() {
+    if (deletingShare || !selectedItem) return;
+
+    const signer = ctx.signer;
+    if (!signer) {
+      error = 'Bitte zuerst anmelden, um OER-Shares zu löschen.';
+      return;
+    }
+
+    const confirmed = confirm('Diesen OER-Share wirklich löschen?');
+    if (!confirmed) return;
+
+    deletingShare = true;
+    try {
+      await publishAmbShareDeletion(
+        signer,
+        selectedItem.eventId,
+        config.ambRelayUrl,
+      );
+      selectedItem = null;
+      await loadShares();
+    } catch (err) {
+      const e = err instanceof Error ? err : new Error(String(err));
+      error = `Fehler beim Löschen des OER-Shares: ${e.message}`;
+      ctx.reportError(e);
+    } finally {
+      deletingShare = false;
+    }
   }
 
   /** Convert AmbShareItem → unified MediaDisplayItem for shared grid/sheet components. */
@@ -355,7 +387,8 @@
               nip94Event={null}
               widgetContext={ctx}
               onInsert={(result) => { ctx.insert(result); selectedItem = null; }}
-              onDelete={null}
+              deleting={deletingShare}
+              onDelete={() => { void deleteSelectedShare(); }}
               onEdit={() => startEdit(selectedItem!)}
             />
           {/if}

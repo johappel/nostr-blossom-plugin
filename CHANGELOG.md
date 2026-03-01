@@ -16,6 +16,11 @@ The format is based on Keep a Changelog.
 
 ### Added
 
+- **Delete in Detail-Toolbar (Community + OER)**: Löschfunktion in den Detail-Sheets ergänzt.
+  - **CommunityTab**: Publiziert NIP-09 `kind:5` Delete-Event für das ausgewählte Kind-`30222` Share-Event (`e` + `k=30222`) und lädt die Community-Medien danach neu.
+  - **OerSharesTab**: Publiziert NIP-09 `kind:5` Delete-Event für das ausgewählte Kind-`30142` AMB-Event (`e` + `k=30142`) und lädt die OER-Shares danach neu.
+  - Neue Helper: `publishCommunityShareDeletion()` und `publishAmbShareDeletion()`.
+
 - **Einheitliches Grid-UI** (`MediaCard`, `MediaDetailSheet`, `MediaToolbar`): Neue geteilte Svelte-Komponenten unter `packages/blossom-plugin/src/widget/shared/`, exportiert über `@blossom/plugin/plugin`.
   - `MediaCard.svelte`: 4:3-Karte mit Thumbnail, Name, Datum und optionalem Badge-Overlay — ersetzt alle Tab-spezifischen `thumb-btn`/`oer-card` Buttons.
   - `MediaDetailSheet.svelte`: Vollbild-Overlay (Svelte 5-Snippets `children` + `toolbar`) mit Fade+Slide-Animation, Escape-Handler und eingebautem Schließen-Button — ersetzt feste Seitenleisten und Vollansicht in OerSharesTab.

@@ -3,3 +3,4 @@ export { fetchMemberships, parseMembershipEvent } from './memberships';
 export { fetchCommunity, parseCommunityEvent } from './community';
 export { fetchCommunityMedia, parseShareEvent } from './community-media';
 export { publishCommunityShare } from './share';
+export { publishCommunityShareDeletion } from './delete';
