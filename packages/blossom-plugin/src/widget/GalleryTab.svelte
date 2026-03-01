@@ -1,12 +1,14 @@
 <script lang="ts">
   import type { UploadHistoryItem } from '../core/history';
   import type { Nip94FetchResult } from '../core/nip94';
-  import type { InsertResult, BlossomMediaFeatures, InsertMode, ShareTarget, WidgetContext } from './types';
+  import type { InsertResult, BlossomMediaFeatures, MediaDisplayItem, ShareTarget, WidgetContext } from './types';
   import type { BlossomSigner } from '../core/types';
   import type { VisionClientOptions } from '../core/vision';
   import { formatLicenseDisplay } from '../core/licenses';
-  import { formatInsertResult, INSERT_MODE_LABELS } from '../core/format';
   import MetadataSidebar from './MetadataSidebar.svelte';
+  import MediaCard from './shared/MediaCard.svelte';
+  import MediaDetailSheet from './shared/MediaDetailSheet.svelte';
+  import MediaToolbar from './shared/MediaToolbar.svelte';
 
   interface GalleryTabProps {
     items: UploadHistoryItem[];
@@ -54,26 +56,7 @@
   let deleteConfirmUrl = $state<string | null>(null);
   let filterQuery = $state('');
   let activeKeyword = $state<string | null>(null);
-  let sharePopoverOpen = $state(false);
-  let sharingTargetId = $state<string | null>(null);
   let copiedUrl = $state(false);
-  let insertMode = $state<InsertMode>('url');
-
-  /** true when opened from a host-page element (input/textarea/etc.) */
-  let hasTarget = $derived(!!targetElement);
-
-  /**
-   * Effective format: when a target element is present, read its `data-format`
-   * attribute (default: 'url'). Otherwise use the user-selected insertMode.
-   */
-  let effectiveMode = $derived.by((): InsertMode => {
-    if (targetElement) {
-      const fmt = targetElement.getAttribute('data-format');
-      if (fmt && fmt in INSERT_MODE_LABELS) return fmt as InsertMode;
-      return 'url';
-    }
-    return insertMode;
-  });
 
   async function copyUrl(url: string) {
     try {
@@ -229,19 +212,40 @@
     };
   }
 
-  function handleSelect(url: string) {
-    // Toggle: clicking the same item again deselects (closes sidebar on mobile)
-    selectedUrl = selectedUrl === url ? null : url;
-    deleteConfirmUrl = null;
+  /** Convert UploadHistoryItem → unified MediaDisplayItem for shared grid/sheet components. */
+  function toDisplayItem(item: UploadHistoryItem): MediaDisplayItem {
+    const isLocal = items.some(
+      (i) =>
+        i.url === item.url ||
+        (i.sha256 && item.sha256 && i.sha256.toLowerCase() === item.sha256.toLowerCase()),
+    );
+    return {
+      id: item.url,
+      url: item.url,
+      thumbnailUrl: item.uploadTags?.find((t) => t[0] === 'thumb')?.[1] ||
+        (item.mime?.startsWith('image/') ? item.url : undefined),
+      previewUrl: getPreviewUrl(item) || undefined,
+      name: item.metadata?.altAttribution || item.metadata?.description || '',
+      description: item.metadata?.description,
+      author: item.metadata?.author,
+      license: item.metadata?.license,
+      licenseLabel: item.metadata?.licenseLabel,
+      mimeType: item.mime,
+      date: formatDate(item.createdAt),
+      keywords: item.metadata?.keywords,
+      genre: item.metadata?.genre,
+      sha256: item.sha256,
+      size: item.uploadTags?.find((t) => t[0] === 'size')?.[1]
+        ? Number(item.uploadTags!.find((t) => t[0] === 'size')![1])
+        : undefined,
+      tags: item.uploadTags,
+      badge: !isLocal ? { text: '☁', title: 'Nur auf Relay' } : undefined,
+    };
   }
 
-  function handleApply() {
-    if (!selectedItem) return;
-    const result = buildInsertResult(selectedItem);
-    result.insertMode = effectiveMode;
-    result.formattedText = formatInsertResult(result, effectiveMode);
-    onInserted(result);
-    selectedUrl = null;
+  function handleSelect(url: string) {
+    // Toggle: clicking the same item again deselects (closes sheet)
+    selectedUrl = selectedUrl === url ? null : url;
     deleteConfirmUrl = null;
   }
 
@@ -311,207 +315,139 @@
       <!-- Grid -->
       <div class="gallery-grid">
         {#each filteredItems as item (item.url)}
-          {@const thumb = getThumbnailUrl(item)}
-          {@const isLocal = items.some((i) => i.url === item.url)}
-          <button
-            type="button"
-            class="thumb-btn"
-            class:selected={selectedUrl === item.url}
+          <MediaCard
+            item={toDisplayItem(item)}
+            selected={selectedUrl === item.url}
             onclick={() => handleSelect(item.url)}
-            title={item.metadata?.description || item.url}
-          >
-            {#if thumb}
-              <img src={thumb} alt={item.metadata?.altAttribution || item.metadata?.description || ''} loading="lazy" />
-            {:else if item.mime?.includes('pdf')}
-              <span class="thumb-placeholder">📄</span>
-            {:else}
-              <span class="thumb-placeholder">📁</span>
-            {/if}
-            {#if !isLocal}
-              <span class="badge-remote" title="Nur auf Relay">☁</span>
-            {/if}
-          </button>
+          />
         {/each}
       </div>
 
-      <!-- Sidebar -->
-      {#if selectedItem}
-        <div class="sidebar-panel">
-          <button type="button" class="sidebar-close" onclick={() => (selectedUrl = null)} title="Schließen">✕</button>
-          <!-- Delete confirm -->
-          {#if deleteConfirmUrl === selectedItem.url}
-            <div class="delete-confirm">
-              <p>Datei wirklich löschen?</p>
-              <div class="confirm-actions">
+      <!-- Detail sheet (overlay) -->
+      <MediaDetailSheet
+        open={!!selectedItem}
+        onClose={() => { selectedUrl = null; deleteConfirmUrl = null; }}
+      >
+        {#snippet children()}
+          {#if selectedItem}
+            <!-- Preview -->
+            {#if getPreviewUrl(selectedItem)}
+              <img class="sidebar-preview" src={getPreviewUrl(selectedItem)} alt={selectedItem.metadata?.altAttribution || ''} />
+            {:else if selectedItem.mime?.includes('pdf')}
+              <div class="pdf-preview">📄 PDF — <a href={selectedItem.url} target="_blank" rel="noreferrer">Öffnen</a></div>
+            {/if}
+
+            <!-- Metadata -->
+            {#if selectedItem.metadata}
+              <dl class="meta-list">
+                {#if selectedItem.metadata.description}
+                  <dt>Beschreibung</dt>
+                  <dd>{selectedItem.metadata.description}</dd>
+                {/if}
+                {#if selectedItem.metadata.altAttribution}
+                  <dt>Alt-Text</dt>
+                  <dd>{selectedItem.metadata.altAttribution}</dd>
+                {/if}
+                {#if selectedItem.metadata.author}
+                  <dt>Autor</dt>
+                  <dd>{selectedItem.metadata.author}</dd>
+                {/if}
+                {#if selectedItem.metadata.genre}
+                  <dt>Genre</dt>
+                  <dd>{selectedItem.metadata.genre}</dd>
+                {/if}
+                {#if selectedItem.metadata.license}
+                  <dt>Lizenz</dt>
+                  <dd>{formatLicenseDisplay(selectedItem.metadata.license, selectedItem.metadata.licenseLabel)}</dd>
+                {/if}
+                {#if selectedItem.metadata.keywords?.length}
+                  <dt>Keywords</dt>
+                  <dd>
+                    {#each selectedItem.metadata.keywords as kw}
+                      <button type="button" class="keyword-tag" class:active={activeKeyword === kw.toLowerCase()} onclick={() => toggleKeyword(kw.toLowerCase())}>{kw}</button>
+                    {/each}
+                  </dd>
+                {/if}
+                <dt>Datum</dt>
+                <dd>{formatDate(selectedItem.createdAt)}</dd>
+                {#if selectedItem.mime}
+                  <dt>Typ</dt>
+                  <dd>{selectedItem.mime}</dd>
+                {/if}
+                <dt>URL</dt>
+                <dd>
+                  <button type="button" class="url-copy" onclick={() => copyUrl(selectedItem!.url)} title="URL kopieren">
+                    {#if copiedUrl}<svg class="icon-inline" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Kopiert!{:else}{selectedItem.url}{/if}
+                  </button>
+                </dd>
+              </dl>
+            {:else}
+              <!-- Basic info for items without full metadata -->
+              <dl class="meta-list">
+                <dt>Datum</dt>
+                <dd>{formatDate(selectedItem.createdAt)}</dd>
+                {#if selectedItem.mime}
+                  <dt>Typ</dt>
+                  <dd>{selectedItem.mime}</dd>
+                {/if}
+                {#if selectedItem.sha256}
+                  <dt>SHA-256</dt>
+                  <dd class="mono">{selectedItem.sha256.slice(0, 16)}…</dd>
+                {/if}
+                <dt>URL</dt>
+                <dd>
+                  <button type="button" class="url-copy" onclick={() => copyUrl(selectedItem!.url)} title="URL kopieren">
+                    {#if copiedUrl}<svg class="icon-inline" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Kopiert!{:else}{selectedItem.url}{/if}
+                  </button>
+                </dd>
+              </dl>
+              <!-- Vision sidebar for items without metadata -->
+              {#if visionOptions && features.aiDescription !== false}
+                <MetadataSidebar
+                  fileUrl={selectedItem.url}
+                  mime={selectedItem.mime ?? 'application/octet-stream'}
+                  thumbnailUrl={getPreviewUrl(selectedItem)}
+                  mode="create"
+                  {visionOptions}
+                  showDelete={features.deleteFiles !== false}
+                  showMetadata={true}
+                  onSubmit={(meta) => {
+                    if (selectedItem) {
+                      onInserted({ ...buildInsertResult(selectedItem), ...meta, keywords: meta.keywords });
+                    }
+                  }}
+                  onDelete={features.deleteFiles !== false ? handleDeleteClick : undefined}
+                />
+              {/if}
+            {/if}
+          {/if}
+        {/snippet}
+
+        {#snippet toolbar()}
+          {#if selectedItem}
+            {#if deleteConfirmUrl === selectedItem.url}
+              <!-- Delete confirm row -->
+              <div class="confirm-row">
+                <span class="confirm-label">Datei wirklich löschen?</span>
                 <button type="button" class="btn-secondary" onclick={handleDeleteCancel}>Abbrechen</button>
                 <button type="button" class="btn-danger" onclick={handleDeleteConfirm}>Löschen</button>
               </div>
-            </div>
-          {:else}
-            <div class="sidebar-scroll">
-              <!-- Preview (image-size from NIP-94 `image` tag) -->
-              {#if getPreviewUrl(selectedItem)}
-                <img class="sidebar-preview" src={getPreviewUrl(selectedItem)} alt={selectedItem.metadata?.altAttribution || ''} />
-              {:else if selectedItem.mime?.includes('pdf')}
-                <div class="pdf-preview">📄 PDF — <a href={selectedItem.url} target="_blank" rel="noreferrer">Öffnen</a></div>
-              {/if}
-
-              <!-- Metadata -->
-              {#if selectedItem.metadata}
-                <dl class="meta-list">
-                  {#if selectedItem.metadata.description}
-                    <dt>Beschreibung</dt>
-                    <dd>{selectedItem.metadata.description}</dd>
-                  {/if}
-                  {#if selectedItem.metadata.altAttribution}
-                    <dt>Alt-Text</dt>
-                    <dd>{selectedItem.metadata.altAttribution}</dd>
-                  {/if}
-                  {#if selectedItem.metadata.author}
-                    <dt>Autor</dt>
-                    <dd>{selectedItem.metadata.author}</dd>
-                  {/if}
-                  {#if selectedItem.metadata.genre}
-                    <dt>Genre</dt>
-                    <dd>{selectedItem.metadata.genre}</dd>
-                  {/if}
-                  {#if selectedItem.metadata.license}
-                    <dt>Lizenz</dt>
-                    <dd>{formatLicenseDisplay(selectedItem.metadata.license, selectedItem.metadata.licenseLabel)}</dd>
-                  {/if}
-                  {#if selectedItem.metadata.keywords?.length}
-                    <dt>Keywords</dt>
-                    <dd>
-                      {#each selectedItem.metadata.keywords as kw}
-                        <button type="button" class="keyword-tag" class:active={activeKeyword === kw.toLowerCase()} onclick={() => toggleKeyword(kw.toLowerCase())}>{kw}</button>
-                      {/each}
-                    </dd>
-                  {/if}
-                  <dt>Datum</dt>
-                  <dd>{formatDate(selectedItem.createdAt)}</dd>
-                  {#if selectedItem.mime}
-                    <dt>Typ</dt>
-                    <dd>{selectedItem.mime}</dd>
-                  {/if}
-                  <dt>URL</dt>
-                  <dd>
-                    <button type="button" class="url-copy" onclick={() => copyUrl(selectedItem.url)} title="URL kopieren">
-                      {#if copiedUrl}<svg class="icon-inline" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Kopiert!{:else}{selectedItem.url}{/if}
-                    </button>
-                  </dd>
-                </dl>
-              {:else}
-                <!-- Basic info for items without full metadata -->
-                <dl class="meta-list">
-                  <dt>Datum</dt>
-                  <dd>{formatDate(selectedItem.createdAt)}</dd>
-                  {#if selectedItem.mime}
-                    <dt>Typ</dt>
-                    <dd>{selectedItem.mime}</dd>
-                  {/if}
-                  {#if selectedItem.sha256}
-                    <dt>SHA-256</dt>
-                    <dd class="mono">{selectedItem.sha256.slice(0, 16)}…</dd>
-                  {/if}
-                  <dt>URL</dt>
-                  <dd>
-                    <button type="button" class="url-copy" onclick={() => copyUrl(selectedItem.url)} title="URL kopieren">
-                      {#if copiedUrl}<svg class="icon-inline" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Kopiert!{:else}{selectedItem.url}{/if}
-                    </button>
-                  </dd>
-                </dl>
-                <!-- Vision sidebar for items without metadata -->
-                {#if visionOptions && features.aiDescription !== false}
-                  <MetadataSidebar
-                    fileUrl={selectedItem.url}
-                    mime={selectedItem.mime ?? 'application/octet-stream'}
-                    thumbnailUrl={getPreviewUrl(selectedItem)}
-                    mode="create"
-                    {visionOptions}
-                    showDelete={features.deleteFiles !== false}
-                    showMetadata={true}
-                    onSubmit={(meta) => {
-                      if (selectedItem) {
-                        onInserted({ ...buildInsertResult(selectedItem), ...meta, keywords: meta.keywords });
-                      }
-                    }}
-                    onDelete={features.deleteFiles !== false ? handleDeleteClick : undefined}
-                  />
-                {/if}
-              {/if}
-            </div>
-
-            <!-- Toolbar pinned at bottom -->
-            <div class="sidebar-toolbar">
-              {#if shareTargets.length > 0 && widgetContext}
-                <div class="share-wrapper">
-                  <button
-                    type="button"
-                    class="btn-icon"
-                    onclick={() => { sharePopoverOpen = !sharePopoverOpen; }}
-                    title="Teilen"
-                  ><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg></button>
-                  {#if sharePopoverOpen}
-                    <div class="share-popover">
-                      {#each shareTargets as target (target.id)}
-                        <button
-                          type="button"
-                          class="share-option"
-                          disabled={sharingTargetId === target.id}
-                          onclick={async () => {
-                            if (!selectedItem || !widgetContext) return;
-                            const nip94Event = nip94Data?.byUrl?.get(selectedItem.url);
-                            if (!nip94Event) {
-                              widgetContext.reportError(new Error('Kein NIP-94 Event für dieses Item vorhanden.'));
-                              return;
-                            }
-                            sharePopoverOpen = false;
-                            sharingTargetId = target.id;
-                            try {
-                              await target.handler(selectedItem, nip94Event, widgetContext);
-                            } catch (err) {
-                              widgetContext.reportError(err instanceof Error ? err : new Error(String(err)));
-                            } finally {
-                              sharingTargetId = null;
-                            }
-                          }}
-                        >
-                          {#if target.icon}<span class="share-option-icon">{@html target.icon}</span>{/if}
-                          <span>{sharingTargetId === target.id ? 'Wird geteilt…' : target.label}</span>
-                        </button>
-                      {/each}
-                    </div>
-                  {/if}
-                </div>
-              {/if}
-              {#if onEditMetadata}
-                <button
-                  type="button"
-                  class="btn-icon"
-                  onclick={() => onEditMetadata?.(selectedItem!)}
-                  title="Metadaten bearbeiten"
-                ><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
-              {/if}
-              {#if features.deleteFiles !== false}
-                <button type="button" class="btn-icon btn-icon--danger" onclick={handleDeleteClick} title="Datei löschen"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
-              {/if}
-              {#if hasTarget}
-                <!-- Target mode: format from data-format, checkmark = write to field -->
-                <span class="format-badge" title="Format: {INSERT_MODE_LABELS[effectiveMode]}">{INSERT_MODE_LABELS[effectiveMode]}</span>
-                <button type="button" class="btn-icon btn-icon--accent" onclick={handleApply} title="Übernehmen"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></button>
-              {:else}
-                <!-- Standalone mode (bookmarklet): dropdown + copy -->
-                <select class="format-select" bind:value={insertMode} title="Ausgabeformat">
-                  {#each Object.entries(INSERT_MODE_LABELS) as [value, label]}
-                    <option {value}>{label}</option>
-                  {/each}
-                </select>
-                <button type="button" class="btn-icon btn-icon--accent" onclick={handleApply} title="In Zwischenablage kopieren"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
-              {/if}
-            </div>
+            {:else}
+              <MediaToolbar
+                item={toDisplayItem(selectedItem)}
+                insertModes={['url', 'markdown', 'markdown-desc', 'html', 'nostr-tag', 'json']}
+                targetElement={targetElement ?? null}
+                shareTargets={shareTargets}
+                nip94Event={nip94Data?.byUrl?.get(selectedItem.url) ?? null}
+                widgetContext={widgetContext ?? null}
+                onInsert={(result) => { onInserted(result); selectedUrl = null; }}
+                onDelete={features.deleteFiles !== false ? handleDeleteClick : null}
+                onEdit={onEditMetadata ? () => onEditMetadata?.(selectedItem!) : null}
+              />
+            {/if}
           {/if}
-        </div>
-      {/if}
+        {/snippet}
+      </MediaDetailSheet>
     </div>
   {/if}
 </div>
@@ -609,11 +545,10 @@
   }
 
   .gallery-body {
-    display: grid;
-    grid-template-columns: 1fr 280px;
-    gap: 0.75rem;
+    position: relative;
     overflow: hidden;
     min-height: 0;
+    flex: 1;
   }
 
   .gallery-grid {
@@ -622,73 +557,7 @@
     gap: 0.4rem;
     align-content: start;
     overflow-y: auto;
-    padding-right: 0.25rem;
-  }
-
-  .thumb-btn {
-    position: relative;
-    aspect-ratio: 1;
-    border: 2px solid var(--bm-border, #e0e0e0);
-    border-radius: 6px;
-    overflow: hidden;
-    background: var(--bm-bg-subtle, #f8f8f8);
-    cursor: pointer;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-
-  .thumb-btn:hover {
-    border-color: var(--bm-text-muted, #aaa);
-  }
-
-  .thumb-btn.selected {
-    border-color: var(--bm-accent, #6c63ff);
-    box-shadow: 0 0 0 2px var(--bm-accent-bg, #c5c2ff);
-  }
-
-  .thumb-btn img {
-    width: 100%;
     height: 100%;
-    object-fit: cover;
-  }
-
-  .thumb-placeholder {
-    font-size: 2rem;
-    line-height: 1;
-  }
-
-  .badge-remote {
-    position: absolute;
-    top: 3px;
-    right: 3px;
-    font-size: 0.7rem;
-    background: rgba(0, 0, 0, 0.55);
-    color: #fff;
-    border-radius: 3px;
-    padding: 0 3px;
-  }
-
-  .sidebar-panel {
-    position: relative;
-    border-left: 1px solid var(--bm-border-muted, #eee);
-    padding-left: 0.75rem;
-    display: grid;
-    grid-template-rows: 1fr auto;
-    gap: 0;
-    overflow: hidden;
-    min-height: 0;
-  }
-
-  .sidebar-scroll {
-    overflow-y: auto;
-    display: grid;
-    gap: 0.5rem;
-    align-content: start;
-    padding-bottom: 0.5rem;
-    min-height: 0;
   }
 
   .sidebar-preview {
@@ -758,109 +627,34 @@
     background: var(--bm-accent-bg-subtle, #f0eeff);
   }
 
-  .sidebar-toolbar {
-    display: flex;
-    gap: 0.4rem;
-    align-items: center;
-    padding: 0.5rem 0;
-    border-top: 1px solid var(--bm-border-muted, #eee);
-  }
-
-  .sidebar-toolbar .btn-icon {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 1px solid var(--bm-input-border, #ccc);
-    border-radius: 6px;
-    background: var(--bm-input-bg, #fff);
-    color: var(--bm-text-muted, #666);
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-  }
-
-  .sidebar-toolbar .btn-icon:hover {
-    background: var(--bm-accent-bg-subtle, #f0eeff);
-    color: var(--bm-accent, #6c63ff);
-  }
-
-  .sidebar-toolbar .btn-icon--danger:hover {
-    background: var(--bm-danger-bg, #fdf0ee);
-    color: var(--bm-danger, #d63031);
-  }
-
-  .sidebar-toolbar .btn-icon--accent {
-    background: var(--bm-accent, #6c63ff);
-    color: #fff;
-    border-color: var(--bm-accent, #6c63ff);
-  }
-
-  .sidebar-toolbar .btn-icon--accent:hover {
-    background: var(--bm-accent-hover, #5a52d5);
-    color: #fff;
-  }
-
   .icon-inline {
     display: inline-block;
     vertical-align: -2px;
     margin-right: 2px;
   }
 
-  .format-badge {
-    flex: 1;
-    font-size: 0.7rem;
-    color: var(--bm-text-muted, #888);
-    text-align: right;
-    white-space: nowrap;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .format-select {
-    flex: 1;
-    min-width: 0;
-    font: inherit;
-    font-size: 0.75rem;
-    height: 28px;
-    padding: 0 0.4rem;
-    border: 1px solid var(--bm-input-border, #ccc);
-    border-radius: 6px;
-    background: var(--bm-input-bg, #fff);
-    color: var(--bm-text, #222);
-    cursor: pointer;
-  }
-
-  .delete-confirm {
-    padding: 0.75rem;
-    background: var(--bm-danger-bg, #fdf0ee);
-    border: 1px solid var(--bm-danger-border, #f0c8c2);
-    border-radius: 6px;
-  }
-
-  .delete-confirm p {
-    margin: 0 0 0.5rem;
-    font-size: 0.875rem;
-  }
-
-  .confirm-actions {
+  .confirm-row {
     display: flex;
+    align-items: center;
     gap: 0.5rem;
-    justify-content: flex-end;
+    width: 100%;
+    padding: 0.4rem 0;
+  }
+
+  .confirm-label {
+    flex: 1;
+    font-size: 0.85rem;
+    color: var(--bm-danger, #c0392b);
   }
 
   .btn-secondary {
     font: inherit;
-    padding: 0.45rem 0.9rem;
+    padding: 0.35rem 0.7rem;
     background: var(--bm-bg-muted, #f0f0f0);
     border: 1px solid var(--bm-input-border, #ccc);
     border-radius: 5px;
     cursor: pointer;
     font-size: 0.875rem;
-    text-align: center;
-    white-space: nowrap;
     color: var(--bm-text, #222);
     transition: background 0.12s;
   }
@@ -878,130 +672,5 @@
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.875rem;
-  }
-
-  .sidebar-close {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 50%;
-    border: 1px solid var(--bm-border, #ddd);
-    background: var(--bm-bg-subtle, #f5f5f5);
-    color: var(--bm-text-muted, #666);
-    font-size: 1rem;
-    cursor: pointer;
-    z-index: 11;
-    transition: background 0.12s;
-  }
-
-  .sidebar-close:hover {
-    background: var(--bm-bg-hover, #e8e8e8);
-  }
-
-  /* ── Mobile: sidebar as overlay ── */
-  @media (max-width: 640px) {
-    .keyword-bar {
-      display: none;
-    }
-
-    .gallery-tab {
-      position: relative;
-    }
-
-    .gallery-body {
-      grid-template-columns: 1fr;
-    }
-
-    .sidebar-panel {
-      position: absolute;
-      inset: 0;
-      border-left: none;
-      padding-left: 0;
-      padding: 0.5rem;
-      background: var(--bm-bg, #fff);
-      z-index: 10;
-      border-radius: 8px;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .sidebar-panel .sidebar-scroll {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-    }
-
-    .sidebar-panel .sidebar-toolbar {
-      flex-shrink: 0;
-    }
-
-    .sidebar-close {
-      display: flex;
-    }
-  }
-
-  /* ── Share popover ── */
-  .share-wrapper {
-    position: relative;
-  }
-
-  .share-popover {
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    margin-bottom: 6px;
-    min-width: 180px;
-    background: var(--bm-bg, #fff);
-    border: 1px solid var(--bm-border, #ddd);
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    padding: 0.3rem;
-    z-index: 100;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .share-option {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.45rem 0.6rem;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--bm-text, #222);
-    font: inherit;
-    font-size: 0.82rem;
-    cursor: pointer;
-    text-align: left;
-    white-space: nowrap;
-    transition: background 0.1s;
-  }
-
-  .share-option:hover {
-    background: var(--bm-accent-bg-subtle, #f0eeff);
-  }
-
-  .share-option:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .share-option-icon {
-    font-size: 1rem;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-  }
-
-  .share-option-icon :global(svg) {
-    width: 18px;
-    height: 18px;
   }
 </style>

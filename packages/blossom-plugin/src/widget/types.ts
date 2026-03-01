@@ -17,14 +17,16 @@ import type { Component } from 'svelte';
 /**
  * How the selected / uploaded file URL is written back to the target element.
  *
- * - `url`       – Plain URL string (default). Sets `input.value` or inserts at
- *                 cursor in `textarea`.
- * - `markdown`  – `![alt](url)` for images, `[filename](url)` for other files.
- * - `html`      – `<img src="url" alt="alt">` for images, `<a href>` otherwise.
- * - `nostr-tag` – NIP-94 imeta tag string for use in Nostr clients.
- * - `json`      – Full metadata as JSON object.
+ * - `url`            – Plain URL string (default). Sets `input.value` or inserts at
+ *                      cursor in `textarea`.
+ * - `markdown`       – `![alt](url)` for images, `[filename](url)` for other files.
+ *                      Followed by `author · [license]` credits line.
+ * - `markdown-desc`  – Like `markdown` but prepends `description` on its own line.
+ * - `html`           – `<img src="url" alt="alt">` for images, `<a href>` otherwise.
+ * - `nostr-tag`      – NIP-94 imeta tag string for use in Nostr clients.
+ * - `json`           – Full metadata as JSON object.
  */
-export type InsertMode = 'url' | 'markdown' | 'html' | 'nostr-tag' | 'json';
+export type InsertMode = 'url' | 'markdown' | 'markdown-desc' | 'html' | 'nostr-tag' | 'json';
 
 // ─── Result / callback payload ────────────────────────────────────────────────
 
@@ -65,6 +67,64 @@ export interface InsertResult {
   insertMode?: InsertMode;
   /** Pre-formatted text based on insertMode */
   formattedText?: string;
+}
+
+// ─── Unified media display item ─────────────────────────────────────────────
+
+/**
+ * Normalised display model used by MediaCard, MediaDetailSheet and MediaToolbar.
+ *
+ * All three tabs (Gallery, Community, OER-Shares) map their tab-specific data
+ * types onto this interface so the shared UI components work identically.
+ */
+export interface MediaDisplayItem {
+  /** Unique identifier (url / eventId / shareEventId). */
+  id: string;
+  /** Primary content URL. */
+  url: string;
+  /** Thumbnail URL for the grid card image. */
+  thumbnailUrl?: string;
+  /** Larger preview URL shown in the detail sheet. */
+  previewUrl?: string;
+  /**
+   * Human-readable name shown below the card and as the sheet title.
+   * Gallery: `altAttribution || description || ''`
+   * Community: `description` (from NIP-94 alt/content)
+   * OER-Shares: `name`
+   */
+  name: string;
+  /** Long-form description text. */
+  description?: string;
+  /** Author / creator. */
+  author?: string;
+  /** Canonical license URL. */
+  license?: string;
+  /** Short license label, e.g. 'CC-BY-4.0'. */
+  licenseLabel?: string;
+  /** MIME type. */
+  mimeType?: string;
+  /** Pre-formatted display date string. */
+  date: string;
+  /** Keyword tags. */
+  keywords?: string[];
+  /** Genre / style hint. */
+  genre?: string;
+  /** SHA-256 hash. */
+  sha256?: string;
+  /** File size in bytes. */
+  size?: number;
+  /** Raw NIP-94 tags (for share targets and insert result building). */
+  tags?: string[][];
+  /**
+   * Optional overlay badge shown in the top-right corner of the card.
+   * Examples: '☁' (remote-only), '6f50…c393' (shared-by pubkey).
+   */
+  badge?: { text: string; title: string };
+  /**
+   * Extra tab-specific metadata rows shown in the expandable section
+   * of the detail sheet (e.g. OER SKOS fields).
+   */
+  extraFields?: { label: string; value: string }[];
 }
 
 // ─── Feature toggles ─────────────────────────────────────────────────────────

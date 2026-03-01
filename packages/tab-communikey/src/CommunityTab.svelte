@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { WidgetContext, Nip94FileEvent } from '@blossom/plugin/plugin';
-  import { iconSync, iconGroups } from '@blossom/plugin/plugin';
+  import type { WidgetContext, Nip94FileEvent, MediaDisplayItem } from '@blossom/plugin/plugin';
+  import { iconSync, iconGroups, MediaCard, MediaDetailSheet, MediaToolbar } from '@blossom/plugin/plugin';
   import { fetchMemberships } from './nostr/memberships';
   import { fetchCommunity } from './nostr/community';
   import { fetchCommunityMedia, parseShareEvent } from './nostr/community-media';
@@ -58,9 +58,41 @@
     return ev.content || altTag?.[1] || '';
   }
 
+  function extractLicenseFromNip94(ev: { tags: string[][] }): string | undefined {
+    return ev.tags.find(t => t[0] === 'l')?.[1];
+  }
+
+  function extractKeywordsFromNip94(ev: { tags: string[][] }): string[] {
+    return ev.tags.filter(t => t[0] === 't').map(t => t[1]).filter(Boolean);
+  }
+
   function shortenPubkey(pk: string): string {
     if (!pk || pk.length < 16) return pk;
     return `${pk.slice(0, 8)}…${pk.slice(-4)}`;
+  }
+
+  /** Convert enriched community media item → unified MediaDisplayItem for shared components. */
+  function toDisplayItem(item: typeof enrichedMedia[number]): MediaDisplayItem {
+    const nip94 = resolvedNip94.get(item.originalEventId);
+    const kws = nip94 ? extractKeywordsFromNip94(nip94) : [];
+    return {
+      id: item.url,
+      url: item.url,
+      thumbnailUrl: item.thumbUrl || (item.mime.startsWith('image/') ? item.url : undefined),
+      previewUrl: item.mime.startsWith('image/') ? item.url : undefined,
+      name: item.description || '',
+      description: item.description,
+      author: shortenPubkey(item.sharedBy),
+      license: nip94 ? extractLicenseFromNip94(nip94) : undefined,
+      mimeType: item.mime,
+      date: new Date(item.sharedAt * 1000).toLocaleString('de-DE', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      }),
+      keywords: kws.length ? kws : undefined,
+      tags: nip94?.tags,
+      badge: { text: shortenPubkey(item.sharedBy), title: `Geteilt von ${item.sharedBy}` },
+    };
   }
 
   // ── Selected community info ────────────────────────────────────────────────
@@ -172,17 +204,6 @@
     }
   });
 
-  // ── Handle "Übernehmen" ───────────────────────────────────────────────────
-  function handleInsert() {
-    if (!selectedMedia) return;
-    ctx.insert({
-      url: selectedMedia.url,
-      mimeType: selectedMedia.mime,
-      description: selectedMedia.description,
-      tags: [],
-    });
-  }
-
   // ── Initial load on mount ─────────────────────────────────────────────────
   $effect(() => {
     // Load memberships once when signer becomes available
@@ -259,75 +280,70 @@
         <!-- Media grid -->
         <div class="media-grid">
           {#each enrichedMedia as item (item.shareEventId)}
-            {@const isImage = item.mime.startsWith('image/')}
-            <button
-              type="button"
-              class="thumb-btn"
-              class:selected={selectedMediaUrl === item.url}
+            <MediaCard
+              item={toDisplayItem(item)}
+              selected={selectedMediaUrl === item.url}
               onclick={() => { selectedMediaUrl = selectedMediaUrl === item.url ? null : item.url; }}
-              title={item.description || item.url}
-            >
-              {#if isImage}
-                <img
-                  src={item.thumbUrl}
-                  alt={item.description}
-                  class="thumb-img"
-                  loading="lazy"
-                />
-              {:else}
-                <div class="thumb-file">
-                  <span class="thumb-file-icon">📄</span>
-                  <span class="thumb-file-mime">{item.mime || '?'}</span>
-                </div>
-              {/if}
-              <span class="shared-by-badge" title="Geteilt von {shortenPubkey(item.sharedBy)}">
-                {shortenPubkey(item.sharedBy)}
-              </span>
-            </button>
+            />
           {/each}
         </div>
 
-        <!-- Sidebar for selected item -->
-        {#if selectedMedia}
-          <div class="sidebar-panel">
-            <div class="sidebar-scroll">
+        <!-- Detail sheet (overlay) -->
+        <MediaDetailSheet
+          open={!!selectedMedia}
+          onClose={() => { selectedMediaUrl = null; }}
+        >
+          {#snippet children()}
+            {#if selectedMedia}
               {#if selectedMedia.mime.startsWith('image/')}
                 <img class="sidebar-preview" src={selectedMedia.url} alt={selectedMedia.description} />
               {/if}
-
-              <div class="sidebar-meta">
+              <dl class="meta-list">
                 {#if selectedMedia.description}
-                  <div class="meta-row">
-                    <span class="meta-label">Beschreibung</span>
-                    <span class="meta-value">{selectedMedia.description}</span>
-                  </div>
+                  <dt>Beschreibung</dt>
+                  <dd>{selectedMedia.description}</dd>
                 {/if}
-                <div class="meta-row">
-                  <span class="meta-label">Typ</span>
-                  <span class="meta-value">{selectedMedia.mime || 'Unbekannt'}</span>
-                </div>
-                <div class="meta-row">
-                  <span class="meta-label">Geteilt von</span>
-                  <span class="meta-value">{shortenPubkey(selectedMedia.sharedBy)}</span>
-                </div>
-                <div class="meta-row">
-                  <span class="meta-label">Datum</span>
-                  <span class="meta-value">{new Date(selectedMedia.sharedAt * 1000).toLocaleDateString()}</span>
-                </div>
-                <div class="meta-row">
-                  <span class="meta-label">URL</span>
-                  <a class="meta-link" href={selectedMedia.url} target="_blank" rel="noopener">{selectedMedia.url}</a>
-                </div>
-              </div>
-            </div>
+                {#if resolvedNip94.get(selectedMedia.originalEventId)}
+                  {@const nip94 = resolvedNip94.get(selectedMedia.originalEventId)!}
+                  {@const license = extractLicenseFromNip94(nip94)}
+                  {#if license}
+                    <dt>Lizenz</dt>
+                    <dd>{license}</dd>
+                  {/if}
+                  {@const kws = extractKeywordsFromNip94(nip94)}
+                  {#if kws.length}
+                    <dt>Keywords</dt>
+                    <dd>{kws.join(', ')}</dd>
+                  {/if}
+                {/if}
+                <dt>Geteilt von</dt>
+                <dd>{shortenPubkey(selectedMedia.sharedBy)}</dd>
+                <dt>Typ</dt>
+                <dd>{selectedMedia.mime || 'Unbekannt'}</dd>
+                <dt>Datum</dt>
+                <dd>{new Date(selectedMedia.sharedAt * 1000).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</dd>
+                <dt>URL</dt>
+                <dd><a class="meta-url" href={selectedMedia.url} target="_blank" rel="noopener">{selectedMedia.url}</a></dd>
+              </dl>
+            {/if}
+          {/snippet}
 
-            <div class="sidebar-toolbar">
-              <button type="button" class="btn-primary" onclick={handleInsert}>
-                ✓ Übernehmen
-              </button>
-            </div>
-          </div>
-        {/if}
+          {#snippet toolbar()}
+            {#if selectedMedia}
+              <MediaToolbar
+                item={toDisplayItem(selectedMedia)}
+                insertModes={['url', 'markdown', 'markdown-desc']}
+                targetElement={ctx.targetElement}
+                shareTargets={[]}
+                nip94Event={resolvedNip94.get(selectedMedia.originalEventId) ?? null}
+                widgetContext={ctx}
+                onInsert={(result) => { ctx.insert(result); selectedMediaUrl = null; }}
+                onDelete={null}
+                onEdit={null}
+              />
+            {/if}
+          {/snippet}
+        </MediaDetailSheet>
       </div>
     {/if}
   </div>
@@ -460,162 +476,58 @@
   }
 
   .community-grid-wrapper {
-    display: flex;
+    position: relative;
     height: 100%;
     overflow: hidden;
   }
 
   .media-grid {
-    flex: 1;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
     gap: 0.4rem;
     align-content: start;
     overflow-y: auto;
-    padding-right: 0.25rem;
-  }
-
-  .thumb-btn {
-    position: relative;
-    aspect-ratio: 1;
-    border: 2px solid transparent;
-    border-radius: 6px;
-    padding: 0;
-    background: var(--bm-bg-subtle, #f5f5f5);
-    cursor: pointer;
-    overflow: hidden;
-    transition: border-color 0.12s;
-  }
-  .thumb-btn:hover {
-    border-color: var(--bm-accent, #6c63ff);
-  }
-  .thumb-btn.selected {
-    border-color: var(--bm-accent, #6c63ff);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--bm-accent, #6c63ff) 30%, transparent);
-  }
-
-  .thumb-img {
-    width: 100%;
     height: 100%;
-    object-fit: cover;
-  }
-
-  .thumb-file {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    gap: 0.2rem;
-  }
-  .thumb-file-icon { font-size: 1.5rem; }
-  .thumb-file-mime {
-    font-size: 0.6rem;
-    color: var(--bm-text-muted, #888);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-    padding: 0 2px;
-  }
-
-  .shared-by-badge {
-    position: absolute;
-    bottom: 2px;
-    left: 2px;
-    right: 2px;
-    background: rgba(0,0,0,0.6);
-    color: #fff;
-    font-size: 0.55rem;
-    padding: 1px 3px;
-    border-radius: 3px;
-    text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sidebar-panel {
-    width: 280px;
-    flex-shrink: 0;
-    border-left: 1px solid var(--bm-border-muted, #eee);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .sidebar-scroll {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0.5rem;
   }
 
   .sidebar-preview {
     width: 100%;
-    max-height: 200px;
+    max-height: 240px;
     object-fit: contain;
     border-radius: 6px;
     background: var(--bm-bg-subtle, #f8f8f8);
-    margin-bottom: 0.5rem;
   }
 
-  .sidebar-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+  .meta-list {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.2rem 0.5rem;
+    font-size: 0.8rem;
+    margin: 0;
   }
 
-  .meta-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-  }
-
-  .meta-label {
-    font-size: 0.7rem;
+  .meta-list dt {
     font-weight: 600;
-    color: var(--bm-text-muted, #888);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+    color: var(--bm-text-muted, #777);
+    white-space: nowrap;
+    align-self: start;
+    padding-top: 2px;
   }
 
-  .meta-value {
-    font-size: 0.82rem;
-    color: var(--bm-text, #222);
+  .meta-list dd {
+    margin: 0;
     word-break: break-word;
   }
 
-  .meta-link {
-    font-size: 0.78rem;
+  .meta-url {
     color: var(--bm-accent, #6c63ff);
     text-decoration: none;
+    font-size: 0.75rem;
     word-break: break-all;
   }
-  .meta-link:hover {
+
+  .meta-url:hover {
     text-decoration: underline;
-  }
-
-  .sidebar-toolbar {
-    padding: 0.5rem;
-    border-top: 1px solid var(--bm-border-muted, #eee);
-    display: flex;
-    gap: 0.4rem;
-  }
-
-  .btn-primary {
-    flex: 1;
-    font: inherit;
-    font-size: 0.82rem;
-    font-weight: 600;
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 6px;
-    background: var(--bm-accent, #6c63ff);
-    color: #fff;
-    cursor: pointer;
-    transition: background 0.12s;
-  }
-  .btn-primary:hover {
-    background: var(--bm-accent-hover, #5a52d5);
   }
 
   /* ── Responsive: stack layout on small widths ── */

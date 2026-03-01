@@ -2,11 +2,12 @@
  * Formats an InsertResult into a string based on the chosen insert mode.
  *
  * Modes:
- *  - `url`       — Plain URL
- *  - `markdown`  — `![alt](url)\nauthor · [license](licenseUrl)`
- *  - `html`      — `<figure><img …><figcaption>…</figcaption></figure>`
- *  - `nostr-tag` — NIP-94 imeta inline tag
- *  - `json`      — JSON metadata object
+ *  - `url`           — Plain URL
+ *  - `markdown`      — `![alt](url)\nauthor · [license](licenseUrl)`
+ *  - `markdown-desc` — `![alt](url)\ndescription\nauthor · [license](licenseUrl)`
+ *  - `html`          — `<figure><img …><figcaption>…</figcaption></figure>`
+ *  - `nostr-tag`     — NIP-94 imeta inline tag
+ *  - `json`          — JSON metadata object
  */
 
 import type { InsertResult } from '../widget/types';
@@ -16,6 +17,7 @@ import type { InsertMode } from '../widget/types';
 export const INSERT_MODE_LABELS: Record<InsertMode, string> = {
   url: 'URL',
   markdown: 'Markdown',
+  'markdown-desc': 'Markdown + Beschreibung',
   html: 'HTML',
   'nostr-tag': 'Nostr imeta',
   json: 'JSON',
@@ -31,6 +33,9 @@ export function formatInsertResult(result: InsertResult, mode: InsertMode): stri
 
     case 'markdown':
       return formatMarkdown(result);
+
+    case 'markdown-desc':
+      return formatMarkdownDesc(result);
 
     case 'html':
       return formatHtml(result);
@@ -48,11 +53,7 @@ export function formatInsertResult(result: InsertResult, mode: InsertMode): stri
 
 // ── Markdown ──────────────────────────────────────────────────────────────────
 
-function formatMarkdown(r: InsertResult): string {
-  const alt = r.alt || r.description || '';
-  const isImage = r.mimeType?.startsWith('image/');
-  let md = isImage ? `![${alt}](${r.url})` : `[${alt || r.url}](${r.url})`;
-
+function buildCreditsLine(r: InsertResult): string {
   const credits: string[] = [];
   if (r.author) credits.push(r.author);
   if (r.license && r.licenseLabel) {
@@ -62,11 +63,26 @@ function formatMarkdown(r: InsertResult): string {
   } else if (r.license) {
     credits.push(`[Lizenz](${r.license})`);
   }
+  return credits.join(' · ');
+}
 
-  if (credits.length) {
-    md += '\n' + credits.join(' · ');
-  }
+function formatMarkdown(r: InsertResult): string {
+  const alt = r.alt || r.description || '';
+  const isImage = r.mimeType?.startsWith('image/');
+  let md = isImage ? `![${alt}](${r.url})` : `[${alt || r.url}](${r.url})`;
+  const credits = buildCreditsLine(r);
+  if (credits) md += '\n' + credits;
+  return md;
+}
 
+function formatMarkdownDesc(r: InsertResult): string {
+  if (!r.description) return formatMarkdown(r);
+  const alt = r.alt || r.description || '';
+  const isImage = r.mimeType?.startsWith('image/');
+  const imgLine = isImage ? `![${alt}](${r.url})` : `[${alt || r.url}](${r.url})`;
+  const credits = buildCreditsLine(r);
+  let md = `${imgLine}\n${r.description}`;
+  if (credits) md += '\n' + credits;
   return md;
 }
 
