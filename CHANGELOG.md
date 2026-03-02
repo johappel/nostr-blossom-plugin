@@ -28,6 +28,12 @@ The format is based on Keep a Changelog.
   - **CommunityTab** folgt jetzt dem Aufbau „Aktuelle Community + Dropdown“ → Suche → Grid, mit vereinheitlichten Abständen/Paddings.
   - **OerSharesTab** nutzt einen Community-ähnlichen Header mit Edufeed-Logo + „Meine Shares“, Settings-Icon rechts und ohne Header-Border.
   - Einheitlicher vertikaler Rhythmus in beiden Tabs (Header, Suchleiste, Grid).
+- **Tab-Reihenfolge angepasst**: Widget-Tabs werden jetzt in der Reihenfolge angezeigt: **Bild erstellen** (falls aktiv), **Hochladen**, **Mediathek**, **Community Media**, **OER Shares**.
+- **Tab-übergreifender Media-Cache (SWR)**:
+  - Neuer Shared-Helper `media-cache.ts` (`makeCacheKey`, `readCache`, `writeCache`, `clearCache`) in `packages/blossom-plugin/src/widget/shared/`, exportiert über `@blossom/plugin/plugin`.
+  - **Gallery**, **CommunityTab** und **OerSharesTab** zeigen gecachte Inhalte sofort an und revalidieren anschließend im Hintergrund.
+  - Bei Netzwerkfehlern bleiben vorhandene Cache-Daten sichtbar (kein harter Leerzustand).
+  - Cache wird nach **Delete/Edit** gezielt nachgezogen (optimistisches State-Update + Cache-Write), sodass Detail-/Grid-Ansichten nicht kurzzeitig stale bleiben.
 - **Examples / Deployment**:
   - `examples/simple-input.html` enthält jetzt einen Hinweis auf den Standalone-Betrieb per Bookmarklet inkl. Link auf `examples/bookmarklet.html`.
   - GitHub-Pages-Workflow hinzugefügt, der das Widget baut und `examples/simple-input.html` als Zielseite ausliefert.
@@ -82,6 +88,8 @@ The format is based on Keep a Changelog.
 
 - 13 Unit-Tests für `tab-communikey` Nostr-Parser (Membership, Community, Share-Event Parsing).
 - Alle 63 Core-Tests weiterhin grün nach Share-Infrastruktur-Änderungen.
+- Neue Unit-Tests für `widget/shared/media-cache.ts` (Key-Generierung, TTL/stale-Erkennung, Parse-/Shape-Fehler, Max-Items-Cap, Clear-Flow).
+- Neuer Integrationstest für OER-Cache-Flow (`load-shares-with-cache`): Fresh-Write, Cache-Fallback bei Fetch-Fehler und Throw ohne Cache.
 
 - **Tab-Plugin-API**: Externes Tab-Plugin-System für das Media Widget. Neue Tabs können als eigenständige Pakete implementiert werden, ohne den Core-Code anzufassen.
   - `TabPlugin` Interface: Unterstützt sowohl Vanilla-DOM (`render(container, ctx)`) als auch Svelte 5 (`component`) Rendering.

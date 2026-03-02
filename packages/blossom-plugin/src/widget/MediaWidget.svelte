@@ -36,6 +36,7 @@
   import ImageGenTab from './ImageGenTab.svelte';
   import MetadataSidebar from './MetadataSidebar.svelte';
   import SettingsPanel from './SettingsPanel.svelte';
+  import { makeCacheKey, readCache, writeCache } from './shared/media-cache';
   import { iconUploadFile, iconGallery, iconAutoAwesome } from './icons';
 
   interface MediaWidgetProps {
@@ -74,14 +75,14 @@
   let tabs = $derived.by((): TabDef[] => {
     const result: TabDef[] = [];
     if (config.features?.upload !== false) {
-      result.push({ id: 'upload', label: 'Hochladen', icon: iconUploadFile(), order: 0, builtin: 'upload' });
+      result.push({ id: 'upload', label: 'Hochladen', icon: iconUploadFile(), order: 10, builtin: 'upload' });
     }
     if (config.features?.gallery !== false) {
-      result.push({ id: 'gallery', label: 'Mediathek', icon: iconGallery(), order: 10, builtin: 'gallery' });
+      result.push({ id: 'gallery', label: 'Mediathek', icon: iconGallery(), order: 20, builtin: 'gallery' });
     }
     // Show image gen tab when feature is not explicitly disabled AND an endpoint is available
     if (config.features?.imageGen !== false && resolvedImageGenEndpoint) {
-      result.push({ id: 'imagegen', label: 'Bild erstellen', icon: iconAutoAwesome(), order: 20, builtin: 'imagegen' });
+      result.push({ id: 'imagegen', label: 'Bild erstellen', icon: iconAutoAwesome(), order: 0, builtin: 'imagegen' });
     }
     // Legacy custom tabs (deprecated — use plugins instead)
     for (const ct of config.tabs ?? []) {
@@ -117,10 +118,20 @@
       .flatMap(p => p.shareTargets ?? []);
   });
 
-  // Default to 'upload' — avoid eagerly reading `tabs` here because
+  // Default to 'gallery' — avoid eagerly reading `tabs` here because
   // resolvedImageGenEndpoint (referenced inside tabs) is declared later
   // and would cause a TDZ in the bundled output.
-  let activeTab = $state<TabId>('upload');
+  let activeTab = $state<TabId>('gallery');
+
+  // Ensure activeTab always points to an available tab.
+  // Preferred default is gallery; fallback to first available tab.
+  $effect(() => {
+    if (tabs.length === 0) return;
+    if (!tabs.some((t) => t.id === activeTab)) {
+      const gallery = tabs.find((t) => t.id === 'gallery');
+      activeTab = (gallery?.id ?? tabs[0].id) as TabId;
+    }
+  });
 
   // ── Honour requestedTab from open(target, tab) ────────────────────────────
   $effect(() => {
@@ -331,6 +342,36 @@
   let galleryError = $state('');
   /** Tracks whether the last successful gallery load included a signer. */
   let galleryLoadedWithSigner = $state(false);
+  const GALLERY_CACHE_TTL_MS = 10 * 60 * 1000;
+  const GALLERY_CACHE_MAX_ITEMS = 500;
+
+  interface GalleryCacheData {
+    blobItems: UploadHistoryItem[];
+    nip94Events: Nip94FetchResult['events'];
+  }
+
+  function buildNip94Result(events: Nip94FetchResult['events']): Nip94FetchResult {
+    const byUrl = new Map<string, Nip94FetchResult['events'][number]>();
+    const bySha256 = new Map<string, Nip94FetchResult['events'][number]>();
+
+    for (const ev of events) {
+      if (ev.url && !byUrl.has(ev.url)) byUrl.set(ev.url, ev);
+      if (ev.sha256) {
+        const key = ev.sha256.toLowerCase();
+        if (!bySha256.has(key)) bySha256.set(key, ev);
+      }
+    }
+
+    return { events, byUrl, bySha256 };
+  }
+
+  async function resolveGalleryCacheKey(resolvedSigner: BlossomSigner | null): Promise<string | null> {
+    if (!resolvedSigner) return null;
+    const pubkey = await resolvedSigner.getPublicKey();
+    const relayFingerprint = [...effective.relayUrls].sort().join(',');
+    const serverFingerprint = [...effective.servers].sort().join(',');
+    return makeCacheKey('gallery', [pubkey, relayFingerprint, serverFingerprint]);
+  }
 
   // When signer becomes available (e.g. bunker auto-reconnect) and the dialog
   // is open but gallery was previously loaded without a signer, reload.
@@ -399,9 +440,25 @@
 
     galleryLoading = true;
     galleryError = '';
+    let hadCached = false;
 
     try {
       const resolvedSigner = signer;
+      const cacheKey = await resolveGalleryCacheKey(resolvedSigner);
+
+      if (cacheKey) {
+
+        const cached = readCache<GalleryCacheData>(cacheKey, GALLERY_CACHE_TTL_MS);
+        if (cached?.items?.[0]) {
+          const data = cached.items[0];
+          items = data.blobItems;
+          nip94Data = buildNip94Result(data.nip94Events);
+          hadCached = true;
+        }
+      }
+
+      let latestBlobItems = items;
+      let latestNip94Events = nip94Data?.events ?? [];
 
       // Load bloblist from servers
       if (effective.servers.length > 0 && resolvedSigner) {
@@ -428,14 +485,26 @@
           }
         }
         items = merged;
+        latestBlobItems = merged;
       }
 
       // Load NIP-94 events from relays
       if (effective.relayUrls.length > 0 && resolvedSigner) {
         nip94Data = await fetchNip94Events(resolvedSigner, effective.relayUrls);
+        latestNip94Events = nip94Data.events;
+      }
+
+      if (cacheKey) {
+        writeCache(
+          cacheKey,
+          [{ blobItems: latestBlobItems, nip94Events: latestNip94Events }],
+          GALLERY_CACHE_MAX_ITEMS,
+        );
       }
     } catch (err) {
-      galleryError = err instanceof Error ? err.message : 'Mediathek konnte nicht geladen werden';
+      if (!hadCached) {
+        galleryError = err instanceof Error ? err.message : 'Mediathek konnte nicht geladen werden';
+      }
     } finally {
       galleryLoading = false;
       if (signer) galleryLoadedWithSigner = true;
@@ -537,6 +606,16 @@
             return true;
           }),
         };
+      }
+
+      // Keep gallery cache in sync with local delete state.
+      const deleteCacheKey = await resolveGalleryCacheKey(resolvedSigner);
+      if (deleteCacheKey) {
+        writeCache(
+          deleteCacheKey,
+          [{ blobItems: items, nip94Events: nip94Data?.events ?? [] }],
+          GALLERY_CACHE_MAX_ITEMS,
+        );
       }
 
       config.onDelete?.(item.url);
@@ -660,6 +739,16 @@
 
       // Also update local items
       items = updateHistoryItemByUrl(items, editItem.url, { metadata });
+
+      // Keep gallery cache in sync with local edit state.
+      const editCacheKey = await resolveGalleryCacheKey(resolvedSigner);
+      if (editCacheKey) {
+        writeCache(
+          editCacheKey,
+          [{ blobItems: items, nip94Events: nip94Data?.events ?? [] }],
+          GALLERY_CACHE_MAX_ITEMS,
+        );
+      }
     } catch (err) {
       config.onError?.(err instanceof Error ? err : new Error(String(err)));
     } finally {

@@ -92,7 +92,7 @@ export const oerSharesPlugin: TabPlugin = {
   id: 'oer-shares',
   label: 'OER-Shares',
   icon: iconSchool(),
-  order: 110,
+  order: 40,
   defaultDisabled: true,
 
   // Svelte 5 component for the tab content
