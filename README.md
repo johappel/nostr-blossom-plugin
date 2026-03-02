@@ -12,6 +12,8 @@ Monorepo für ein einbettbares Blossom-Media-Widget und Nostr-Upload-Plugin.
 | Pfad | Beschreibung |
 |---|---|
 | `packages/blossom-plugin` | Plugin-Kern: Upload-Client, Svelte Action, TipTap Helper, **Media Widget** |
+| `packages/tab-communikey` | Community-Tab-Plugin (`@blossom/tab-communikey`) mit Share-in-Community Flow |
+| `packages/tab-oer-shares` | OER/Edufeed-Tab-Plugin (`@blossom/tab-oer-shares`) für kind:30142 AMB Shares |
 | `apps/image-describer` | KI-Vision-Service (Fastify) für AI-gestützte Metadaten-Vorschläge |
 | `examples/` | Eigenständige HTML-Beispiele für die Widget-Einbettung |
 
@@ -94,6 +96,9 @@ Per `data-format` Attribut legt das Host-Feld fest, in welchem Format der eingef
 
 > **Ohne Ziel-Element** (z. B. über das Bookmarklet) erscheint stattdessen ein
 > Format-Dropdown in der Toolbar und der Text wird in die Zwischenablage kopiert.
+
+Bei **Ziel-Element** zeigt die Detail-Toolbar beim Übernehmen ein **Paste-/Einfügen-Icon**
+(Schreiben ins Feld). Ohne Ziel-Element bleibt es beim **Copy-Flow** (Zwischenablage).
 
 ### Variante B — Manuelles Init
 

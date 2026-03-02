@@ -9,6 +9,7 @@ The format is based on Keep a Changelog.
 ### Docs
 
 - **Anfänger-Dokumentation:** Neues Dokument `docs/beginner-faq.md` — Umfassender FAQ-Leitfaden für Nostr- und Blossom-Anfänger mit ELI5-Erklärungen, praktischen Szenarien und Troubleshooting. Deckt ab: Nostr-Basics, Blossom vs. S3/WordPress, Dezentralisierung, NIP-94, Signer (NIP-07/NIP-46), Metadaten-Management, Galerie-Abruf, KI-Features, und häufige Fehler.
+- **README ergänzt:** Paketübersicht enthält jetzt auch `packages/tab-communikey` und `packages/tab-oer-shares`; im `data-format`-Abschnitt ist die Toolbar-Semantik präzisiert (Paste bei Ziel-Element, Copy ohne Ziel-Element).
 
 ### Changed
 
