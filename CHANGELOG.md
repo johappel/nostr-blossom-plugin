@@ -36,7 +36,7 @@ The format is based on Keep a Changelog.
   - Cache wird nach **Delete/Edit** gezielt nachgezogen (optimistisches State-Update + Cache-Write), sodass Detail-/Grid-Ansichten nicht kurzzeitig stale bleiben.
 - **AMB/OER Tagging-Interop verbessert**:
   - `nip94EventId` wird beim Bearbeiten von OER-Shares beibehalten und weiterhin als `e`-Tag publiziert.
-  - Keywords werden jetzt doppelt kompatibel ausgegeben: als wiederholte `t`-Tags **und** zusätzlich als `keywords`-Tag mit JSON-Array.
+  - Keywords werden beim Senden jetzt strikt Nostr-/AMB-konform als wiederholte `t`-Tags ausgegeben (ohne zusätzliches `keywords`-Write-Tag); der Parser bleibt rückwärtskompatibel für ältere `keywords`-Formate.
   - Mehrere `creator:name`-Tags werden unterstützt (Senden und Parsen); eingelesene Creator-Namen werden zusammengeführt.
 - **Examples / Deployment**:
   - `examples/simple-input.html` enthält jetzt einen Hinweis auf den Standalone-Betrieb per Bookmarklet inkl. Link auf `examples/bookmarklet.html`.

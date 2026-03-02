@@ -160,10 +160,10 @@ describe('buildAmbEventTags', () => {
     expect(tTags.map((t) => t[1])).toEqual(['Pythagoras', 'Geometrie', 'Mathematik']);
   });
 
-  it('should emit keywords tag as JSON array in addition to t tags', () => {
+  it('should not emit keywords tag and use only t tags for keywords', () => {
     const tags = buildAmbEventTags(sampleForm);
     const keywordsTag = findTag(tags, 'keywords');
-    expect(keywordsTag).toEqual(['keywords', 'Pythagoras', 'Geometrie', 'Mathematik']);
+    expect(keywordsTag).toBeUndefined();
   });
 
   it('should emit p tag for Nostr-native creator', () => {

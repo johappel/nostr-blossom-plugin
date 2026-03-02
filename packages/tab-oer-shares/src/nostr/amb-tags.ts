@@ -162,10 +162,8 @@ export function buildAmbEventTags(
     if (kw.trim()) tags.push(['t', kw.trim()]);
   }
 
-  // Additional AMB-style keywords payload as JSON array
-  if (cleanedKeywords.length > 0) {
-    tags.push(['keywords', ...cleanedKeywords]);
-  }
+  // No extra `keywords` tag on write: per AMB flattening/Nostr convention,
+  // keyword arrays are represented as repeated `t` tags.
 
   // Language
   if (form.inLanguage) {
