@@ -118,10 +118,20 @@
       .flatMap(p => p.shareTargets ?? []);
   });
 
-  // Default to 'upload' — avoid eagerly reading `tabs` here because
+  // Default to 'gallery' — avoid eagerly reading `tabs` here because
   // resolvedImageGenEndpoint (referenced inside tabs) is declared later
   // and would cause a TDZ in the bundled output.
-  let activeTab = $state<TabId>('upload');
+  let activeTab = $state<TabId>('gallery');
+
+  // Ensure activeTab always points to an available tab.
+  // Preferred default is gallery; fallback to first available tab.
+  $effect(() => {
+    if (tabs.length === 0) return;
+    if (!tabs.some((t) => t.id === activeTab)) {
+      const gallery = tabs.find((t) => t.id === 'gallery');
+      activeTab = (gallery?.id ?? tabs[0].id) as TabId;
+    }
+  });
 
   // ── Honour requestedTab from open(target, tab) ────────────────────────────
   $effect(() => {
