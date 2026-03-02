@@ -12,7 +12,16 @@
 -->
 <script lang="ts">
   import type { WidgetContext, MediaDisplayItem } from '@blossom/plugin/plugin';
-  import { iconTune, MediaCard, MediaDetailSheet, MediaGridSearchBar, MediaToolbar } from '@blossom/plugin/plugin';
+  import {
+    iconTune,
+    MediaCard,
+    MediaDetailSheet,
+    MediaGridSearchBar,
+    MediaToolbar,
+    makeCacheKey,
+    readCache,
+    writeCache,
+  } from '@blossom/plugin/plugin';
   import { untrack } from 'svelte';
   import { fetchUserAmbShares } from './nostr/fetch-shares';
   import { publishAmbShareDeletion } from './nostr/delete';
@@ -23,6 +32,18 @@
   let { ctx }: { ctx: WidgetContext } = $props();
 
   const EDUFEED_LOGO_URL = 'https://blossom.edufeed.org/924b425d644d5543fdf613122de39f680bf4704348caaa4b5f46d10fa7d493f6.webp';
+  const CACHE_TTL_MS = 10 * 60 * 1000;
+  const CACHE_MAX_ITEMS = 500;
+
+  async function resolveOerCacheMeta(): Promise<{ pubkey: string; cacheKey: string } | null> {
+    const signer = ctx.signer;
+    if (!signer) return null;
+    const pubkey = await signer.getPublicKey();
+    return {
+      pubkey,
+      cacheKey: makeCacheKey('oer-shares', [pubkey, config.ambRelayUrl]),
+    };
+  }
 
   // ── State ──
   let shares = $state<AmbShareItem[]>([]);
@@ -49,7 +70,7 @@
 
   function handleEditSaved() {
     editingItem = null;
-    // Reload shares to reflect changes
+    // Hard-refresh after edit to avoid stale data after replaceable update
     loadShares();
   }
 
@@ -57,6 +78,7 @@
   async function loadShares() {
     const signer = ctx.signer;
     if (!signer) {
+      shares = [];
       error = 'Bitte zuerst anmelden, um deine OER-Shares zu sehen.';
       return;
     }
@@ -64,16 +86,30 @@
     loading = true;
     error = null;
     selectedItem = null;
+    let hadCached = false;
 
     try {
-      const pubkey = await signer.getPublicKey();
+      const cacheMeta = await resolveOerCacheMeta();
+      if (!cacheMeta) throw new Error('Signer nicht verfügbar');
+
+      const { pubkey, cacheKey } = cacheMeta;
+
+      const cached = readCache<AmbShareItem>(cacheKey, CACHE_TTL_MS);
+      if (cached?.items?.length) {
+        shares = cached.items;
+        hadCached = true;
+      }
+
       shares = await fetchUserAmbShares(pubkey, config.ambRelayUrl);
+      writeCache(cacheKey, shares, CACHE_MAX_ITEMS);
 
       if (shares.length === 0) {
         error = 'Noch keine OER-Shares. Teile Medien aus der Mediathek über "Im Edufeed teilen".';
       }
     } catch (err) {
-      error = `Fehler beim Laden: ${err instanceof Error ? err.message : String(err)}`;
+      if (!hadCached && shares.length === 0) {
+        error = `Fehler beim Laden: ${err instanceof Error ? err.message : String(err)}`;
+      }
     } finally {
       loading = false;
     }
@@ -171,11 +207,20 @@
 
     deletingShare = true;
     try {
+      const itemToDelete = selectedItem;
       await publishAmbShareDeletion(
         signer,
-        selectedItem.eventId,
+        itemToDelete.eventId,
         config.ambRelayUrl,
       );
+
+      // Optimistically update local state + cache immediately
+      shares = shares.filter((s) => s.eventId !== itemToDelete.eventId);
+      const cacheMeta = await resolveOerCacheMeta();
+      if (cacheMeta) {
+        writeCache(cacheMeta.cacheKey, shares, CACHE_MAX_ITEMS);
+      }
+
       selectedItem = null;
       await loadShares();
     } catch (err) {

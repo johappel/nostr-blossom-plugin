@@ -1,6 +1,15 @@
 <script lang="ts">
   import type { WidgetContext, Nip94FileEvent, MediaDisplayItem } from '@blossom/plugin/plugin';
-  import { iconSync, MediaCard, MediaDetailSheet, MediaGridSearchBar, MediaToolbar } from '@blossom/plugin/plugin';
+  import {
+    iconSync,
+    MediaCard,
+    MediaDetailSheet,
+    MediaGridSearchBar,
+    MediaToolbar,
+    makeCacheKey,
+    readCache,
+    writeCache,
+  } from '@blossom/plugin/plugin';
   import { fetchMemberships } from './nostr/memberships';
   import { fetchCommunity } from './nostr/community';
   import { fetchCommunityMedia, parseShareEvent } from './nostr/community-media';
@@ -33,6 +42,37 @@
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const STORAGE_KEY = 'communikey-last-community';
+  const CACHE_TTL_MS = 10 * 60 * 1000;
+  const CACHE_MAX_ITEMS = 500;
+
+  interface CommunityMediaCacheData {
+    shares: CommunityMediaItem[];
+    resolvedEvents: Array<{
+      shareEventId: string;
+      event: {
+        id: string;
+        pubkey: string;
+        created_at: number;
+        tags: string[][];
+        content: string;
+      };
+    }>;
+  }
+
+  async function resolveCommunityCacheKey(
+    communityPubkey: string,
+    info: CommunityInfo,
+  ): Promise<string> {
+    const signerPubkey = ctx.signer ? await ctx.signer.getPublicKey() : 'anonymous';
+    const relayFingerprint = [...new Set([...info.relays, ...ctx.relayUrls])]
+      .sort()
+      .join(',');
+    return makeCacheKey('community-media', [
+      signerPubkey,
+      communityPubkey,
+      relayFingerprint,
+    ]);
+  }
 
   function getLastCommunity(): string | null {
     try { return localStorage.getItem(STORAGE_KEY); } catch { return null; }
@@ -240,8 +280,19 @@
 
     loadingMedia = true;
     selectedMediaUrl = null;
+    let hadCached = false;
+    const cacheKey = await resolveCommunityCacheKey(selectedCommunityPubkey, info);
 
     try {
+      const cached = readCache<CommunityMediaCacheData>(cacheKey, CACHE_TTL_MS);
+      if (cached?.items?.[0]) {
+        mediaItems = cached.items[0].shares;
+        resolvedNip94 = new Map(
+          cached.items[0].resolvedEvents.map((entry) => [entry.shareEventId, entry.event]),
+        );
+        hadCached = true;
+      }
+
       const result = await fetchCommunityMedia(
         selectedCommunityPubkey,
         info.relays,
@@ -249,8 +300,20 @@
       );
       mediaItems = result.shares;
       resolvedNip94 = result.resolvedEvents;
+
+      const resolvedEvents = [...result.resolvedEvents.entries()].map(([shareEventId, event]) => ({
+        shareEventId,
+        event,
+      }));
+      writeCache(
+        cacheKey,
+        [{ shares: result.shares, resolvedEvents }],
+        CACHE_MAX_ITEMS,
+      );
     } catch (err) {
-      error = `Fehler beim Laden der Community-Medien: ${err instanceof Error ? err.message : String(err)}`;
+      if (!hadCached) {
+        error = `Fehler beim Laden der Community-Medien: ${err instanceof Error ? err.message : String(err)}`;
+      }
     } finally {
       loadingMedia = false;
     }
@@ -291,11 +354,40 @@
 
     deletingShare = true;
     try {
+      const mediaToDelete = selectedMedia;
       await publishCommunityShareDeletion(
         signer,
-        selectedMedia.shareEventId,
+        mediaToDelete.shareEventId,
         relayUrls,
       );
+
+      // Optimistic local/cache update to avoid stale cards after delete
+      const nextMediaItems = mediaItems.filter((m) => m.shareEventId !== mediaToDelete.shareEventId);
+      let nextResolved = new Map(resolvedNip94);
+      const stillReferenced = nextMediaItems.some((m) => m.originalEventId === mediaToDelete.originalEventId);
+      if (!stillReferenced) {
+        nextResolved.delete(mediaToDelete.originalEventId);
+      }
+
+      mediaItems = nextMediaItems;
+      resolvedNip94 = nextResolved;
+
+      if (selectedCommunityPubkey) {
+        const info = communities.get(selectedCommunityPubkey);
+        if (info) {
+          const cacheKey = await resolveCommunityCacheKey(selectedCommunityPubkey, info);
+          const resolvedEvents = [...nextResolved.entries()].map(([shareEventId, event]) => ({
+            shareEventId,
+            event,
+          }));
+          writeCache(
+            cacheKey,
+            [{ shares: nextMediaItems, resolvedEvents }],
+            CACHE_MAX_ITEMS,
+          );
+        }
+      }
+
       selectedMediaUrl = null;
       await loadCommunityMedia();
     } catch (err) {
