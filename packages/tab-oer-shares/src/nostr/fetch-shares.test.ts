@@ -53,7 +53,7 @@ const SAMPLE_30142_EVENT = {
     ['t', 'Pythagoras'],
     ['t', 'Geometrie'],
     ['t', 'Mathematik'],
-    ['keywords', '["Math", "Physics"]'],
+    ['keywords', 'Math', 'Physics'],
     ['creator:name', 'John'],
     ['creator:name', 'Jane'],
     ['e', 'nip94-source-event-id'],
@@ -222,5 +222,22 @@ describe('fetchUserAmbShares', () => {
 
     const shares = await fetchUserAmbShares('pubkey123', 'wss://test.com');
     expect(shares[0].nip94EventId).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  });
+
+  it('should parse legacy JSON keywords tag format', async () => {
+    const event = {
+      ...SAMPLE_30142_EVENT,
+      id: 'legacy-json-keywords',
+      tags: SAMPLE_30142_EVENT.tags.filter((t) => t[0] !== 'keywords').concat([
+        ['keywords', '["LegacyMath", "LegacyPhysics"]'],
+      ]),
+    };
+
+    const relay = createMockRelay([event]);
+    mockRelay.connect.mockResolvedValueOnce(relay);
+
+    const shares = await fetchUserAmbShares('pubkey123', 'wss://test.com');
+    expect(shares[0].keywords).toContain('LegacyMath');
+    expect(shares[0].keywords).toContain('LegacyPhysics');
   });
 });

@@ -25,10 +25,23 @@ function getTagValue(tags: string[][], key: string): string | undefined {
 }
 
 function parseKeywordsTagValues(tags: string[][]): string[] {
-  const values = getTagValues(tags, 'keywords');
   const parsed: string[] = [];
 
-  for (const value of values) {
+  const keywordTags = tags.filter((t) => t[0] === 'keywords');
+
+  for (const tag of keywordTags) {
+    if (tag.length <= 1) continue;
+
+    // Preferred modern format: ['keywords', 'kw1', 'kw2', ...]
+    if (tag.length > 2) {
+      for (const value of tag.slice(1)) {
+        const kw = value?.trim();
+        if (kw) parsed.push(kw);
+      }
+      continue;
+    }
+
+    const value = tag[1];
     if (!value) continue;
 
     try {

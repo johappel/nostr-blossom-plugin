@@ -164,7 +164,7 @@ export function buildAmbEventTags(
 
   // Additional AMB-style keywords payload as JSON array
   if (cleanedKeywords.length > 0) {
-    tags.push(['keywords', JSON.stringify(cleanedKeywords)]);
+    tags.push(['keywords', ...cleanedKeywords]);
   }
 
   // Language
