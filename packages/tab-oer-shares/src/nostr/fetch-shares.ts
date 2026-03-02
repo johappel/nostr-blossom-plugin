@@ -24,6 +24,38 @@ function getTagValue(tags: string[][], key: string): string | undefined {
   return tag?.[1];
 }
 
+function parseKeywordsTagValues(tags: string[][]): string[] {
+  const values = getTagValues(tags, 'keywords');
+  const parsed: string[] = [];
+
+  for (const value of values) {
+    if (!value) continue;
+
+    try {
+      const json = JSON.parse(value);
+      if (Array.isArray(json)) {
+        for (const item of json) {
+          if (typeof item === 'string' && item.trim()) parsed.push(item.trim());
+        }
+        continue;
+      }
+      if (typeof json === 'string' && json.trim()) {
+        parsed.push(json.trim());
+        continue;
+      }
+    } catch {
+      // fallback below
+    }
+
+    for (const token of value.split(/[,;]+/)) {
+      const kw = token.trim();
+      if (kw) parsed.push(kw);
+    }
+  }
+
+  return parsed;
+}
+
 /**
  * Extract SKOS concept selections from flattened tags.
  *
@@ -55,6 +87,14 @@ function parseAmbEvent(event: Record<string, unknown>): AmbShareItem | null {
   const dTag = getTagValue(tags, 'd');
   if (!dTag) return null;
 
+  const tKeywords = getTagValues(tags, 't').map((kw) => kw?.trim()).filter(Boolean);
+  const jsonKeywords = parseKeywordsTagValues(tags);
+  const keywords = [...new Set([...tKeywords, ...jsonKeywords])];
+
+  const creatorNames = getTagValues(tags, 'creator:name')
+    .map((name) => name?.trim())
+    .filter(Boolean);
+
   return {
     eventId: event.id as string,
     dTag,
@@ -64,7 +104,7 @@ function parseAmbEvent(event: Record<string, unknown>): AmbShareItem | null {
     name: getTagValue(tags, 'name') ?? '',
     description: getTagValue(tags, 'description') ?? (event.content as string) ?? '',
     content: (event.content as string) || undefined,
-    keywords: getTagValues(tags, 't'),
+    keywords,
 
     audience: extractConcepts(tags, 'audience'),
     educationalLevel: extractConcepts(tags, 'educationalLevel'),
@@ -72,12 +112,13 @@ function parseAmbEvent(event: Record<string, unknown>): AmbShareItem | null {
     about: extractConcepts(tags, 'about'),
 
     licenseId: getTagValue(tags, 'license:id'),
-    creatorName: getTagValue(tags, 'creator:name'),
+    creatorName: creatorNames.length > 0 ? creatorNames.join(', ') : undefined,
     inLanguage: getTagValue(tags, 'inLanguage'),
     isAccessibleForFree: getTagValue(tags, 'isAccessibleForFree') === 'true',
 
     encodingUrl: getTagValue(tags, 'encoding:contentUrl'),
     imageUrl: getTagValue(tags, 'image'),
+    nip94EventId: getTagValue(tags, 'e'),
   };
 }
 

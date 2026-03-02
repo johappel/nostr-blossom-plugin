@@ -53,6 +53,10 @@ const SAMPLE_30142_EVENT = {
     ['t', 'Pythagoras'],
     ['t', 'Geometrie'],
     ['t', 'Mathematik'],
+    ['keywords', '["Math", "Physics"]'],
+    ['creator:name', 'John'],
+    ['creator:name', 'Jane'],
+    ['e', 'nip94-source-event-id'],
     ['inLanguage', 'de'],
     ['license:id', 'https://creativecommons.org/licenses/by/4.0/'],
     ['isAccessibleForFree', 'true'],
@@ -93,7 +97,9 @@ describe('fetchUserAmbShares', () => {
     expect(item.dTag).toBe('oersi.org/resources/example');
     expect(item.name).toBe('Pythagorean Theorem Video');
     expect(item.description).toContain('Pythagorean theorem');
-    expect(item.keywords).toEqual(['Pythagoras', 'Geometrie', 'Mathematik']);
+    expect(item.keywords).toEqual(['Pythagoras', 'Geometrie', 'Mathematik', 'Math', 'Physics']);
+    expect(item.creatorName).toBe('John, Jane');
+    expect(item.nip94EventId).toBe('nip94-source-event-id');
   });
 
   it('should parse concept tags with prefLabels', async () => {

@@ -94,6 +94,11 @@ describe('mapNip94ToAmb', () => {
     );
   });
 
+  it('should map eventId → nip94EventId', () => {
+    const result = mapNip94ToAmb(sampleNip94);
+    expect(result.nip94EventId).toBe('evt123');
+  });
+
   it('should default to de language and isAccessibleForFree', () => {
     const result = mapNip94ToAmb(sampleNip94);
     expect(result.inLanguage).toBe('de');
@@ -155,6 +160,12 @@ describe('buildAmbEventTags', () => {
     expect(tTags.map((t) => t[1])).toEqual(['Pythagoras', 'Geometrie', 'Mathematik']);
   });
 
+  it('should emit keywords tag as JSON array in addition to t tags', () => {
+    const tags = buildAmbEventTags(sampleForm);
+    const keywordsTag = findTag(tags, 'keywords');
+    expect(keywordsTag?.[1]).toBe(JSON.stringify(['Pythagoras', 'Geometrie', 'Mathematik']));
+  });
+
   it('should emit p tag for Nostr-native creator', () => {
     const tags = buildAmbEventTags(sampleForm, 'wss://relay.example.com');
     const pTag = findTag(tags, 'p');
@@ -170,6 +181,20 @@ describe('buildAmbEventTags', () => {
     expect(findTag(tags, 'creator:name')?.[1]).toBe('Prof. Doe');
     expect(findTag(tags, 'creator:type')?.[1]).toBe('Person');
     expect(findTag(tags, 'p')).toBeUndefined();
+  });
+
+  it('should emit multiple creator:name tags from comma-separated names', () => {
+    const form: AmbFormData = { ...sampleForm, creatorName: 'John, Jane' };
+    const tags = buildAmbEventTags(form);
+    const creatorTags = findTags(tags, 'creator:name');
+    expect(creatorTags.map((t) => t[1])).toEqual(['John', 'Jane']);
+    expect(findTag(tags, 'creator:type')?.[1]).toBe('Person');
+  });
+
+  it('should emit e tag when nip94EventId is set', () => {
+    const form: AmbFormData = { ...sampleForm, nip94EventId: 'nip94-event-xyz' };
+    const tags = buildAmbEventTags(form);
+    expect(findTag(tags, 'e')?.[1]).toBe('nip94-event-xyz');
   });
 
   it('should emit concept tags with :id, :prefLabel:de, :type', () => {

@@ -59,6 +59,7 @@
         isAccessibleForFree: editItem.isAccessibleForFree ?? true,
         encodingUrl: editItem.encodingUrl,
         imageUrl: editItem.imageUrl,
+        nip94EventId: editItem.nip94EventId,
       };
     }
     if (nip94) return mapNip94ToAmb(nip94);

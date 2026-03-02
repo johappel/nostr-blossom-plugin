@@ -110,4 +110,6 @@ export interface AmbShareItem {
   encodingUrl?: string;
   /** Thumbnail / preview image URL. */
   imageUrl?: string;
+  /** Source NIP-94 event ID (from `e` tag), if linked. */
+  nip94EventId?: string;
 }

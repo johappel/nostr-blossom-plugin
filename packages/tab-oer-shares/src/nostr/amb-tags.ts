@@ -153,9 +153,18 @@ export function buildAmbEventTags(
   tags.push(['name', form.name]);
   tags.push(['description', form.description]);
 
+  const cleanedKeywords = form.keywords
+    .map((kw) => kw.trim())
+    .filter(Boolean);
+
   // Keywords → Nostr-native t tags
-  for (const kw of form.keywords) {
+  for (const kw of cleanedKeywords) {
     if (kw.trim()) tags.push(['t', kw.trim()]);
+  }
+
+  // Additional AMB-style keywords payload as JSON array
+  if (cleanedKeywords.length > 0) {
+    tags.push(['keywords', JSON.stringify(cleanedKeywords)]);
   }
 
   // Language
@@ -169,9 +178,24 @@ export function buildAmbEventTags(
     tags.push(['p', form.creatorPubkey, relayHint, 'creator']);
   }
 
-  // External creator fallback (name only, no Nostr identity)
-  if (form.creatorName && !form.creatorPubkey) {
-    tags.push(['creator:name', form.creatorName]);
+  // External creator names (supports multiple creators split by comma/semicolon/newline)
+  if (form.creatorName) {
+    const creatorNames = form.creatorName
+      .split(/[;,\n]+/)
+      .map((name) => name.trim())
+      .filter(Boolean);
+
+    for (const creatorName of creatorNames) {
+      tags.push(['creator:name', creatorName]);
+    }
+
+    if (creatorNames.length > 0) {
+      tags.push(['creator:type', 'Person']);
+    }
+  }
+
+  // Keep creator:type fallback for old single-name payloads
+  if (form.creatorName && !tags.some((t) => t[0] === 'creator:type')) {
     tags.push(['creator:type', 'Person']);
   }
 
