@@ -75,14 +75,14 @@
   let tabs = $derived.by((): TabDef[] => {
     const result: TabDef[] = [];
     if (config.features?.upload !== false) {
-      result.push({ id: 'upload', label: 'Hochladen', icon: iconUploadFile(), order: 0, builtin: 'upload' });
+      result.push({ id: 'upload', label: 'Hochladen', icon: iconUploadFile(), order: 10, builtin: 'upload' });
     }
     if (config.features?.gallery !== false) {
-      result.push({ id: 'gallery', label: 'Mediathek', icon: iconGallery(), order: 10, builtin: 'gallery' });
+      result.push({ id: 'gallery', label: 'Mediathek', icon: iconGallery(), order: 20, builtin: 'gallery' });
     }
     // Show image gen tab when feature is not explicitly disabled AND an endpoint is available
     if (config.features?.imageGen !== false && resolvedImageGenEndpoint) {
-      result.push({ id: 'imagegen', label: 'Bild erstellen', icon: iconAutoAwesome(), order: 20, builtin: 'imagegen' });
+      result.push({ id: 'imagegen', label: 'Bild erstellen', icon: iconAutoAwesome(), order: 0, builtin: 'imagegen' });
     }
     // Legacy custom tabs (deprecated — use plugins instead)
     for (const ct of config.tabs ?? []) {

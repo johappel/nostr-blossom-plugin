@@ -28,6 +28,7 @@ The format is based on Keep a Changelog.
   - **CommunityTab** folgt jetzt dem Aufbau „Aktuelle Community + Dropdown“ → Suche → Grid, mit vereinheitlichten Abständen/Paddings.
   - **OerSharesTab** nutzt einen Community-ähnlichen Header mit Edufeed-Logo + „Meine Shares“, Settings-Icon rechts und ohne Header-Border.
   - Einheitlicher vertikaler Rhythmus in beiden Tabs (Header, Suchleiste, Grid).
+- **Tab-Reihenfolge angepasst**: Widget-Tabs werden jetzt in der Reihenfolge angezeigt: **Bild erstellen** (falls aktiv), **Hochladen**, **Mediathek**, **Community Media**, **OER Shares**.
 - **Tab-übergreifender Media-Cache (SWR)**:
   - Neuer Shared-Helper `media-cache.ts` (`makeCacheKey`, `readCache`, `writeCache`, `clearCache`) in `packages/blossom-plugin/src/widget/shared/`, exportiert über `@blossom/plugin/plugin`.
   - **Gallery**, **CommunityTab** und **OerSharesTab** zeigen gecachte Inhalte sofort an und revalidieren anschließend im Hintergrund.

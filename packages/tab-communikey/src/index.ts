@@ -321,7 +321,7 @@ export const communityTabPlugin: TabPlugin = {
   id: 'communikey',
   label: 'Community Media',
   icon: iconGroups(),
-  order: 50,
+  order: 30,
 
   // Svelte 5 component for the tab content
   component: CommunityTab as any,
