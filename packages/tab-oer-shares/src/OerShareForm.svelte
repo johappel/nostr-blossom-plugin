@@ -292,6 +292,7 @@
           bind:value={creatorName}
           placeholder="Name des Autors / der Autorin"
         />
+        <span class="oer-hint">Mehrere Namen mit Komma trennen (z. B. John, Jane)</span>
       </label>
 
       <!-- License -->

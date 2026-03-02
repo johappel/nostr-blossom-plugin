@@ -56,6 +56,50 @@ function parseKeywordsTagValues(tags: string[][]): string[] {
   return parsed;
 }
 
+function parseCreatorNames(tags: string[][]): string[] {
+  const names: string[] = [];
+
+  for (const value of getTagValues(tags, 'creator:name')) {
+    const trimmed = value?.trim();
+    if (trimmed) names.push(trimmed);
+  }
+
+  for (const value of getTagValues(tags, 'author')) {
+    const trimmed = value?.trim();
+    if (trimmed) names.push(trimmed);
+  }
+
+  for (const value of getTagValues(tags, 'creator')) {
+    const raw = value?.trim();
+    if (!raw) continue;
+
+    if (raw.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && 'name' in parsed) {
+          const n = String((parsed as { name: unknown }).name ?? '').trim();
+          if (n) names.push(n);
+          continue;
+        }
+      } catch {
+        // fall through to plain text handling
+      }
+    }
+
+    names.push(raw);
+  }
+
+  return [...new Set(names)];
+}
+
+function parseNip94EventId(tags: string[][]): string | undefined {
+  const eValues = getTagValues(tags, 'e').map((v) => v?.trim()).filter(Boolean) as string[];
+  if (eValues.length === 0) return undefined;
+
+  const strictHex = eValues.find((v) => /^[0-9a-f]{64}$/i.test(v));
+  return strictHex ?? eValues[0];
+}
+
 /**
  * Extract SKOS concept selections from flattened tags.
  *
@@ -91,9 +135,7 @@ function parseAmbEvent(event: Record<string, unknown>): AmbShareItem | null {
   const jsonKeywords = parseKeywordsTagValues(tags);
   const keywords = [...new Set([...tKeywords, ...jsonKeywords])];
 
-  const creatorNames = getTagValues(tags, 'creator:name')
-    .map((name) => name?.trim())
-    .filter(Boolean);
+  const creatorNames = parseCreatorNames(tags);
 
   return {
     eventId: event.id as string,
@@ -118,7 +160,7 @@ function parseAmbEvent(event: Record<string, unknown>): AmbShareItem | null {
 
     encodingUrl: getTagValue(tags, 'encoding:contentUrl'),
     imageUrl: getTagValue(tags, 'image'),
-    nip94EventId: getTagValue(tags, 'e'),
+    nip94EventId: parseNip94EventId(tags),
   };
 }
 

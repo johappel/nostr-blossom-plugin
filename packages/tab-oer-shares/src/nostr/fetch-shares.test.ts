@@ -190,4 +190,37 @@ describe('fetchUserAmbShares', () => {
     expect(shares).toHaveLength(1);
     expect(shares[0].eventId).toBe('event123');
   });
+
+  it('should parse creatorName from author tag fallback', async () => {
+    const event = {
+      ...SAMPLE_30142_EVENT,
+      id: 'author-fallback',
+      tags: SAMPLE_30142_EVENT.tags.filter((t) => t[0] !== 'creator:name').concat([
+        ['author', 'Fallback Author'],
+      ]),
+    };
+
+    const relay = createMockRelay([event]);
+    mockRelay.connect.mockResolvedValueOnce(relay);
+
+    const shares = await fetchUserAmbShares('pubkey123', 'wss://test.com');
+    expect(shares[0].creatorName).toContain('Fallback Author');
+  });
+
+  it('should prefer 64-hex e tag value when multiple e tags exist', async () => {
+    const event = {
+      ...SAMPLE_30142_EVENT,
+      id: 'multi-e',
+      tags: SAMPLE_30142_EVENT.tags.concat([
+        ['e', 'short-id'],
+        ['e', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+      ]),
+    };
+
+    const relay = createMockRelay([event]);
+    mockRelay.connect.mockResolvedValueOnce(relay);
+
+    const shares = await fetchUserAmbShares('pubkey123', 'wss://test.com');
+    expect(shares[0].nip94EventId).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  });
 });

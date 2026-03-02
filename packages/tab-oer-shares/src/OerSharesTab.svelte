@@ -62,7 +62,15 @@
   let editingItem = $state<AmbShareItem | null>(null);
 
   function startEdit(item: AmbShareItem) {
-    editingItem = item;
+    const matchedNip94 = item.encodingUrl
+      ? ctx.nip94Data?.byUrl?.get(item.encodingUrl)
+      : undefined;
+
+    editingItem = {
+      ...item,
+      nip94EventId: item.nip94EventId ?? matchedNip94?.eventId,
+      creatorName: item.creatorName ?? matchedNip94?.metadata?.author ?? undefined,
+    };
   }
 
   function closeEdit() {
