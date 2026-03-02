@@ -101,6 +101,7 @@ export function mapNip94ToAmb(nip94: Nip94FileEvent): AmbFormData {
     encodingSha256: nip94.sha256,
     encodingSize,
     imageUrl: nip94.thumbUrl ?? nip94.imageUrl ?? undefined,
+    nip94EventId: nip94.eventId || undefined,
   };
 }
 
@@ -187,6 +188,12 @@ export function buildAmbEventTags(
   appendConceptTags(tags, 'educationalLevel', form.educationalLevel);
   appendConceptTags(tags, 'learningResourceType', form.learningResourceType);
   appendConceptTags(tags, 'about', form.about);
+
+  // ── Source event reference ──
+  // e-tag links back to the originating NIP-94 kind:1063 event (protocol-level provenance)
+  if (form.nip94EventId) {
+    tags.push(['e', form.nip94EventId]);
+  }
 
   // ── Technical / Encoding ──
   if (form.encodingUrl) {

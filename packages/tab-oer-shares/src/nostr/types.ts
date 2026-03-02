@@ -64,6 +64,8 @@ export interface AmbFormData {
   encodingSize?: string;
   /** Thumbnail / image URL. */
   imageUrl?: string;
+  /** Source NIP-94 event ID (kind:1063) — emitted as `e` tag for provenance. */
+  nip94EventId?: string;
 }
 
 // ── AMB Share Item (parsed from kind:30142 event) ────────────────────────────
