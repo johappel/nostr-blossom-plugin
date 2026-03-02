@@ -17,6 +17,9 @@ The format is based on Keep a Changelog.
   - Plugin-Icons (`tab-communikey`, `tab-oer-shares`) sind jetzt inline-SVG-Strings statt Emojis.
   - Tab-Icons werden via `{@html}` gerendert für SVG-Unterstützung.
   - Responsive: Tab-Labels werden unter 600px Breite ausgeblendet (nur Icons sichtbar).
+- **Detail-Toolbar / Insert-Format**:
+  - `data-format` vom Host-Target wird jetzt konsistent in allen Detail-Toolbars berücksichtigt (Gallery, Community, OER), indem `targetElement` bis `MediaToolbar` durchgereicht wird.
+  - Bei Target-gebundenem „Übernehmen" wird in der Detail-Toolbar jetzt ein Paste-/Einfügen-Icon statt des Copy-Icons verwendet (`iconPaste` in `packages/blossom-plugin/src/widget/icons.ts`).
 - **Einheitliche Search/Filter-Leiste für Media-Grids**: Neue Shared-Komponente `MediaGridSearchBar` (inkl. `iconSync`) für Gallery, Community und OER.
   - Konsistentes Suchverhalten mit Mehrfachbegriffen (Whitespace/Komma) und Trefferanzeige „Keine Treffer für die Suche.“.
   - Duplizierte tab-spezifische Refresh-/Search-UI in Gallery und OER entfernt.

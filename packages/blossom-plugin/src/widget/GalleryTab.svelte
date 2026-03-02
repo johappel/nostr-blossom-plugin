@@ -431,6 +431,7 @@
               <MediaToolbar
                 item={toDisplayItem(selectedItem)}
                 insertModes={['url', 'markdown', 'markdown-desc']}
+                {targetElement}
                 shareTargets={shareTargets}
                 nip94Event={nip94Data?.byUrl?.get(selectedItem.url) ?? null}
                 widgetContext={widgetContext ?? null}

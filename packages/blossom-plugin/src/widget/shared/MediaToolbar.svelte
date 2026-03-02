@@ -25,6 +25,7 @@
   import type { MediaDisplayItem, InsertResult, InsertMode, ShareTarget, WidgetContext } from '../types';
   import type { Nip94FileEvent } from '../../core/nip94';
   import { formatInsertResult, INSERT_MODE_LABELS } from '../../core/format';
+  import { iconPaste } from '../icons';
   import { untrack } from 'svelte';
 
   interface MediaToolbarProps {
@@ -204,9 +205,7 @@
       title="Übernehmen"
       aria-label="Übernehmen"
     >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-      </svg>
+      {@html iconPaste(18)}
     </button>
   {:else}
     <!-- Standalone: dropdown + copy button -->

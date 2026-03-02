@@ -437,6 +437,7 @@
                 <MediaToolbar
                   item={toDisplayItem(selectedMedia)}
                   insertModes={['url', 'markdown', 'markdown-desc']}
+                  targetElement={ctx.targetElement}
                   shareTargets={[]}
                   widgetContext={ctx}
                   onInsert={(result) => { ctx.insert(result); selectedMediaUrl = null; }}

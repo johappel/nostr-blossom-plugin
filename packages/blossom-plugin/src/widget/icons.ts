@@ -72,6 +72,10 @@ const PATH_GROUPS =
 const PATH_SCHOOL =
   'm590-488 160-92-160-92-160 92 160 92Zm0 122 110-64v-84l-110 64-110-64v84l110 64ZM480-480Zm320 320H600q0-20-1.5-40t-4.5-40h206v-480H160v46q-20-3-40-4.5T80-680v-40q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160Zm-720 0v-120q50 0 85 35t35 85H80Zm200 0q0-83-58.5-141.5T80-360v-80q117 0 198.5 81.5T360-160h-80Zm160 0q0-75-28.5-140.5t-77-114q-48.5-48.5-114-77T80-520v-80q91 0 171 34.5T391-471q60 60 94.5 140T520-160h-80Z';
 
+/** content_paste_go — paste/insert into target field */
+const PATH_CONTENT_PASTE =
+  'm720-120-56-57 63-63H480v-80h247l-63-64 56-56 160 160-160 160Zm120-400h-80v-240h-80v120H280v-120h-80v560h200v80H200q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h167q11-35 43-57.5t70-22.5q40 0 71.5 22.5T594-840h166q33 0 56.5 23.5T840-760v240ZM508.5-771.5Q520-783 520-800t-11.5-28.5Q497-840 480-840t-28.5 11.5Q440-817 440-800t11.5 28.5Q463-760 480-760t28.5-11.5Z';
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /** File upload icon. */
@@ -106,3 +110,6 @@ export const iconGroups = (size = 18, style?: string) => mat(PATH_GROUPS, size, 
 
 /** Graduation cap / OER-Edufeed icon. */
 export const iconSchool = (size = 18, style?: string) => mat(PATH_SCHOOL, size, style);
+
+/** Paste / insert-into-field icon. */
+export const iconPaste = (size = 18, style?: string) => mat(PATH_CONTENT_PASTE, size, style);
