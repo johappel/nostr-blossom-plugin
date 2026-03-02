@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { UploadHistoryItem } from '../core/history';
   import type { Nip94FetchResult } from '../core/nip94';
+  import type { ImageMetadataInput } from '../core/metadata';
   import type { InsertResult, BlossomMediaFeatures, MediaDisplayItem, ShareTarget, WidgetContext } from './types';
   import type { BlossomSigner } from '../core/types';
   import type { VisionClientOptions } from '../core/vision';
@@ -406,7 +407,7 @@
                   {visionOptions}
                   showDelete={features.deleteFiles !== false}
                   showMetadata={true}
-                  onSubmit={(meta) => {
+                  onSubmit={(meta: ImageMetadataInput) => {
                     if (selectedItem) {
                       onInserted({ ...buildInsertResult(selectedItem), ...meta, keywords: meta.keywords });
                     }
