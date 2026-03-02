@@ -88,6 +88,7 @@ The format is based on Keep a Changelog.
 - 13 Unit-Tests für `tab-communikey` Nostr-Parser (Membership, Community, Share-Event Parsing).
 - Alle 63 Core-Tests weiterhin grün nach Share-Infrastruktur-Änderungen.
 - Neue Unit-Tests für `widget/shared/media-cache.ts` (Key-Generierung, TTL/stale-Erkennung, Parse-/Shape-Fehler, Max-Items-Cap, Clear-Flow).
+- Neuer Integrationstest für OER-Cache-Flow (`load-shares-with-cache`): Fresh-Write, Cache-Fallback bei Fetch-Fehler und Throw ohne Cache.
 
 - **Tab-Plugin-API**: Externes Tab-Plugin-System für das Media Widget. Neue Tabs können als eigenständige Pakete implementiert werden, ohne den Core-Code anzufassen.
   - `TabPlugin` Interface: Unterstützt sowohl Vanilla-DOM (`render(container, ctx)`) als auch Svelte 5 (`component`) Rendering.

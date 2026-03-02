@@ -18,12 +18,11 @@
     MediaDetailSheet,
     MediaGridSearchBar,
     MediaToolbar,
-    makeCacheKey,
-    readCache,
     writeCache,
   } from '@blossom/plugin/plugin';
   import { untrack } from 'svelte';
   import { fetchUserAmbShares } from './nostr/fetch-shares';
+  import { loadAmbSharesWithCache } from './nostr/load-shares-with-cache';
   import { publishAmbShareDeletion } from './nostr/delete';
   import type { AmbShareItem, SkosSelection } from './nostr/types';
   import { loadConfig, saveConfig, type OerSharesConfig } from './config';
@@ -86,28 +85,28 @@
     loading = true;
     error = null;
     selectedItem = null;
-    let hadCached = false;
 
     try {
       const cacheMeta = await resolveOerCacheMeta();
       if (!cacheMeta) throw new Error('Signer nicht verfügbar');
 
-      const { pubkey, cacheKey } = cacheMeta;
+      const { pubkey } = cacheMeta;
+      const result = await loadAmbSharesWithCache({
+        pubkey,
+        relayUrl: config.ambRelayUrl,
+        ttlMs: CACHE_TTL_MS,
+        maxItems: CACHE_MAX_ITEMS,
+        fetchShares: fetchUserAmbShares,
+        cacheOps: { makeCacheKey, readCache, writeCache },
+      });
 
-      const cached = readCache<AmbShareItem>(cacheKey, CACHE_TTL_MS);
-      if (cached?.items?.length) {
-        shares = cached.items;
-        hadCached = true;
-      }
-
-      shares = await fetchUserAmbShares(pubkey, config.ambRelayUrl);
-      writeCache(cacheKey, shares, CACHE_MAX_ITEMS);
+      shares = result.shares;
 
       if (shares.length === 0) {
         error = 'Noch keine OER-Shares. Teile Medien aus der Mediathek über "Im Edufeed teilen".';
       }
     } catch (err) {
-      if (!hadCached && shares.length === 0) {
+      if (shares.length === 0) {
         error = `Fehler beim Laden: ${err instanceof Error ? err.message : String(err)}`;
       }
     } finally {
