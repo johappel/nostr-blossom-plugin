@@ -102,7 +102,8 @@
   </main>
 
   <script>
-    const POPUP_URL = 'http://127.0.0.1:5500/examples/bookmarklet-popup.html';
+    const base = window.location.href.replace(/[^/]+$/, '');
+    const POPUP_URL = base + 'bookmarklet-popup.html';
     const POPUP_NAME = 'blossom';
     const MAX_WIDTH = 1100;
     const MAX_HEIGHT = 800;
