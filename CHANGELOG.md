@@ -48,11 +48,15 @@ The format is based on Keep a Changelog.
 - **TipTap Popup Runtime-Fehler:** `examples/tiptap-popup.html` lädt TipTap-Module jetzt ohne `?bundle` von `esm.sh`, damit keine doppelten ProseMirror-Instanzen entstehen (`Adding different instances of a keyed plugin (plugin$)`).
 - **TipTap Popup GFM-Import:** `turndown-plugin-gfm` wird jetzt export-form-resilient per Namespace-Import eingebunden; behebt Laufzeitfehler bei fehlendem `default`-Export auf `esm.sh`.
 - **TipTap Popup Markdown-Paste:** Markdown-Text wird beim Einfügen jetzt auch dann als Markdown gerendert, wenn die Zwischenablage zusätzlich `text/html` enthält.
+- **Material-Symbol-Font-URL:** Google-Fonts-Link auf stabile CSS2-Achsen-URL ohne `icon_names` umgestellt; behebt MIME-Type-Block (`text/html`, `nosniff`) im Browser.
 
 ### Added
 
 - **TipTap Popup Example (serverless):** Neue Beispiele `examples/tiptap-popup.html` und `examples/tiptap-bookmarklet.html`.
   - Vollständiger TipTap-Editor im Popup mit Toolbar und zusätzlichem `Mediahook`-Button.
+  - Toolbar modernisiert mit Material-Symbol-Icons (Google Fonts): Listen, Zitat, Tabelle, Table-Edit, Undo/Redo, Suche, Ersetzen.
+  - `table_edit` als Popover mit Tabellenaktionen (`+/- Zeile`, `+/- Spalte`, `Tabelle löschen`).
+  - Suche/Ersetzen integriert als Toolbar-Popover mit Input-Feldern (Suche) bzw. zwei Inputs + Option „Alle ersetzen“ (Replace).
   - Headline-Steuerung per Dropdown für Paragraph sowie `H1` bis `H5`.
   - Tabellen-Support (einfügen, Zeile/Spalte hinzufügen/löschen) inkl. GFM-Markdown-Export.
   - Bilder sind im Editor über einen Drag-Handle an der unteren rechten Ecke resizbar.
