@@ -966,9 +966,9 @@
             if (!clipboard) return false;
 
             const plainText = clipboard.getData('text/plain') || '';
-            const htmlText = clipboard.getData('text/html') || '';
-
-            if (htmlText || !looksLikeMarkdown(plainText)) {
+            // Many apps provide both text/plain and text/html.
+            // If plain text looks like Markdown, prefer Markdown conversion.
+            if (!looksLikeMarkdown(plainText)) {
               return false;
             }
 

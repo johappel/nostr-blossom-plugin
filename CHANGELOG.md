@@ -47,6 +47,7 @@ The format is based on Keep a Changelog.
 
 - **TipTap Popup Runtime-Fehler:** `examples/tiptap-popup.html` lädt TipTap-Module jetzt ohne `?bundle` von `esm.sh`, damit keine doppelten ProseMirror-Instanzen entstehen (`Adding different instances of a keyed plugin (plugin$)`).
 - **TipTap Popup GFM-Import:** `turndown-plugin-gfm` wird jetzt export-form-resilient per Namespace-Import eingebunden; behebt Laufzeitfehler bei fehlendem `default`-Export auf `esm.sh`.
+- **TipTap Popup Markdown-Paste:** Markdown-Text wird beim Einfügen jetzt auch dann als Markdown gerendert, wenn die Zwischenablage zusätzlich `text/html` enthält.
 
 ### Added
 
