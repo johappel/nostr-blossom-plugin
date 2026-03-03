@@ -10,6 +10,7 @@ The format is based on Keep a Changelog.
 
 - **Anfänger-Dokumentation:** Neues Dokument `docs/beginner-faq.md` — Umfassender FAQ-Leitfaden für Nostr- und Blossom-Anfänger mit ELI5-Erklärungen, praktischen Szenarien und Troubleshooting. Deckt ab: Nostr-Basics, Blossom vs. S3/WordPress, Dezentralisierung, NIP-94, Signer (NIP-07/NIP-46), Metadaten-Management, Galerie-Abruf, KI-Features, und häufige Fehler.
 - **README ergänzt:** Paketübersicht enthält jetzt auch `packages/tab-communikey` und `packages/tab-oer-shares`; im `data-format`-Abschnitt ist die Toolbar-Semantik präzisiert (Paste bei Ziel-Element, Copy ohne Ziel-Element).
+- **Examples ergänzt:** README und `examples/simple-input.html` verlinken jetzt den neuen TipTap-Popup-Flow.
 
 ### Changed
 
@@ -42,8 +43,19 @@ The format is based on Keep a Changelog.
   - `examples/simple-input.html` enthält jetzt einen Hinweis auf den Standalone-Betrieb per Bookmarklet inkl. Link auf `examples/bookmarklet.html`.
   - GitHub-Pages-Workflow hinzugefügt, der das Widget baut und `examples/simple-input.html` als Zielseite ausliefert.
 
+### Fixed
+
+- **TipTap Popup Runtime-Fehler:** `examples/tiptap-popup.html` lädt TipTap-Module jetzt ohne `?bundle` von `esm.sh`, damit keine doppelten ProseMirror-Instanzen entstehen (`Adding different instances of a keyed plugin (plugin$)`).
+
 ### Added
 
+- **TipTap Popup Example (serverless):** Neue Beispiele `examples/tiptap-popup.html` und `examples/tiptap-bookmarklet.html`.
+  - Vollständiger TipTap-Editor im Popup mit Toolbar und zusätzlichem `Mediahook`-Button.
+  - Markdown-Pastes werden erkannt und als HTML im Editor gerendert.
+  - Live-Ausgabe als Markdown und HTML, plus `Kopieren`-Button für den gesamten Markdown-Inhalt.
+  - Blossom Widget wird über den Toolbar-Button geöffnet und fügt Inhalte direkt in den Editor ein (optional mit Auto-Copy des Gesamtinhalts).
+  - VSCode-freundlich: `@ts-nocheck` im Modul-Script verhindert lokale Typ-Fehlalarme für CDN-Imports und `window.BlossomMedia`.
+  - Edge-Tools-Warnungen behoben: Safari-`-webkit-` Präfixe (`backdrop-filter`, `user-select`) und zugängliche Labels für Output-Textareas.
 - **Delete in Detail-Toolbar (Community + OER)**: Löschfunktion in den Detail-Sheets ergänzt.
   - **CommunityTab**: Publiziert NIP-09 `kind:5` Delete-Event für das ausgewählte Kind-`30222` Share-Event (`e` + `k=30222`) und lädt die Community-Medien danach neu.
   - **OerSharesTab**: Publiziert NIP-09 `kind:5` Delete-Event für das ausgewählte Kind-`30142` AMB-Event (`e` + `k=30142`) und lädt die OER-Shares danach neu.

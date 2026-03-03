@@ -44,6 +44,8 @@ Dieses Dokument erklärt in einfacher Sprache:
 - `examples/simple-input.html` — Standard-Host-Integration mit `data-blossom`
 - `examples/bookmarklet.html` — Bookmarklet-Setup für Standalone-Nutzung
 - `examples/bookmarklet-popup.html` — Popup-Seite für den Bookmarklet-Flow
+- `examples/tiptap-popup.html` — Vollständiger TipTap-Popup-Editor mit Markdown-Paste->HTML, Blossom-Mediahook und Copy-all-Flow
+- `examples/tiptap-bookmarklet.html` — Bookmarklet-Launcher für den TipTap-Popup-Editor
 - `examples/community-tab.html` — Community-Tab Demo
 
 ### GitHub Pages

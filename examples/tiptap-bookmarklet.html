@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TipTap Popup Bookmarklet</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 1.25rem;
+      background:
+        radial-gradient(900px 500px at 20% 0%, #1f2937 0%, transparent 75%),
+        #0b1020;
+      color: #e5e7eb;
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .card {
+      width: min(760px, 100%);
+      border: 1px solid #374151;
+      background: #111827;
+      border-radius: 14px;
+      padding: 1rem;
+      display: grid;
+      gap: 0.9rem;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.15rem;
+    }
+
+    p {
+      margin: 0;
+      color: #9ca3af;
+      line-height: 1.45;
+    }
+
+    .row {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    label {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      font: inherit;
+      color: #e5e7eb;
+      background: #0b1220;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 0.5rem 0.65rem;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      align-items: center;
+    }
+
+    .bookmarklet-link,
+    .open-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 700;
+      padding: 0.6rem 0.95rem;
+    }
+
+    .bookmarklet-link {
+      background: #2563eb;
+      color: #fff;
+      cursor: grab;
+    }
+
+    .open-link {
+      color: #bfdbfe;
+      border: 1px solid #1d4ed8;
+      background: #0b1b4a;
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      color: #9ca3af;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #0b1220;
+      border: 1px solid #374151;
+      border-radius: 6px;
+      padding: 0.12rem 0.3rem;
+      color: #dbeafe;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>TipTap Popup Editor Bookmarklet</h1>
+    <p>
+      Ziehe den Bookmarklet-Link in deine Lesezeichenleiste. Beim Ausfuehren auf einer beliebigen Seite
+      oeffnet sich der serverless TipTap-Popup-Editor mit Blossom-Mediahook.
+    </p>
+
+    <div class="row">
+      <label for="servers">Blossom Server (CSV)</label>
+      <input id="servers" type="text" value="https://blossom.primal.net,https://cdn.satellite.earth" />
+    </div>
+
+    <div class="row">
+      <label for="relay">Relay URL</label>
+      <input id="relay" type="text" value="wss://relay.damus.io" />
+    </div>
+
+    <div class="row">
+      <label for="vision">Vision Endpoint (optional)</label>
+      <input id="vision" type="text" placeholder="https://example.org/describe" />
+    </div>
+
+    <div class="actions">
+      <a id="bookmarklet" class="bookmarklet-link" href="#">TipTap + Blossom</a>
+      <a id="open-popup" class="open-link" href="#">Popup direkt oeffnen</a>
+    </div>
+
+    <p class="hint">
+      Popup-Datei: <code>/examples/tiptap-popup.html</code> | Empfohlene Groesse: <code>1260x900</code>.
+    </p>
+  </main>
+
+  <script>
+    const serversInput = document.getElementById('servers');
+    const relayInput = document.getElementById('relay');
+    const visionInput = document.getElementById('vision');
+    const bookmarkletLink = document.getElementById('bookmarklet');
+    const openPopupLink = document.getElementById('open-popup');
+
+    const popupName = 'blossom-tiptap-popup';
+    const maxWidth = 1260;
+    const maxHeight = 900;
+
+    function buildPopupUrl() {
+      const base = window.location.href.replace(/[^/]+$/, '');
+      const popupUrl = new URL('tiptap-popup.html', base);
+      const servers = (serversInput.value || '').trim();
+      const relay = (relayInput.value || '').trim();
+      const vision = (visionInput.value || '').trim();
+
+      if (servers) popupUrl.searchParams.set('servers', servers);
+      if (relay) popupUrl.searchParams.set('relay', relay);
+      if (vision) popupUrl.searchParams.set('vision', vision);
+
+      return popupUrl.toString();
+    }
+
+    function buildBookmarkletCode(url) {
+      return `javascript:void(function(){` +
+        `var u='${url}';` +
+        `var n='${popupName}';` +
+        `var mw=${maxWidth};` +
+        `var mh=${maxHeight};` +
+        `var sw=(window.screen&&window.screen.availWidth)||window.innerWidth||mw;` +
+        `var sh=(window.screen&&window.screen.availHeight)||window.innerHeight||mh;` +
+        `var w=Math.max(420,Math.min(mw,sw));` +
+        `var h=Math.max(420,Math.min(mh,sh));` +
+        `var l=Math.max(0,Math.floor((sw-w)/2));` +
+        `var t=Math.max(0,Math.floor((sh-h)/2));` +
+        `var f='width='+w+',height='+h+',left='+l+',top='+t+',location=no,menubar=no,toolbar=no,status=no';` +
+        `var p=window.open(u,n,f);` +
+        `if(p&&p.focus){p.focus();}` +
+      `})();`;
+    }
+
+    function updateLinks() {
+      const popupUrl = buildPopupUrl();
+      const bookmarkletCode = buildBookmarkletCode(popupUrl);
+      bookmarkletLink.setAttribute('href', bookmarkletCode);
+      openPopupLink.setAttribute('href', popupUrl);
+      openPopupLink.setAttribute('target', popupName);
+      openPopupLink.setAttribute('rel', 'noopener');
+    }
+
+    [serversInput, relayInput, visionInput].forEach((input) => {
+      input.addEventListener('input', updateLinks);
+    });
+
+    updateLinks();
+  </script>
+</body>
+</html>
