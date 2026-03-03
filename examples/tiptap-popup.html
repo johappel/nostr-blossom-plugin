@@ -91,6 +91,7 @@
     }
 
     button,
+    select,
     .checkbox {
       border: 1px solid var(--border);
       background: #0b1220;
@@ -105,6 +106,11 @@
     button {
       cursor: pointer;
       transition: transform 0.1s ease, background-color 0.1s ease;
+    }
+
+    select {
+      cursor: pointer;
+      min-width: 8.5rem;
     }
 
     button:hover {
@@ -233,6 +239,42 @@
       height: 0;
       pointer-events: none;
     }
+    .ProseMirror table {
+      border-collapse: collapse;
+      table-layout: fixed;
+      width: 100%;
+      margin: 0.8rem 0;
+      overflow: hidden;
+      border-radius: 8px;
+    }
+    .ProseMirror th,
+    .ProseMirror td {
+      border: 1px solid #334155;
+      padding: 0.45rem 0.55rem;
+      vertical-align: top;
+      position: relative;
+    }
+    .ProseMirror th {
+      background: #0a1222;
+      color: #bfdbfe;
+      font-weight: 700;
+    }
+    .ProseMirror .selectedCell::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(59, 130, 246, 0.17);
+      pointer-events: none;
+    }
+    .ProseMirror .column-resize-handle {
+      position: absolute;
+      right: -2px;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: #60a5fa;
+      pointer-events: none;
+    }
 
     .meta {
       display: grid;
@@ -354,16 +396,29 @@
       </header>
 
       <nav class="toolbar" aria-label="Editor Toolbar">
+        <label class="sr-only" for="heading-level">Heading Level</label>
+        <select id="heading-level" title="Heading Level" aria-label="Heading Level">
+          <option value="0">Paragraph</option>
+          <option value="1">Heading 1</option>
+          <option value="2">Heading 2</option>
+          <option value="3">Heading 3</option>
+          <option value="4">Heading 4</option>
+          <option value="5">Heading 5</option>
+        </select>
         <button type="button" data-cmd="bold"><strong>B</strong></button>
         <button type="button" data-cmd="italic"><em>I</em></button>
         <button type="button" data-cmd="underline"><u>U</u></button>
-        <button type="button" data-cmd="h2">H2</button>
-        <button type="button" data-cmd="h3">H3</button>
         <button type="button" data-cmd="bullet">Liste</button>
         <button type="button" data-cmd="ordered">Nummeriert</button>
         <button type="button" data-cmd="quote">Zitat</button>
         <button type="button" data-cmd="code">Code</button>
         <button type="button" data-cmd="link">Link</button>
+        <button type="button" data-cmd="insert-table">Tabelle</button>
+        <button type="button" data-cmd="add-row-after">+ Zeile</button>
+        <button type="button" data-cmd="add-column-after">+ Spalte</button>
+        <button type="button" data-cmd="delete-row">- Zeile</button>
+        <button type="button" data-cmd="delete-column">- Spalte</button>
+        <button type="button" data-cmd="delete-table">Tabelle löschen</button>
         <button type="button" data-cmd="undo">Undo</button>
         <button type="button" data-cmd="redo">Redo</button>
       </nav>
@@ -418,8 +473,13 @@
     import Link from 'https://esm.sh/@tiptap/extension-link@2.11.5';
     import Image from 'https://esm.sh/@tiptap/extension-image@2.11.5';
     import Placeholder from 'https://esm.sh/@tiptap/extension-placeholder@2.11.5';
+    import Table from 'https://esm.sh/@tiptap/extension-table@2.11.5';
+    import TableRow from 'https://esm.sh/@tiptap/extension-table-row@2.11.5';
+    import TableHeader from 'https://esm.sh/@tiptap/extension-table-header@2.11.5';
+    import TableCell from 'https://esm.sh/@tiptap/extension-table-cell@2.11.5';
     import { marked } from 'https://esm.sh/marked@13.0.3?bundle';
     import TurndownService from 'https://esm.sh/turndown@7.2.0?bundle';
+    import * as TurndownPluginGfm from 'https://esm.sh/turndown-plugin-gfm@1.0.2';
 
     const statusEl = document.getElementById('status');
     const markdownOutputEl = document.getElementById('markdown-output');
@@ -429,6 +489,7 @@
     const openMediaButton = document.getElementById('open-media');
     const copyAllButton = document.getElementById('copy-all');
     const autoCopyCheckbox = document.getElementById('autocopy');
+    const headingSelect = document.getElementById('heading-level');
 
     const params = new URLSearchParams(window.location.search);
     const servers = parseCsv(params.get('servers')) || ['https://blossom.primal.net', 'https://cdn.satellite.earth'];
@@ -442,6 +503,14 @@
       codeBlockStyle: 'fenced',
       emDelimiter: '_',
     });
+    const gfmPlugin =
+      TurndownPluginGfm.gfm ||
+      TurndownPluginGfm.default?.gfm ||
+      TurndownPluginGfm.default ||
+      null;
+    if (gfmPlugin) {
+      turndown.use(gfmPlugin);
+    }
     turndown.addRule('resizedImages', {
       filter(node) {
         return node.nodeName === 'IMG';
@@ -461,6 +530,44 @@
         const safeAlt = alt.replace(/\]/g, '\\]');
         const safeTitle = title ? ` "${title.replace(/"/g, '\\"')}"` : '';
         return `![${safeAlt}](${src}${safeTitle})`;
+      },
+    });
+    turndown.addRule('tablesToMarkdown', {
+      filter(node) {
+        return node.nodeName === 'TABLE';
+      },
+      replacement(content, node) {
+        const table = node;
+        const rowNodes = Array.from(table.querySelectorAll('tr'));
+        if (rowNodes.length === 0) return '\n\n';
+
+        const rows = rowNodes.map((row) => {
+          const cells = Array.from(row.children).filter((child) => {
+            return child.nodeName === 'TH' || child.nodeName === 'TD';
+          });
+          return cells.map((cell) => normalizeTableCell(cell.textContent || ''));
+        });
+
+        const colCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
+        if (colCount === 0) return '\n\n';
+
+        const padded = rows.map((row) => {
+          const clone = row.slice();
+          while (clone.length < colCount) clone.push('');
+          return clone;
+        });
+
+        const header = padded[0];
+        const separator = new Array(colCount).fill('---');
+        const body = padded.slice(1);
+
+        const lines = [
+          `| ${header.join(' | ')} |`,
+          `| ${separator.join(' | ')} |`,
+          ...body.map((row) => `| ${row.join(' | ')} |`),
+        ];
+
+        return `\n\n${lines.join('\n')}\n\n`;
       },
     });
 
@@ -484,6 +591,14 @@
       const parsed = Number.parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
       if (!Number.isFinite(parsed) || parsed <= 0) return null;
       return parsed;
+    }
+
+    function normalizeTableCell(value) {
+      return String(value || '')
+        .replace(/\n+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/\|/g, '\\|')
+        .trim();
     }
 
     function looksLikeMarkdown(text) {
@@ -736,12 +851,6 @@
         case 'underline':
           editor.chain().focus().toggleUnderline().run();
           break;
-        case 'h2':
-          editor.chain().focus().toggleHeading({ level: 2 }).run();
-          break;
-        case 'h3':
-          editor.chain().focus().toggleHeading({ level: 3 }).run();
-          break;
         case 'bullet':
           editor.chain().focus().toggleBulletList().run();
           break;
@@ -772,9 +881,48 @@
           editor.chain().focus().extendMarkRange('link').setLink({ href: cleaned }).run();
           break;
         }
+        case 'insert-table':
+          editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+          break;
+        case 'add-row-after':
+          editor.chain().focus().addRowAfter().run();
+          break;
+        case 'add-column-after':
+          editor.chain().focus().addColumnAfter().run();
+          break;
+        case 'delete-row':
+          editor.chain().focus().deleteRow().run();
+          break;
+        case 'delete-column':
+          editor.chain().focus().deleteColumn().run();
+          break;
+        case 'delete-table':
+          editor.chain().focus().deleteTable().run();
+          break;
         default:
           break;
       }
+    }
+
+    function applyHeadingLevel(rawLevel) {
+      const level = Number.parseInt(rawLevel, 10);
+      if (!Number.isFinite(level) || level <= 0) {
+        editor.chain().focus().setParagraph().run();
+        return;
+      }
+      editor.chain().focus().setHeading({ level }).run();
+    }
+
+    function getCurrentHeadingLevel() {
+      for (let level = 1; level <= 5; level += 1) {
+        if (editor.isActive('heading', { level })) return String(level);
+      }
+      return '0';
+    }
+
+    function syncHeadingDropdown() {
+      if (!headingSelect) return;
+      headingSelect.value = getCurrentHeadingLevel();
     }
 
     function initEditor() {
@@ -786,6 +934,12 @@
           StarterKit,
           Underline,
           ResizableImage,
+          Table.configure({
+            resizable: true,
+          }),
+          TableRow,
+          TableHeader,
+          TableCell,
           Link.configure({
             openOnClick: false,
             autolink: true,
@@ -797,8 +951,15 @@
           }),
         ],
         content: '<p>Serverless TipTap Popup ist bereit. Fuege Markdown ein oder nutze den Mediahook.</p>',
-        onCreate: updateOutputs,
-        onUpdate: updateOutputs,
+        onCreate: () => {
+          updateOutputs();
+          syncHeadingDropdown();
+        },
+        onUpdate: () => {
+          updateOutputs();
+          syncHeadingDropdown();
+        },
+        onSelectionUpdate: syncHeadingDropdown,
         editorProps: {
           handlePaste(view, event) {
             const clipboard = event.clipboardData;
@@ -829,6 +990,10 @@
       });
 
       copyAllButton.addEventListener('click', copyAllMarkdown);
+      headingSelect.addEventListener('change', (event) => {
+        applyHeadingLevel(event.target.value);
+        syncHeadingDropdown();
+      });
     }
 
     function initMediahook() {
@@ -867,7 +1032,7 @@
       initEditor();
       initToolbar();
       initMediahook();
-      setStatus('Editor bereit. Bilder unten rechts ziehen zum Resizen; Kopieren uebernimmt den kompletten Markdown-Inhalt.', 'ok');
+      setStatus('Editor bereit. H1-H5 im Dropdown, Tabellen in der Toolbar, Bild-Resizer unten rechts.', 'ok');
     }
 
     boot();

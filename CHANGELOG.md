@@ -46,11 +46,14 @@ The format is based on Keep a Changelog.
 ### Fixed
 
 - **TipTap Popup Runtime-Fehler:** `examples/tiptap-popup.html` lädt TipTap-Module jetzt ohne `?bundle` von `esm.sh`, damit keine doppelten ProseMirror-Instanzen entstehen (`Adding different instances of a keyed plugin (plugin$)`).
+- **TipTap Popup GFM-Import:** `turndown-plugin-gfm` wird jetzt export-form-resilient per Namespace-Import eingebunden; behebt Laufzeitfehler bei fehlendem `default`-Export auf `esm.sh`.
 
 ### Added
 
 - **TipTap Popup Example (serverless):** Neue Beispiele `examples/tiptap-popup.html` und `examples/tiptap-bookmarklet.html`.
   - Vollständiger TipTap-Editor im Popup mit Toolbar und zusätzlichem `Mediahook`-Button.
+  - Headline-Steuerung per Dropdown für Paragraph sowie `H1` bis `H5`.
+  - Tabellen-Support (einfügen, Zeile/Spalte hinzufügen/löschen) inkl. GFM-Markdown-Export.
   - Bilder sind im Editor über einen Drag-Handle an der unteren rechten Ecke resizbar.
   - Markdown-Pastes werden erkannt und als HTML im Editor gerendert.
   - Live-Ausgabe als Markdown und HTML, plus `Kopieren`-Button für den gesamten Markdown-Inhalt.
