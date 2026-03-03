@@ -178,6 +178,54 @@
       display: block;
       margin: 0.6rem 0;
     }
+    .ProseMirror .tiptap-image-resizer {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      margin: 0.6rem 0;
+      line-height: 0;
+      border-radius: 10px;
+    }
+    .ProseMirror .tiptap-image-resizer img {
+      margin: 0;
+      max-width: 100%;
+      height: auto;
+      border-radius: 10px;
+      display: block;
+    }
+    .ProseMirror .tiptap-image-resizer::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      pointer-events: none;
+      transition: border-color 0.12s ease;
+    }
+    .ProseMirror .tiptap-image-resizer:hover::after,
+    .ProseMirror .tiptap-image-resizer.is-resizing::after {
+      border-color: #60a5fa;
+    }
+    .ProseMirror .tiptap-image-resizer .resize-handle {
+      all: unset;
+      position: absolute;
+      right: -8px;
+      bottom: -8px;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      background: #1d4ed8;
+      cursor: nwse-resize;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.5);
+      opacity: 0;
+      transition: opacity 0.12s ease, transform 0.12s ease;
+    }
+    .ProseMirror .tiptap-image-resizer:hover .resize-handle,
+    .ProseMirror .tiptap-image-resizer.is-resizing .resize-handle {
+      opacity: 1;
+      transform: scale(1.04);
+    }
     .ProseMirror p.is-editor-empty:first-child::before {
       content: attr(data-placeholder);
       color: #6b7280;
@@ -386,12 +434,34 @@
     const servers = parseCsv(params.get('servers')) || ['https://blossom.primal.net', 'https://cdn.satellite.earth'];
     const relayUrl = params.get('relay') || 'wss://relay.damus.io';
     const visionEndpoint = params.get('vision') || '';
+    const MIN_IMAGE_WIDTH = 96;
 
     const turndown = new TurndownService({
       headingStyle: 'atx',
       bulletListMarker: '-',
       codeBlockStyle: 'fenced',
       emDelimiter: '_',
+    });
+    turndown.addRule('resizedImages', {
+      filter(node) {
+        return node.nodeName === 'IMG';
+      },
+      replacement(content, node) {
+        const src = (node.getAttribute('src') || '').trim();
+        if (!src) return '';
+
+        const alt = node.getAttribute('alt') || '';
+        const title = (node.getAttribute('title') || '').trim();
+        const width = parseNumericSize(node.getAttribute('width') || node.style.width || '');
+
+        if (width) {
+          return `<img src="${escapeHtmlAttr(src)}" alt="${escapeHtmlAttr(alt)}" width="${width}" />`;
+        }
+
+        const safeAlt = alt.replace(/\]/g, '\\]');
+        const safeTitle = title ? ` "${title.replace(/"/g, '\\"')}"` : '';
+        return `![${safeAlt}](${src}${safeTitle})`;
+      },
     });
 
     let editor;
@@ -408,6 +478,12 @@
       if (!value) return null;
       const parts = value.split(',').map((item) => item.trim()).filter(Boolean);
       return parts.length > 0 ? parts : null;
+    }
+
+    function parseNumericSize(value) {
+      const parsed = Number.parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
+      if (!Number.isFinite(parsed) || parsed <= 0) return null;
+      return parsed;
     }
 
     function looksLikeMarkdown(text) {
@@ -442,6 +518,143 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    }
+
+    function escapeHtmlAttr(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function createResizableImageExtension(baseImage) {
+      return baseImage.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            width: {
+              default: null,
+              parseHTML: (element) => {
+                return parseNumericSize(
+                  element.getAttribute('width') || element.style.width || '',
+                );
+              },
+              renderHTML: (attributes) => {
+                if (!attributes.width) return {};
+                return { width: String(attributes.width) };
+              },
+            },
+          };
+        },
+        addNodeView() {
+          return ({ node, editor, getPos }) => {
+            let currentNode = node;
+            let resizing = false;
+            let startX = 0;
+            let startWidth = 0;
+
+            const dom = document.createElement('span');
+            dom.className = 'tiptap-image-resizer';
+
+            const img = document.createElement('img');
+            img.draggable = false;
+            dom.appendChild(img);
+
+            const handle = document.createElement('button');
+            handle.type = 'button';
+            handle.className = 'resize-handle';
+            handle.tabIndex = -1;
+            handle.setAttribute('aria-label', 'Bildbreite anpassen');
+            handle.setAttribute('title', 'Bildbreite anpassen');
+            dom.appendChild(handle);
+
+            const applyAttrs = (attrs) => {
+              img.src = attrs.src || '';
+              img.alt = attrs.alt || '';
+              if (attrs.title) {
+                img.title = attrs.title;
+              } else {
+                img.removeAttribute('title');
+              }
+
+              const parsedWidth = parseNumericSize(attrs.width);
+              if (parsedWidth) {
+                img.style.width = `${parsedWidth}px`;
+                img.setAttribute('width', String(parsedWidth));
+              } else {
+                img.style.removeProperty('width');
+                img.removeAttribute('width');
+              }
+            };
+
+            const commitWidth = (nextWidth) => {
+              const pos = typeof getPos === 'function' ? getPos() : null;
+              if (typeof pos !== 'number') return;
+
+              const normalizedWidth = Math.max(MIN_IMAGE_WIDTH, Math.round(nextWidth));
+              if (currentNode.attrs.width === normalizedWidth) return;
+
+              const currentAtPos = editor.state.doc.nodeAt(pos);
+              if (!currentAtPos) return;
+
+              const tr = editor.state.tr.setNodeMarkup(pos, undefined, {
+                ...currentAtPos.attrs,
+                width: normalizedWidth,
+              });
+              editor.view.dispatch(tr);
+            };
+
+            const onPointerMove = (event) => {
+              if (!resizing) return;
+              const deltaX = event.clientX - startX;
+              const nextWidth = Math.max(MIN_IMAGE_WIDTH, Math.round(startWidth + deltaX));
+              img.style.width = `${nextWidth}px`;
+              img.setAttribute('width', String(nextWidth));
+            };
+
+            const stopResize = () => {
+              if (!resizing) return;
+              resizing = false;
+              dom.classList.remove('is-resizing');
+              window.removeEventListener('pointermove', onPointerMove);
+              window.removeEventListener('pointerup', stopResize);
+              window.removeEventListener('pointercancel', stopResize);
+              const finalWidth = Math.round(img.getBoundingClientRect().width);
+              commitWidth(finalWidth);
+            };
+
+            handle.addEventListener('pointerdown', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              resizing = true;
+              dom.classList.add('is-resizing');
+              startX = event.clientX;
+              startWidth = img.getBoundingClientRect().width || MIN_IMAGE_WIDTH;
+              window.addEventListener('pointermove', onPointerMove);
+              window.addEventListener('pointerup', stopResize);
+              window.addEventListener('pointercancel', stopResize);
+            });
+
+            applyAttrs(currentNode.attrs);
+
+            return {
+              dom,
+              update(updatedNode) {
+                if (updatedNode.type !== currentNode.type) return false;
+                currentNode = updatedNode;
+                applyAttrs(currentNode.attrs);
+                return true;
+              },
+              destroy() {
+                window.removeEventListener('pointermove', onPointerMove);
+                window.removeEventListener('pointerup', stopResize);
+                window.removeEventListener('pointercancel', stopResize);
+              },
+            };
+          };
+        },
+      });
     }
 
     function inferLabelFromUrl(url) {
@@ -565,12 +778,14 @@
     }
 
     function initEditor() {
+      const ResizableImage = createResizableImageExtension(Image);
+
       editor = new Editor({
         element: document.getElementById('editor'),
         extensions: [
           StarterKit,
           Underline,
-          Image,
+          ResizableImage,
           Link.configure({
             openOnClick: false,
             autolink: true,
@@ -652,7 +867,7 @@
       initEditor();
       initToolbar();
       initMediahook();
-      setStatus('Editor bereit. Kopieren uebernimmt den kompletten Markdown-Inhalt.', 'ok');
+      setStatus('Editor bereit. Bilder unten rechts ziehen zum Resizen; Kopieren uebernimmt den kompletten Markdown-Inhalt.', 'ok');
     }
 
     boot();

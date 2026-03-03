@@ -51,8 +51,10 @@ The format is based on Keep a Changelog.
 
 - **TipTap Popup Example (serverless):** Neue Beispiele `examples/tiptap-popup.html` und `examples/tiptap-bookmarklet.html`.
   - Vollständiger TipTap-Editor im Popup mit Toolbar und zusätzlichem `Mediahook`-Button.
+  - Bilder sind im Editor über einen Drag-Handle an der unteren rechten Ecke resizbar.
   - Markdown-Pastes werden erkannt und als HTML im Editor gerendert.
   - Live-Ausgabe als Markdown und HTML, plus `Kopieren`-Button für den gesamten Markdown-Inhalt.
+  - Resizte Bilder bleiben im Markdown-Ausgabefeld als HTML-`<img ... width="...">` erhalten (statt Größenverlust im Standard-Markdown-Format).
   - Blossom Widget wird über den Toolbar-Button geöffnet und fügt Inhalte direkt in den Editor ein (optional mit Auto-Copy des Gesamtinhalts).
   - VSCode-freundlich: `@ts-nocheck` im Modul-Script verhindert lokale Typ-Fehlalarme für CDN-Imports und `window.BlossomMedia`.
   - Edge-Tools-Warnungen behoben: Safari-`-webkit-` Präfixe (`backdrop-filter`, `user-select`) und zugängliche Labels für Output-Textareas.
