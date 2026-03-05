@@ -149,7 +149,8 @@ export function buildAmbEventTags(
 
   // ── General ──
   tags.push(['d', dTag]);
-  tags.push(['type', 'LearningResource', 'ImageObject']);
+  tags.push(['type', 'LearningResource']);
+  tags.push(['type', 'ImageObject']);
   tags.push(['name', form.name]);
   tags.push(['description', form.description]);
 
