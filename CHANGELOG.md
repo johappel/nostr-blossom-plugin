@@ -14,6 +14,7 @@ The format is based on Keep a Changelog.
 
 ### Changed
 
+- **AMB type-Tag erweitert**: `packages/tab-oer-shares` schreibt für kind:30142 jetzt `['type', 'LearningResource', 'ImageObject']` statt nur `LearningResource`.
 - **Icons**: Alle Emoji-Icons durch Google Material SVG-Icons ersetzt (Tabs, Buttons, Statusanzeigen).
   - Betrifft: MediaWidget Tab-Bar, UploadTab, ImageGenTab, GalleryTab Share-Popover, SettingsPanel Plugin-Liste, CommunityTab, OerSharesTab.
   - Plugin-Icons (`tab-communikey`, `tab-oer-shares`) sind jetzt inline-SVG-Strings statt Emojis.

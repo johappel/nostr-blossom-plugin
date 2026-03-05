@@ -148,7 +148,11 @@ describe('buildAmbEventTags', () => {
   it('should have d, type, name, description tags', () => {
     const tags = buildAmbEventTags(sampleForm);
     expect(findTag(tags, 'd')?.[1]).toBe('https://blossom.example.com/video.mp4');
-    expect(findTag(tags, 'type')?.[1]).toBe('LearningResource');
+    expect(findTag(tags, 'type')).toEqual([
+      'type',
+      'LearningResource',
+      'ImageObject',
+    ]);
     expect(findTag(tags, 'name')?.[1]).toBe('Pythagorean Theorem Video');
     expect(findTag(tags, 'description')?.[1]).toContain('introductory video');
   });
